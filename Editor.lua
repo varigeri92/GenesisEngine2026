@@ -28,8 +28,8 @@ project "Editor"
     includedirs {
         IncludeDir.Engine_API,
         IncludeDir.Engine_Include,
+        IncludeDir.Vulkan,
         --[[
-            IncludeDir.Vulkan,
             IncludeDir.SDL,
             IncludeDir.Assimp,
             IncludeDir.Assimp_Build,

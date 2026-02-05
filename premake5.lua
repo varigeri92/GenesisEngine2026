@@ -7,6 +7,7 @@ workspace "GenesisEngine"
     startproject "Editor"
     toolset "msc-v145"
     debugenvs { "TRACEDESIGNTIME = true" }
+    buildoptions { "/utf-8" }
     
     configurations { "Debug", "Release", "Profile", "Dist" }
     filter { "platforms:Win64" }

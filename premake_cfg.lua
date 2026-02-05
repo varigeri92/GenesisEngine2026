@@ -17,22 +17,23 @@ Paths = {
 -- SUBMODULE ROOTS
 ---------------------------------------
 Submodules = {
-    Assimp       = path.getabsolute("submodules/assimp"),
-    YAMLCPP      = path.getabsolute("submodules/yaml-cpp"),
-    ImGui        = path.getabsolute("submodules/imgui"),
-    ImGuizmo     = path.getabsolute("submodules/ImGuizmo"),
-    VKBootstrap  = path.getabsolute("submodules/vk-bootstrap"),
-    EnTT         = path.getabsolute("submodules/entt"),
-    SpirvReflect = path.getabsolute("submodules/spirv_reflect"),
+    fmt          = path.getabsolute("vendor/fmt"),
+    Assimp       = path.getabsolute("vendor/assimp"),
+    YAMLCPP      = path.getabsolute("vendor/yaml-cpp"),
+    ImGui        = path.getabsolute("vendor/imgui"),
+    ImGuizmo     = path.getabsolute("vendor/ImGuizmo"),
+    VKBootstrap  = path.getabsolute("vendor/vk-bootstrap"),
+    EnTT         = path.getabsolute("vendor/entt"),
+    SpirvReflect = path.getabsolute("vendor/spirv_reflect"),
 }
 
 ---------------------------------------
 -- SUBMODULE INCLUDE DIRECTORIES
 ---------------------------------------
 IncludeDir = {
-    Vulkan       = Paths.Vulkan_Include,
-    SDL          = Paths.SDL_Include,
-
+    Vulkan        = Paths.Vulkan_Include,
+    SDL           = Paths.SDL_Include,
+    fmt           = Submodules.fmt .. "/include",
     -- Engine
     Engine_API     = "Engine/API",
     Engine_Include = "Engine/include",
@@ -57,7 +58,9 @@ IncludeDir = {
 LibDir = {
     Output   = Paths.OutputDir,
     Vulkan   = Paths.Vulkan_Lib,
-    Assimp   = Submodules.Assimp .. "/build/lib/Release"
+    Assimp   = Submodules.Assimp .. "/build/lib/Release",
+    fmt_d    = Submodules.fmt .. "/build/Debug",
+    fmt_r    = Submodules.fmt .. "/build/Release"
 }
 
 ---------------------------------------
@@ -69,6 +72,8 @@ Libs = {
     Vulkan           = "vulkan-1.lib",
     Assimp           = "assimp-vc145-mt.lib",
     Assimp_d         = "assimp-vc145-mtd.lib",
+    fmt              = "fmt.lib",
+    fmt_d            = "fmtd.lib",
     ImGui            = "ImGui.lib",
     SpirvReflect     = "spirv_reflect.lib",
     YAMLCPPd         = "yaml-cppd.lib",
