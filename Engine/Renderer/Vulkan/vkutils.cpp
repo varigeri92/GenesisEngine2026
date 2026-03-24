@@ -458,7 +458,7 @@ namespace gns::rendering::utils
 		return info;
 	}
 
-	bool LoadShaderModule(const char* filePath, VkDevice device, VkShaderModule* outShaderModule)
+	bool LoadShaderModule(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule)
 	{
 		std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 		if (!file.is_open()) {

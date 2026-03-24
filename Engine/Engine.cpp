@@ -6,11 +6,14 @@
 #include "Window/WindowSystem.h"
 #include "Utils/Time.h"
 #include "Renderer/RenderSystem.h"
+#include "Utils/Path.h"
 
 gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{cfg.headless, cfg.InitTetsSystem} {}
 
 void gns::core::Engine::Initialize(std::function<void()> callback)
 {
+	gns::path::SetResourcesDirectory();
+	
 	gns::window::WindowSystem* ws = nullptr;
 	if (!m_engineConfig.headless) {
 		ws = SystemsManager::RegisterSystem<gns::window::WindowSystem>(this);

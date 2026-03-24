@@ -8,6 +8,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
+#include "DescriptorLayoutBuilder.h"
 #include "VulkanImage.h"
 
 namespace gns::rendering 
@@ -46,7 +47,11 @@ namespace gns::rendering
 		VkDevice GetDevice() { return m_device; };
 		VkSurfaceKHR GetSurface() { return m_surface; };
 		
+		VkFence m_immediateFence;
+		VkCommandBuffer m_immediateCommandBuffer;
+		VkCommandPool m_immediateCommandPool;
 		
+		void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
 		void DrawFrame();
 	private:
 		CleanupQueue m_cleanupQueue;
@@ -63,7 +68,7 @@ namespace gns::rendering
 		void InitSwapchain();
 		void InitCommands();
 		void InitSyncStructs();
-
+		void InitDescriptors();
 		FrameData& GetCurrentFrame();
 		FrameData& GetFrameByIndex(size_t index);
 		void Cleanup();
@@ -86,6 +91,22 @@ namespace gns::rendering
 		uint32_t m_presentQueueFamily;
 
 		size_t m_currentFrame;
+		
+		DescriptorAllocator m_descriptorAllocator;
+		VkDescriptorSet _drawImageDescriptors;
+		VkDescriptorSetLayout _drawImageDescriptorLayout;
+		
+		
+		//test pipelines:
+		VkPipeline _gradientPipeline;
+		VkPipelineLayout _gradientPipelineLayout;
+		void init_pipelines();
+		void init_background_pipelines();
+		
+		//tmp imgui code:
+		void init_imgui();
+		
+		
 	};
 }
 

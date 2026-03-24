@@ -3,9 +3,12 @@
 #include "vulkan_log.h"
 #include <VkBootstrap.h>
 #include "vkutils.h"
+#include "Pipelines.h"
 
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
+
+#include "../../Utils/Path.h"
 
 constexpr unsigned int FRAME_OVERLAP = 3;
 
@@ -47,6 +50,10 @@ void gns::rendering::Device::Create(SDL_Window* sdl_window)
 	InitSwapchain();
 	InitCommands();
 	InitSyncStructs();
+	InitDescriptors();
+	
+	//init pipeline for test:
+	init_pipelines();
 }
 
 void gns::rendering::Device::InitVulkan(SDL_Window* sdl_window)
@@ -178,6 +185,19 @@ void gns::rendering::Device::InitCommands()
 		_VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_frames[i]._mainCommandBuffer),
 			"CommandPool allocation Failed!");
 	}
+	
+	
+	VK_CHECK(vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_immediateCommandPool));
+
+	// allocate the command buffer for immediate submits
+	VkCommandBufferAllocateInfo cmdAllocInfo = utils::CommandBufferAllocateInfo(m_immediateCommandPool, 1);
+
+	VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_immediateCommandBuffer));
+
+	m_cleanupQueue.Push([=]() { 
+	vkDestroyCommandPool(m_device, m_immediateCommandPool, nullptr);
+	});
+	
 }
 
 void gns::rendering::Device::InitSyncStructs()
@@ -190,6 +210,54 @@ void gns::rendering::Device::InitSyncStructs()
 		VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_frames[i]._swapchainSemaphore));
 		VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_frames[i]._renderSemaphore));
 	}
+	
+	VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_immediateFence));
+	m_cleanupQueue.Push([=]() 
+		{ vkDestroyFence(m_device, m_immediateFence, nullptr); });
+}
+
+void gns::rendering::Device::InitDescriptors()
+{
+	//create a descriptor pool that will hold 10 sets with 1 image each
+	std::vector<DescriptorAllocator::PoolSizeRatio> sizes =
+	{
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }
+	};
+
+	m_descriptorAllocator.InitPool(m_device, 10, sizes);
+
+	//make the descriptor set layout for our compute draw
+	{
+		DescriptorLayoutBuilder builder;
+		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		_drawImageDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_COMPUTE_BIT);
+	}
+	
+	//allocate a descriptor set for our draw image
+	_drawImageDescriptors = m_descriptorAllocator.Allocate(m_device,_drawImageDescriptorLayout);	
+
+	VkDescriptorImageInfo imgInfo{};
+	imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	imgInfo.imageView = m_drawImage.imageView;
+	
+	VkWriteDescriptorSet drawImageWrite = {};
+	drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	drawImageWrite.pNext = nullptr;
+	
+	drawImageWrite.dstBinding = 0;
+	drawImageWrite.dstSet = _drawImageDescriptors;
+	drawImageWrite.descriptorCount = 1;
+	drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	drawImageWrite.pImageInfo = &imgInfo;
+
+	vkUpdateDescriptorSets(m_device, 1, &drawImageWrite, 0, nullptr);
+
+	//make sure both the descriptor allocator and the new layout get cleaned up properly
+	m_cleanupQueue.Push([&]() {
+		m_descriptorAllocator.DestroyPool(m_device);
+		vkDestroyDescriptorSetLayout(m_device, _drawImageDescriptorLayout, nullptr);
+	});
+	
 }
 
 gns::rendering::Device::FrameData& gns::rendering::Device::GetCurrentFrame()
@@ -201,6 +269,23 @@ gns::rendering::Device::FrameData& gns::rendering::Device::GetCurrentFrame()
 gns::rendering::Device::FrameData& gns::rendering::Device::GetFrameByIndex(size_t index)
 {
 	return m_frames[index];
+}
+
+void gns::rendering::Device::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function)
+{
+	VK_CHECK(vkResetFences(m_device, 1, &m_immediateFence));
+	VK_CHECK(vkResetCommandBuffer(m_immediateCommandBuffer, 0));
+	VkCommandBuffer cmd = m_immediateCommandBuffer;
+	VkCommandBufferBeginInfo cmdBeginInfo = utils::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+	
+	function(cmd);
+
+	VK_CHECK(vkEndCommandBuffer(cmd));
+	VkCommandBufferSubmitInfo cmdinfo = utils::CommandBufferSubmitInfo(cmd);
+	VkSubmitInfo2 submit = utils::SubmitInfo(&cmdinfo, nullptr, nullptr);
+	VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, m_immediateFence));
+	VK_CHECK(vkWaitForFences(m_device, 1, &m_immediateFence, true, 9999999999));
 }
 
 void gns::rendering::Device::DrawFrame()
@@ -288,6 +373,20 @@ void gns::rendering::Device::Cleanup()
 
 void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
 {
+	
+	// bind the gradient drawing compute pipeline
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
+
+	// bind the descriptor set containing the draw image for the compute pipeline
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
+
+	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+	vkCmdDispatch(cmd, 
+		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().width / 16.0)), 
+		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().height / 16.0)), 
+		1);
+	
+	/* 
 	//make a clear-color from frame number. This will flash with a 120 frame period.
 	VkClearColorValue clearValue;
 	float flash = std::abs(std::sin(m_currentFrame / 120.f));
@@ -297,4 +396,50 @@ void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
 
 	//clear image
 	vkCmdClearColorImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+	*/
+}
+
+void gns::rendering::Device::init_pipelines()
+{
+	init_background_pipelines();
+}
+
+void gns::rendering::Device::init_background_pipelines()
+{
+	VkPipelineLayoutCreateInfo computeLayout{};
+	computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	computeLayout.pNext = nullptr;
+	computeLayout.pSetLayouts = &_drawImageDescriptorLayout;
+	computeLayout.setLayoutCount = 1;
+
+	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &_gradientPipelineLayout));
+	
+	VkShaderModule computeDrawShader;
+	std::string shaderPath = gns::path::InResourcesDirectory(R"(Shaders\TestShader.comp.spv)").string();
+	if (!utils::LoadShaderModule(shaderPath, m_device, &computeDrawShader))
+	{
+		LOG_ERROR("Error when building the compute shader \n");
+	}
+
+	VkPipelineShaderStageCreateInfo stageinfo{};
+	stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	stageinfo.pNext = nullptr;
+	stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	stageinfo.module = computeDrawShader;
+	stageinfo.pName = "main";
+
+	VkComputePipelineCreateInfo computePipelineCreateInfo{};
+	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	computePipelineCreateInfo.pNext = nullptr;
+	computePipelineCreateInfo.layout = _gradientPipelineLayout;
+	computePipelineCreateInfo.stage = stageinfo;
+	
+	VK_CHECK(vkCreateComputePipelines(m_device,VK_NULL_HANDLE,1,&computePipelineCreateInfo, nullptr, &_gradientPipeline));
+
+	vkDestroyShaderModule(m_device, computeDrawShader, nullptr);
+
+	m_cleanupQueue.Push([&]() {
+		vkDestroyPipelineLayout(m_device, _gradientPipelineLayout, nullptr);
+		vkDestroyPipeline(m_device, _gradientPipeline, nullptr);
+		});
 }

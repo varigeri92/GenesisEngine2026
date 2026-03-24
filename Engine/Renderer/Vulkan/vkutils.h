@@ -116,7 +116,7 @@ namespace gns::rendering::utils
 	VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo,
 	                         VkSemaphoreSubmitInfo* waitSemaphoreInfo);
 
-	bool LoadShaderModule(const char* filePath,
+	bool LoadShaderModule(const std::string& filePath,
 		VkDevice device,
 		VkShaderModule* outShaderModule);
 	VkRenderingInfo RenderingInfo(
