@@ -41,3 +41,15 @@ void gns::core::Engine::ShutDown()
 {
 	SystemsManager::Clear();
 }
+
+SDL_Window* gns::core::Engine::GetWindow()
+{
+	window::WindowSystem* ws = SystemsManager::GetSystem<window::WindowSystem>();
+	return ws->GetSDLWindow();
+}
+
+gns::rendering::Renderer* gns::core::Engine::GetRenderer()
+{
+	RenderSystem* rs = SystemsManager::GetSystem<RenderSystem>();
+	return rs->GetRenderer();
+}

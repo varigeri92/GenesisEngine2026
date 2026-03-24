@@ -33,3 +33,8 @@ void gns::RenderSystem::OnDisable()
 void gns::RenderSystem::OnDestroy()
 {
 }
+
+gns::rendering::Renderer* gns::RenderSystem::GetRenderer()
+{
+	return &m_renderer;
+}

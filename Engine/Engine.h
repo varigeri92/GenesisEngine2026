@@ -2,6 +2,12 @@
 #include "API/API.h"
 #include "functional"
 
+struct SDL_Window;
+
+namespace  gns::rendering
+{
+	class Renderer;
+}
 namespace gns::core {
 
 	struct EngineConfig {
@@ -17,6 +23,9 @@ namespace gns::core {
 		GNS_API void Run();
 		GNS_API void ShutDown();
 
+		GNS_API SDL_Window* GetWindow();
+		GNS_API gns::rendering::Renderer* GetRenderer();
+		
 		bool close;
 	private:
 		EngineConfig m_engineConfig;

@@ -38,7 +38,7 @@ group "Application"
     -- include "Sandbox.lua"
     
 group "dependencies"
-    --include "ImGui.lua"
+    include "ImGui.lua"
     --include "yaml-cpp.lua"
     --include "spirv_reflect.lua"
     --include "Assimp.lua"

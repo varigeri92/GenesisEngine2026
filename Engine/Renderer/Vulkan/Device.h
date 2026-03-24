@@ -46,6 +46,9 @@ namespace gns::rendering
 		VkPhysicalDevice GetGPU() { return m_physDevice; };
 		VkDevice GetDevice() { return m_device; };
 		VkSurfaceKHR GetSurface() { return m_surface; };
+		VkInstance GetInstance() { return m_instance; };
+		VkQueue GetGraphicsQueue() { return m_graphicsQueue; };
+		Swapchain GetSwapchain() { return m_swapchain; };
 		
 		VkFence m_immediateFence;
 		VkCommandBuffer m_immediateCommandBuffer;

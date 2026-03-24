@@ -24,7 +24,21 @@ public:
 	{
 		Systems.emplace_back(std::make_unique<System_T>(std::forward<Args>(args)...));
 		Systems[Systems.size() - 1]->State = System::SystemState::Created;
-		return reinterpret_cast<System_T*>(Systems[Systems.size() - 1].get());
+		return dynamic_cast<System_T*>(Systems[Systems.size() - 1].get());
+	}
+	
+	template
+		<typename System_T, 
+		typename = std::enable_if<std::is_base_of<System, System_T>::value>::type, 
+		typename... Args>
+	static System_T* GetSystem()
+	{
+		for (const auto& system : Systems)
+		{
+			if (typeid(*system.get()) == typeid(System_T))
+				return static_cast<System_T*>(system.get());
+		}
+		return nullptr;
 	}
 
 	static void Run(float deltaTime);

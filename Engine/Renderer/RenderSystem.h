@@ -22,6 +22,8 @@ namespace gns {
 		void OnFixedUpdate() override;
 		void OnDisable() override;
 		void OnDestroy() override;
+		
+		rendering::Renderer* GetRenderer();
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;

@@ -49,7 +49,7 @@ project "Engine"
         IncludeDir.VKBootstrap,
         IncludeDir.fmt
         --[[
-        IncludeDir.ImGui,
+        IncludeDir.ImGui
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
         IncludeDir.EnTT,
@@ -66,10 +66,8 @@ project "Engine"
         "vendor/vk-bootstrap/src/*.cpp",
         "vendor/vk-bootstrap/src/*.h"    
     }
-    --[[
-        filter { 'files:imgui/**.cpp' }
-        flags { 'NoPCH' }
-]]
+    filter { 'files:imgui/**.cpp' }
+    flags { 'NoPCH' }
         
-        filter { 'files:vendor/vk-bootstrap/src/*.cpp' }
-        flags { 'NoPCH' }
+    filter { 'files:vendor/vk-bootstrap/src/*.cpp' }
+    flags { 'NoPCH' }

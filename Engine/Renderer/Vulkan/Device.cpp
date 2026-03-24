@@ -11,8 +11,7 @@
 #include "../../Utils/Path.h"
 
 constexpr unsigned int FRAME_OVERLAP = 3;
-
-bool _useValidationLayers = true;
+constexpr bool _useValidationLayers = true;
 
 void gns::rendering::Device::CleanupQueue::Push(std::function<void()>&& func)
 {
@@ -373,14 +372,8 @@ void gns::rendering::Device::Cleanup()
 
 void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
 {
-	
-	// bind the gradient drawing compute pipeline
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
-
-	// bind the descriptor set containing the draw image for the compute pipeline
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
-
-	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
 	vkCmdDispatch(cmd, 
 		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().width / 16.0)), 
 		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().height / 16.0)), 

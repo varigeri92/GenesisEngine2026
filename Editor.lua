@@ -10,6 +10,7 @@ project "Editor"
 
     links {
         "Engine.lib",
+        "ImGui.lib"
     }
     
     --[[
@@ -28,14 +29,15 @@ project "Editor"
     includedirs {
         IncludeDir.Engine_API,
         IncludeDir.Engine_Include,
+        IncludeDir.ImGui,
         IncludeDir.Vulkan,
+        IncludeDir.gnsGui
         --[[
             IncludeDir.SDL,
             IncludeDir.Assimp,
             IncludeDir.Assimp_Build,
             IncludeDir.VKBootstrap,
             IncludeDir.EnTT,
-            IncludeDir.ImGui,
             IncludeDir.ImGuizmo,
             IncludeDir.YAML,
             IncludeDir.SpirvReflect
@@ -51,5 +53,5 @@ project "Editor"
 
     -- debugargs { "-p", Paths.ProjectDir, "-r", Paths.ResourceDir }
     
-    dependson { "Engine" }
+    dependson { "Engine", "ImGui" }
     -- dependson { "Engine", "ImGui", "spirv_reflect", "yaml-cpp", "assimp" }

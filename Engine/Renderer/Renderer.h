@@ -12,6 +12,12 @@ namespace gns::rendering {
 		~Renderer() = default;
 		void CreateDevice(SDL_Window* sdl_window);
 		void DrawFrame();
+		
+		VkDevice GetDevice();
+		VkPhysicalDevice GetPhysicalDevice();
+		VkInstance GetInstance();
+		VkQueue GetGraphicsQueue();
+		VkFormat GetSwapChainFormat();
 	};
 }
 

@@ -20,7 +20,7 @@ Submodules = {
     fmt          = path.getabsolute("vendor/fmt"),
     Assimp       = path.getabsolute("vendor/assimp"),
     YAMLCPP      = path.getabsolute("vendor/yaml-cpp"),
-    ImGui        = path.getabsolute("vendor/imgui"),
+    ImGui        = path.getabsolute("vendor/ImGui"),
     ImGuizmo     = path.getabsolute("vendor/ImGuizmo"),
     VKBootstrap  = path.getabsolute("vendor/vk-bootstrap"),
     EnTT         = path.getabsolute("vendor/entt"),
@@ -42,6 +42,7 @@ IncludeDir = {
     ImGui          = Submodules.ImGui,
     ImGui_Backends = Submodules.ImGui .. "/backends",
     ImGuizmo       = Submodules.ImGuizmo,
+    gnsGui         = "ImGui",
     
     Assimp         = Submodules.Assimp .. "/include",
     Assimp_Build   = Submodules.Assimp .. "/build/include",
