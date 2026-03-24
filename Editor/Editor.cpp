@@ -15,5 +15,6 @@ int main()
     });
     engine.Run();
     engine.ShutDown();
+    std::getchar();
 }
 

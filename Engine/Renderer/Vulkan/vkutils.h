@@ -1,9 +1,5 @@
 #pragma once
-#include "../../Log/Logger.h"
-#include <iostream>
 #include <vulkan/vulkan.h>
-#include <vma/vk_mem_alloc.h>
-
 namespace gns::rendering::utils
 {
 	//Helpers:

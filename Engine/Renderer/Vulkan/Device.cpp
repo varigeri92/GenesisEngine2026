@@ -2,19 +2,40 @@
 #include "Device.h"
 #include "vulkan_log.h"
 #include <VkBootstrap.h>
+#include "vkutils.h"
+
+#define VMA_IMPLEMENTATION
+#include <vma/vk_mem_alloc.h>
+
+constexpr unsigned int FRAME_OVERLAP = 3;
 
 bool _useValidationLayers = true;
-gns::rendering::Device::Device()
+
+void gns::rendering::Device::CleanupQueue::Push(std::function<void()>&& func)
 {
+	m_queue.push_back(func);
+}
+
+void gns::rendering::Device::CleanupQueue::Flush()
+{
+	for (auto it = m_queue.rbegin(); it != m_queue.rend(); it++) {
+		(*it)();
+	}
+	m_queue.clear();
+}
+
+gns::rendering::Device::Device() : m_cleanupQueue{}
+{
+	m_currentFrame = 0;
 	m_frames.reserve(FRAME_OVERLAP);
 	for (int i = 0; i < FRAME_OVERLAP; ++i)
 	{
 		m_frames.emplace_back();
 	}
 }
+
 gns::rendering::Device::~Device()
 {
-	LOG_INFO("Device Puff!");
 	Cleanup();
 }
 void gns::rendering::Device::Create(SDL_Window* sdl_window)
@@ -73,11 +94,21 @@ void gns::rendering::Device::InitVulkan(SDL_Window* sdl_window)
 	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
 
 	vkb::Device vkbDevice = deviceBuilder.build().value();
-
+	
 	// Get the VkDevice handle used in the rest of a vulkan application
 	m_device = vkbDevice.device;
 	m_physDevice = physicalDevice.physical_device;
 
+	VmaAllocatorCreateInfo allocatorInfo = {};
+	allocatorInfo.physicalDevice = m_physDevice;
+	allocatorInfo.device = m_device;
+	allocatorInfo.instance = m_instance;
+	allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+	vmaCreateAllocator(&allocatorInfo, &m_allocator);
+
+	m_cleanupQueue.Push([&]() {
+		vmaDestroyAllocator(m_allocator);
+	});
 
 	m_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 	m_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
@@ -90,7 +121,6 @@ void gns::rendering::Device::InitVulkan(SDL_Window* sdl_window)
 
 	m_presentQueue = vkbDevice.get_queue(vkb::QueueType::present).value();
 	m_presentQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::present).value();
-
 }
 
 void gns::rendering::Device::InitSwapchain()
@@ -99,40 +129,172 @@ void gns::rendering::Device::InitSwapchain()
 	SDL_GetWindowSize(m_sdl_window, &w, &h);
 	VkExtent2D _extent{ static_cast<uint32_t>(w),static_cast<uint32_t>(h) };
 	m_swapchain.CreateSwapchain(this, _extent);
+	
+	VkExtent3D drawImageExtent = {
+	static_cast<uint32_t>(w),static_cast<uint32_t>(h), 1
+	};
+	m_drawImage = {drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT};
+	
+	VkImageUsageFlags drawImageUsages{};
+	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	
+	VkImageCreateInfo rimg_info = utils::ImageCreateInfo(m_drawImage.imageFormat, drawImageUsages, drawImageExtent);
+
+	//for the draw image, we want to allocate it from gpu local memory
+	VmaAllocationCreateInfo rimg_allocinfo = {};
+	rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	//allocate and create the image
+	vmaCreateImage(m_allocator, &rimg_info, &rimg_allocinfo, &m_drawImage.image, &m_drawImage.allocation, nullptr);
+
+	//build a image-view for the draw image to use for rendering
+	VkImageViewCreateInfo rview_info = utils::ImageViewCreateInfo(m_drawImage.imageFormat, m_drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	VK_CHECK(vkCreateImageView(m_device, &rview_info, nullptr, &m_drawImage.imageView));
+
+	//add to deletion queues
+	m_cleanupQueue.Push([this]() {
+		vkDestroyImageView(m_device, m_drawImage.imageView, nullptr);
+		vmaDestroyImage(m_allocator, m_drawImage.image, m_drawImage.allocation);
+	});
+	
 }
 
 void gns::rendering::Device::InitCommands()
 {
 	//create a command pool for commands submitted to the graphics queue.
 	//we also want the pool to allow for resetting of individual command buffers
-	VkCommandPoolCreateInfo commandPoolInfo = {};
-	commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolInfo.pNext = nullptr;
-	commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	commandPoolInfo.queueFamilyIndex = m_graphicsQueueFamily;
-
+	VkCommandPoolCreateInfo commandPoolInfo = 
+		utils::CommandPoolCreateInfo(m_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
-		_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_frames[i]._commandPool), "CommandPool Create failed!");
-		// allocate the default command buffer that we will use for rendering
-		VkCommandBufferAllocateInfo cmdAllocInfo = {};
-		cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdAllocInfo.pNext = nullptr;
-		cmdAllocInfo.commandPool = m_frames[i]._commandPool;
-		cmdAllocInfo.commandBufferCount = 1;
-		cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		_VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_frames[i]._mainCommandBuffer), "CommandPool allocation Failed!");
+		_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolInfo, nullptr, &m_frames[i]._commandPool),
+			"CommandPool Create failed!");
+		VkCommandBufferAllocateInfo cmdAllocInfo = 
+			utils::CommandBufferAllocateInfo(m_frames[i]._commandPool);
+		_VK_CHECK(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_frames[i]._mainCommandBuffer),
+			"CommandPool allocation Failed!");
 	}
 }
 
 void gns::rendering::Device::InitSyncStructs()
 {
+	VkFenceCreateInfo fenceCreateInfo = utils::FenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+	VkSemaphoreCreateInfo semaphoreCreateInfo = utils::SemaphoreCreateInfo();
+
+	for (size_t i = 0; i < FRAME_OVERLAP; i++) {
+		VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_frames[i]._renderFence));
+		VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_frames[i]._swapchainSemaphore));
+		VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_frames[i]._renderSemaphore));
+	}
+}
+
+gns::rendering::Device::FrameData& gns::rendering::Device::GetCurrentFrame()
+{
+	size_t currentFrame = m_currentFrame % FRAME_OVERLAP;
+	return m_frames[currentFrame];
+}
+
+gns::rendering::Device::FrameData& gns::rendering::Device::GetFrameByIndex(size_t index)
+{
+	return m_frames[index];
+}
+
+void gns::rendering::Device::DrawFrame()
+{
+	VK_CHECK(vkWaitForFences(m_device, 1, &GetCurrentFrame()._renderFence, true, 1000000000));
+	VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame()._renderFence));
+	GetCurrentFrame()._cleanupQueue.Flush();
+	
+	uint32_t swapchainImageIndex;
+	VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapchain.GetSwapchain(), 
+		1000000000, GetCurrentFrame()._swapchainSemaphore, nullptr, &swapchainImageIndex));
+	
+	VkExtent2D drawExtent = {m_drawImage.imageExtent.width, m_drawImage.imageExtent.height};
+	FrameData& currentFrame = GetCurrentFrame();
+	
+	VkCommandBuffer cmd = currentFrame._mainCommandBuffer;
+	VK_CHECK(vkResetCommandBuffer(cmd, 0));
+	VkCommandBufferBeginInfo cmdBeginInfo = utils::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+	
+	// transition our main draw image into general layout so we can write into it.
+	// we will overwrite it all so we don't care about what was the older layout
+	utils::TransitionImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+	DrawTest(cmd);
+
+	//transition the draw image and the swapchain image into their correct transfer layouts
+	utils::TransitionImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	// execute a copy from the draw image into the swapchain
+	utils::CopyImageToImage(cmd, m_drawImage.image, m_swapchain.GetImage(swapchainImageIndex), 
+		drawExtent, m_swapchain.GetExtent());
+
+	// set swapchain image layout to Present so we can show it on the screen
+	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+	//finalize the command buffer (we can no longer add commands, but it can now be executed)
+	VK_CHECK(vkEndCommandBuffer(cmd));
+	VkCommandBufferSubmitInfo cmdinfo = utils::CommandBufferSubmitInfo(cmd);	
+	VkSemaphoreSubmitInfo waitInfo = utils::SemaphoreSubmitInfo(
+		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,currentFrame._swapchainSemaphore);
+	VkSemaphoreSubmitInfo signalInfo = utils::SemaphoreSubmitInfo(
+		VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, currentFrame._renderSemaphore);
+	VkSubmitInfo2 submit = utils::SubmitInfo(&cmdinfo,&signalInfo,&waitInfo);	
+	VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, currentFrame._renderFence));
+	
+	
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.pNext = nullptr;
+	presentInfo.pSwapchains = m_swapchain.GetSwapchain_ptr();
+	presentInfo.swapchainCount = 1;
+
+	presentInfo.pWaitSemaphores = &GetCurrentFrame()._renderSemaphore;
+	presentInfo.waitSemaphoreCount = 1;
+
+	presentInfo.pImageIndices = &swapchainImageIndex;
+
+	VK_CHECK(vkQueuePresentKHR(m_graphicsQueue, &presentInfo));
+	
+	m_currentFrame++;
 }
 
 void gns::rendering::Device::Cleanup()
 {
+	vkDeviceWaitIdle(m_device);
+	for (size_t i = 0; i < FRAME_OVERLAP; i++) 
+	{
+		vkDestroyFence(m_device, m_frames[i]._renderFence, nullptr);
+		vkDestroySemaphore(m_device, m_frames[i]._swapchainSemaphore, nullptr);
+		vkDestroySemaphore(m_device, m_frames[i]._renderSemaphore, nullptr);
+		
+		vkDestroyCommandPool(m_device, m_frames[i]._commandPool, nullptr);
+		
+		m_frames[i]._cleanupQueue.Flush();
+	}
+	m_cleanupQueue.Flush();
 	m_swapchain.DestroySwapchain();
 	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 	vkb::destroy_debug_utils_messenger(m_instance, m_debugMessenger);
 	vkDestroyInstance(m_instance, nullptr);
+}
+
+void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
+{
+	//make a clear-color from frame number. This will flash with a 120 frame period.
+	VkClearColorValue clearValue;
+	float flash = std::abs(std::sin(m_currentFrame / 120.f));
+	clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
+
+	VkImageSubresourceRange clearRange = utils::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+
+	//clear image
+	vkCmdClearColorImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
 }

@@ -11,6 +11,7 @@ namespace gns::rendering {
 		Renderer() = default;
 		~Renderer() = default;
 		void CreateDevice(SDL_Window* sdl_window);
+		void DrawFrame();
 	};
 }
 

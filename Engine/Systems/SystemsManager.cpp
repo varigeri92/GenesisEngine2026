@@ -1,5 +1,5 @@
-#include "SystemsManager.h"
 #include "gnspch.h"
+#include "SystemsManager.h"
 #include "SystemsManager.h"
 
 std::vector<std::unique_ptr<gns::core::System>> gns::core::SystemsManager::Systems = {};

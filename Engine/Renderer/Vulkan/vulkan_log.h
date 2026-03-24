@@ -28,6 +28,9 @@
 #define _VK_CHECK(result, msg)\
     if(result != VK_SUCCESS)LOG_VK_ERROR(msg << " Result: " << result)
 
+#define VK_CHECK(result)\
+	if(result != VK_SUCCESS) LOG_VK_ERROR(##result << " Result: " << result)
+
 //-----------------
 #else
 

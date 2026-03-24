@@ -19,6 +19,7 @@ void gns::RenderSystem::OnEnable()
 
 void gns::RenderSystem::OnUpdate(float deltaTime)
 {
+	m_renderer.DrawFrame();
 }
 
 void gns::RenderSystem::OnFixedUpdate()
