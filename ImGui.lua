@@ -5,8 +5,18 @@ project "ImGui"
     targetdir(LibDir.Output)
     objdir(Obj("ImGui"))
     location "ImGui"
-
-    libdirs { LibDir.Output }
+    
+    libdirs {
+        LibDir.Assimp,
+        LibDir.Output,
+        LibDir.Vulkan
+    }
+    
+    links {
+        "Engine.lib",
+        Libs.SDL2,
+        Libs.Vulkan
+    }
 
     defines { "BUILD_ENGINE_LIB" }
 
@@ -26,6 +36,10 @@ project "ImGui"
         Submodules.ImGui .. "/*.h",
         Submodules.ImGui .. "/*.cpp",
 
+        "ImGui/**.h",
+        "ImGui/**.c",
+        "ImGui/**.cpp",
+        "ImGui/**.hpp",   
         -- ImGuizmo
         -- Submodules.ImGuizmo .. "/ImGuizmo.cpp",
         -- Submodules.ImGuizmo .. "/ImGuizmo.h"

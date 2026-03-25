@@ -26,7 +26,8 @@ public:
 	void OnDestroy() override;
 
 	bool ShouldClose();
-	SDL_Window* GetSDLWindow();
+	GNS_API SDL_Window* GetSDLWindow();
+	void OnLateUpdate(float deltaTime) override;
 
 private:
 	gns::core::Engine* m_engine;

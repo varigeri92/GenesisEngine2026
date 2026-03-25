@@ -31,3 +31,7 @@ void TestSystemExternal::OnDisable()
 void TestSystemExternal::OnDestroy()
 {
 }
+
+void TestSystemExternal::OnLateUpdate(float deltaTime)
+{
+}

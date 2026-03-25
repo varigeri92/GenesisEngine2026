@@ -7,6 +7,7 @@ std::vector<size_t> gns::core::SystemsManager::deletionQeue = {};
 
 void gns::core::SystemsManager::Run(float deltaTime)
 {
+	bool firstUpdateTicked = false;
 	for (size_t i = 0; i < Systems.size(); i++)
 	{
 		switch (Systems[i]->State)
@@ -32,6 +33,7 @@ void gns::core::SystemsManager::Run(float deltaTime)
 			break;
 		case System::SystemState::Running:
 			Systems[i]->OnUpdate(deltaTime);
+			firstUpdateTicked = true;
 			break;
 		case System::SystemState::Destroyed:
 			Systems[i]->OnDestroy();
@@ -39,6 +41,15 @@ void gns::core::SystemsManager::Run(float deltaTime)
 		default:
 			continue;
 			break;
+		}
+	}
+	if (!firstUpdateTicked) return;
+	
+	for (size_t i = 0; i < Systems.size(); i++)
+	{
+		if (Systems[i]->State==System::SystemState::Running)
+		{
+			Systems[i]->OnLateUpdate(deltaTime);
 		}
 	}
 }

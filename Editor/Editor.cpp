@@ -1,6 +1,9 @@
+#define SDL_MAIN_HANDLED
 #include <iostream>
 #include "Genesis.h"
 #include "TestSystemExternal.h"
+#include "../Engine/Renderer/RenderSystem.h"
+#include "../Window/WindowSystem.h"
 
 int main()
 {
@@ -10,7 +13,7 @@ int main()
 
 
     gns::core::Engine engine(cfg);
-    engine.Initialize([]() {
+    engine.Initialize([&]() {
         gns::core::SystemsManager::RegisterSystem<TestSystemExternal>();
     });
     engine.Run();

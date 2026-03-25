@@ -21,7 +21,6 @@ project "Engine"
         Libs.Vulkan,
         --[[ 
             Libs.Assimp,
-            Libs.ImGui,
             ]]
         Libs.fmt_d
     }
@@ -47,9 +46,9 @@ project "Engine"
         IncludeDir.Engine_Include,
         IncludeDir.Engine_pch,
         IncludeDir.VKBootstrap,
-        IncludeDir.fmt
-        --[[
+        IncludeDir.fmt,
         IncludeDir.ImGui
+        --[[
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
         IncludeDir.EnTT,
@@ -64,10 +63,23 @@ project "Engine"
         "Engine/**.cpp",
         "Engine/**.hpp",
         "vendor/vk-bootstrap/src/*.cpp",
-        "vendor/vk-bootstrap/src/*.h"    
+        "vendor/vk-bootstrap/src/*.h",
+        IncludeDir.ImGui_Backends .. "/imgui_impl_vulkan.h",
+        IncludeDir.ImGui_Backends .. "/imgui_impl_vulkan.cpp",
+        IncludeDir.ImGui_Backends .. "/imgui_impl_sdl2.h",
+        IncludeDir.ImGui_Backends .. "/imgui_impl_sdl2.cpp",
+
+        Submodules.ImGui .. "/*.h",
+        Submodules.ImGui .. "/*.cpp",
     }
     filter { 'files:imgui/**.cpp' }
     flags { 'NoPCH' }
         
     filter { 'files:vendor/vk-bootstrap/src/*.cpp' }
+    flags { 'NoPCH' }
+
+    filter { 'files:vendor/ImGui/backends/*.cpp' }
+    flags { 'NoPCH' }
+
+    filter { 'files:vendor/ImGui/*.cpp' }
     flags { 'NoPCH' }

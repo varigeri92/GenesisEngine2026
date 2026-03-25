@@ -10,6 +10,7 @@ public:
 	{
 		Created, Started, Running, Stopped, Disabled, Destroyed, Enabled
 	};
+	
 
 	GNS_API System() = default;
 	GNS_API virtual ~System() = default;
@@ -18,11 +19,12 @@ public:
 	GNS_API virtual void OnStart() = 0;
 	GNS_API virtual void OnEnable() = 0;
 	GNS_API virtual void OnUpdate(float deltaTime) = 0;
+	GNS_API virtual void OnLateUpdate(float deltaTime) = 0;
 	GNS_API virtual void OnFixedUpdate() = 0;
 	GNS_API virtual void OnDisable() = 0;
 	GNS_API virtual void OnDestroy() = 0;
 
-	SystemState State;
+	SystemState State = SystemState::Created;
 protected:
 	size_t m_instanceID;
 	bool m_allowMultipleInstances = false;

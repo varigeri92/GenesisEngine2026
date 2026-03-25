@@ -18,6 +18,7 @@ namespace gns::rendering
 		VkSwapchainKHR GetSwapchain() const { return m_swapchain; }
 		VkSwapchainKHR* GetSwapchain_ptr() { return &m_swapchain; }
 		VkFormat GetFormat() const { return m_swapchainImageFormat; }
+		VkFormat* GetFormat_ptr() { return &m_swapchainImageFormat; }
 		VkExtent2D GetExtent() const { return m_swapchainExtent; }
 		VkImage GetImage(uint32_t index) const { return m_swapchainImages[index]; }
 		VkImageView GetImageView(uint32_t index) const { return m_swapchainImageViews[index]; }

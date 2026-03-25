@@ -36,7 +36,6 @@ void gns::core::TestSystem::OnUpdate(float deltaTime)
 
 void gns::core::TestSystem::OnFixedUpdate()
 {
-	LOG_INFO("Test System Fixed Update!");
 
 }
 
@@ -49,4 +48,8 @@ void gns::core::TestSystem::OnDisable()
 void gns::core::TestSystem::OnDestroy()
 {
 	LOG_INFO("Test System Destroyed!");
+}
+
+void gns::core::TestSystem::OnLateUpdate(float deltaTime)
+{
 }

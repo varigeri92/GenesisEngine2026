@@ -31,7 +31,12 @@ VkQueue gns::rendering::Renderer::GetGraphicsQueue()
 	return m_device.GetGraphicsQueue();
 }
 
-VkFormat gns::rendering::Renderer::GetSwapChainFormat()
+VkFormat* gns::rendering::Renderer::GetSwapChainFormat()
 {
-	return m_device.GetSwapchain().GetFormat();
+	return m_device.GetSwapchain().GetFormat_ptr();
+}
+
+void gns::rendering::Renderer::WaitForIdle()
+{
+	m_device.WaitForIdle();
 }

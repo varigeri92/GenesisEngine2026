@@ -10,6 +10,7 @@ void gns::window::WindowSystem::OnCreate()
 {
 	m_window = std::make_unique<gns::window::Window>(1920, 1080, "GenesisTestWindow");
 	m_window->Create();
+	LOG_INFO("Window system Created!");
 }
 
 void gns::window::WindowSystem::OnStart()
@@ -47,4 +48,8 @@ bool gns::window::WindowSystem::ShouldClose()
 SDL_Window* gns::window::WindowSystem::GetSDLWindow()
 {
 	return m_window->sdl_window;
+}
+
+void gns::window::WindowSystem::OnLateUpdate(float deltaTime)
+{
 }

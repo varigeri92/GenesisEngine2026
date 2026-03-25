@@ -19,11 +19,13 @@ namespace gns {
 		void OnStart() override;
 		void OnEnable() override;
 		void OnUpdate(float deltaTime) override;
+		void OnLateUpdate(float deltaTime) override;
 		void OnFixedUpdate() override;
 		void OnDisable() override;
 		void OnDestroy() override;
 		
-		rendering::Renderer* GetRenderer();
+		GNS_API rendering::Renderer* GetRenderer();
+		void WaitForIdle();
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;

@@ -1,7 +1,8 @@
 ﻿#include "gnspch.h"
+#include "API.h"
 #include "InputBackend.h"
 #include "../Window/Window.h"
-#include "API.h"
+#include "../Gui/GuiBackend.h"
 
 namespace gns::core
 {
@@ -72,6 +73,7 @@ namespace gns::core
 			default:
 				break;
 			}
+			gns::gui::GuiBackend::HandleEvents(event);
 		}
 		return false;
 	}

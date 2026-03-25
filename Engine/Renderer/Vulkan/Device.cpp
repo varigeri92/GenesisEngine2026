@@ -55,6 +55,11 @@ void gns::rendering::Device::Create(SDL_Window* sdl_window)
 	init_pipelines();
 }
 
+void gns::rendering::Device::WaitForIdle()
+{
+	vkDeviceWaitIdle(m_device);
+}
+
 void gns::rendering::Device::InitVulkan(SDL_Window* sdl_window)
 {
 	vkb::InstanceBuilder builder;
@@ -305,25 +310,38 @@ void gns::rendering::Device::DrawFrame()
 	VkCommandBufferBeginInfo cmdBeginInfo = utils::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 	
-	// transition our main draw image into general layout so we can write into it.
-	// we will overwrite it all so we don't care about what was the older layout
+	//TRANSITION: RenderTarget F:X -> F:General (for draw)
 	utils::TransitionImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
 	DrawTest(cmd);
 
-	//transition the draw image and the swapchain image into their correct transfer layouts
+	
+	//TRANSITION: RenderTarget F:General -> F:Transfer_SRC
 	utils::TransitionImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	
+	//TRANSITION: Swapchain F:X -> F:Transfer_DST
 	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-	// execute a copy from the draw image into the swapchain
+	//COPY(Transfer): RenderTarget SRC:RenderTarget -> DST:Swapchain
 	utils::CopyImageToImage(cmd, m_drawImage.image, m_swapchain.GetImage(swapchainImageIndex), 
 		drawExtent, m_swapchain.GetExtent());
 
-	// set swapchain image layout to Present so we can show it on the screen
-	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	
+	//TRANSITION: Swapchain F:Tranfer_DST -> F:ColorAttachment (Ready for imgui Draw)
+	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-	//finalize the command buffer (we can no longer add commands, but it can now be executed)
+	
+	VkRenderingAttachmentInfo colorAttachment = 
+		utils::AttachmentInfo( m_swapchain.GetImageView(swapchainImageIndex), nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	const VkRenderingInfo renderInfo = utils::RenderingInfo(m_swapchain.GetExtent(), &colorAttachment, nullptr);
+	//draw imgui into the swapchain image
+	gns::gui::GuiBackend::DrawImGui(cmd, renderInfo);
+
+	//TRANSITION: Swapchain F:ColorAttachment -> F:Preset_optimal (presentation)
+	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
 	VK_CHECK(vkEndCommandBuffer(cmd));
+	
+	
 	VkCommandBufferSubmitInfo cmdinfo = utils::CommandBufferSubmitInfo(cmd);	
 	VkSemaphoreSubmitInfo waitInfo = utils::SemaphoreSubmitInfo(
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,currentFrame._swapchainSemaphore);

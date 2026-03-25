@@ -7,6 +7,7 @@ gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(
 void gns::RenderSystem::OnCreate()
 {
 	m_renderer.CreateDevice(m_windowSystem->GetSDLWindow());
+	LOG_INFO("Render System created!");
 }
 
 void gns::RenderSystem::OnStart()
@@ -18,6 +19,10 @@ void gns::RenderSystem::OnEnable()
 }
 
 void gns::RenderSystem::OnUpdate(float deltaTime)
+{
+}
+
+void gns::RenderSystem::OnLateUpdate(float deltaTime)
 {
 	m_renderer.DrawFrame();
 }
@@ -37,4 +42,9 @@ void gns::RenderSystem::OnDestroy()
 gns::rendering::Renderer* gns::RenderSystem::GetRenderer()
 {
 	return &m_renderer;
+}
+
+void gns::RenderSystem::WaitForIdle()
+{
+	m_renderer.WaitForIdle();
 }

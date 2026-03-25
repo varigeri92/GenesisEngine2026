@@ -14,5 +14,6 @@ class TestSystemExternal : public gns::core::System
 public:
 
 	TestSystemExternal() = default;
+	void OnLateUpdate(float deltaTime) override;
 };
 

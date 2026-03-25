@@ -9,8 +9,7 @@ project "Editor"
     }
 
     links {
-        "Engine.lib",
-        "ImGui.lib"
+        "Engine.lib"
     }
     
     --[[

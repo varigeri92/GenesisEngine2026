@@ -1,0 +1,91 @@
+﻿#include "gnspch.h"
+#include "GuiBackend.h"
+#include <iterator>
+#include "imgui.h"
+#include "backends/imgui_impl_sdl2.h"
+#include "backends/imgui_impl_vulkan.h"
+
+
+gns::gui::GuiBackend::GuiBackend()
+{
+}
+
+gns::gui::GuiBackend::~GuiBackend() = default;
+
+void gns::gui::GuiBackend::DrawImGui(VkCommandBuffer cmd, const VkRenderingInfo& renderInfo)
+{
+	vkCmdBeginRendering(cmd, &renderInfo);
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+	
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
+	
+	vkCmdEndRendering(cmd);
+}
+
+void gns::gui::GuiBackend::HandleEvents(SDL_Event& event)
+{
+	ImGui_ImplSDL2_ProcessEvent(&event);
+}
+
+void gns::gui::GuiBackend::OnCreate(SDL_Window* window, ImGui_ImplVulkan_InitInfo& init_info)
+{
+	m_device = init_info.Device;
+	VkDescriptorPoolSize pool_sizes[] = { 
+		{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+		{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 } };
+
+	VkDescriptorPoolCreateInfo pool_info = {};
+	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	pool_info.maxSets = 1000;
+	pool_info.poolSizeCount = (uint32_t)std::size(pool_sizes);
+	pool_info.pPoolSizes = pool_sizes;
+
+	vkCreateDescriptorPool(m_device, &pool_info, nullptr, &m_imguiPool);
+	ImGui::CreateContext();
+	ImGui_ImplSDL2_InitForVulkan(window);
+	
+	init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+	init_info.DescriptorPool = m_imguiPool;
+	ImGui_ImplVulkan_Init(&init_info);
+	auto& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
+}
+
+void gns::gui::GuiBackend::BeginGuiFrame()
+{
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplSDL2_NewFrame();
+	ImGui::NewFrame();
+}
+
+void gns::gui::GuiBackend::OnUpdate()
+{
+	ImGui::ShowDemoWindow();
+}
+
+void gns::gui::GuiBackend::OnEndGuiFrame()
+{
+	ImGui::Render();
+}
+
+
+void gns::gui::GuiBackend::OnDestroy()
+{
+	ImGui_ImplVulkan_Shutdown();
+	vkDestroyDescriptorPool(m_device, m_imguiPool, nullptr);
+}

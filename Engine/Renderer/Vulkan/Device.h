@@ -10,6 +10,7 @@
 
 #include "DescriptorLayoutBuilder.h"
 #include "VulkanImage.h"
+#include "../Gui/GuiBackend.h"
 
 namespace gns::rendering 
 {
@@ -43,7 +44,8 @@ namespace gns::rendering
 		~Device();
 
 		void Create(SDL_Window* sdl_window);
-		VkPhysicalDevice GetGPU() { return m_physDevice; };
+		VkPhysicalDevice GetGPU() { return m_physDevice; }
+		void WaitForIdle();;
 		VkDevice GetDevice() { return m_device; };
 		VkSurfaceKHR GetSurface() { return m_surface; };
 		VkInstance GetInstance() { return m_instance; };
