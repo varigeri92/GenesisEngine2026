@@ -37,7 +37,7 @@ project "Engine"
     ]]
     filter {}
 
-    defines { "BUILD_DLL", "GLM_ENABLE_EXPERIMENTAL" }
+    defines { "BUILD_DLL", "GLM_ENABLE_EXPERIMENTAL", "IMGUI_API=GNS_API", "IMGUI_USER_CONFIG=<imgui_config_helper.h>"}
 
     includedirs {
         IncludeDir.Vulkan,

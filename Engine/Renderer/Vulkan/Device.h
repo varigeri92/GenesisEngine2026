@@ -7,15 +7,42 @@
 #include "Swapchain.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
-
 #include "DescriptorLayoutBuilder.h"
 #include "VulkanImage.h"
 #include "../Gui/GuiBackend.h"
 
+#include <glm/glm.hpp>
 namespace gns::rendering 
 {
+	class VulkanShader;
+
+	struct RenderPassData
+	{
+		VulkanShader* shaderOverride = nullptr;
+		VulkanImage* renderTarget = nullptr;
+		bool randomBool = true;
+	};
+	struct RenderPass
+	{
+		RenderPassData data;
+		std::string m_name;
+		RenderPass() = default;
+		RenderPass(std::string name, std::function<bool(VkCommandBuffer, RenderPassData&)> renderPassFunction);
+		void ExecuteRenderPass(VkCommandBuffer cmd);
+	private:
+		std::function<bool(VkCommandBuffer, RenderPassData&)> m_renderPassFunction;
+	};
+	
 	class Device
 	{
+		struct ComputePushConstants {
+			glm::vec4 data1;
+			glm::vec4 data2;
+			glm::vec4 data3;
+			glm::vec4 data4;
+		};
+		
+		std::vector<RenderPass> renderPasses;
 		
 		struct CleanupQueue
 		{
@@ -28,6 +55,7 @@ namespace gns::rendering
 			void Flush();	
 		};
 
+	public:
 		struct FrameData {
 			VkCommandPool _commandPool;
 			VkCommandBuffer _mainCommandBuffer;
@@ -39,26 +67,33 @@ namespace gns::rendering
 			CleanupQueue _cleanupQueue;
 		};
 		
-	public:
 		Device();
 		~Device();
 
 		void Create(SDL_Window* sdl_window);
 		VkPhysicalDevice GetGPU() { return m_physDevice; }
-		void WaitForIdle();;
-		VkDevice GetDevice() { return m_device; };
-		VkSurfaceKHR GetSurface() { return m_surface; };
-		VkInstance GetInstance() { return m_instance; };
-		VkQueue GetGraphicsQueue() { return m_graphicsQueue; };
-		Swapchain GetSwapchain() { return m_swapchain; };
+		void WaitForIdle();
+		VkDevice GetDevice() { return m_device; }
+		VkSurfaceKHR GetSurface() { return m_surface; }
+		VkInstance GetInstance() { return m_instance; }
+		VkQueue GetGraphicsQueue() { return m_graphicsQueue; }
+		Swapchain GetSwapchain() { return m_swapchain; }
 		
 		VkFence m_immediateFence;
 		VkCommandBuffer m_immediateCommandBuffer;
 		VkCommandPool m_immediateCommandPool;
 		
 		void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
-		void DrawFrame();
-	private:
+		void BeginFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data);
+		void DrawFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent , FrameData& data);
+		void ExecuteRenderPasses(VkCommandBuffer& cmd);
+		void EndFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent , FrameData& data);
+		RenderPass& CreateRenderPass(std::string name, 
+			std::function<bool(VkCommandBuffer, RenderPassData&)> renderPassFunction);
+
+		void DrawTest(VkCommandBuffer cmd);
+		
+	//private:
 		CleanupQueue m_cleanupQueue;
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debugMessenger;
@@ -78,7 +113,6 @@ namespace gns::rendering
 		FrameData& GetFrameByIndex(size_t index);
 		void Cleanup();
 
-		void DrawTest(VkCommandBuffer cmd);
 		
 		std::vector<FrameData> m_frames;
 		VulkanImage m_drawImage;
@@ -108,9 +142,11 @@ namespace gns::rendering
 		void init_pipelines();
 		void init_background_pipelines();
 		
-		//tmp imgui code:
-		void init_imgui();
-		
+		VkPipelineLayout _trianglePipelineLayout;
+		VkPipeline _trianglePipeline;
+
+		void init_triangle_pipeline();
+		void DrawGeometry(VkCommandBuffer cmd);
 		
 	};
 }

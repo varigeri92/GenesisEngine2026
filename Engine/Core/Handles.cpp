@@ -15,6 +15,11 @@ gns::Handle gns::Handle::New()
 
 gns::Handle gns::Handle::Create(uint64_t handle)
 {
-	return Handle(handle);
+	return Handle{handle};
+}
+
+gns::Handle gns::Handle::CreateFromString(const std::string& name)
+{
+	return Handle{HashString(name)};
 }
 

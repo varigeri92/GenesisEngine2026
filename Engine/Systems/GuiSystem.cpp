@@ -9,11 +9,23 @@ GuiSystem::GuiSystem() : System(){}
 
 GuiWindow::GuiWindow(std::string title): open(true), Title(std::move(title)){}
 
+void GuiWindow::BeginWindow()
+{
+    ImGui::Begin(Title.c_str(), &open);
+}
+
+void GuiWindow::EndWindow()
+{
+    ImGui::End();
+}
+
 void GuiSystem::DrawWindows() const
 {
     for (auto& window : Windows)
     {
+        window->BeginWindow();
         window->OnDraw();
+        window->EndWindow();
     }
 }
 

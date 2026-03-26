@@ -4,6 +4,9 @@
 #include "TestSystemExternal.h"
 #include "../Engine/Renderer/RenderSystem.h"
 #include "../Window/WindowSystem.h"
+#include "GenesisGUI_Backend.h"
+#include "TestEditorWindow.h"
+#include "../Engine/Systems/GuiSystem.h"
 
 int main()
 {
@@ -11,13 +14,16 @@ int main()
     cfg.headless = false;
     cfg.InitTetsSystem = true;
 
-
-    gns::core::Engine engine(cfg);
-    engine.Initialize([&]() {
-        gns::core::SystemsManager::RegisterSystem<TestSystemExternal>();
-    });
-    engine.Run();
-    engine.ShutDown();
+    {
+        gns::core::Engine engine(cfg);
+        engine.Initialize([&]() {
+            gns::core::SystemsManager::RegisterSystem<TestSystemExternal>();
+            GuiSystem* gui = gns::core::SystemsManager::GetSystem<GuiSystem>();
+            gui->RegisterWindow<TestEditorWindow>("testEditorWindow");
+        });
+        engine.Run();
+        engine.ShutDown();
+    }
     std::getchar();
 }
 

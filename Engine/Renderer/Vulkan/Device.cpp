@@ -8,10 +8,27 @@
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
+#include "PipelineBuilder.h"
+#include "../Shader.h"
 #include "../../Utils/Path.h"
 
 constexpr unsigned int FRAME_OVERLAP = 3;
 constexpr bool _useValidationLayers = true;
+
+
+gns::rendering::RenderPass::RenderPass(std::string name, std::function<bool(VkCommandBuffer, RenderPassData&)> renderPassFunction)
+{
+	m_name = name;
+	m_renderPassFunction = std::move(renderPassFunction);
+}
+
+void gns::rendering::RenderPass::ExecuteRenderPass(VkCommandBuffer cmd)
+{
+	if (!m_renderPassFunction(cmd, this->data))
+	{
+		LOG_ERROR("Error While Executing RenderPass - '" + m_name + "'");	
+	}
+}
 
 void gns::rendering::Device::CleanupQueue::Push(std::function<void()>&& func)
 {
@@ -292,63 +309,52 @@ void gns::rendering::Device::ImmediateSubmit(std::function<void(VkCommandBuffer 
 	VK_CHECK(vkWaitForFences(m_device, 1, &m_immediateFence, true, 9999999999));
 }
 
-void gns::rendering::Device::DrawFrame()
+void gns::rendering::Device::DrawFrame(
+	VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data)
+{
+	
+}
+
+void gns::rendering::Device::BeginFrame(
+	VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data)
 {
 	VK_CHECK(vkWaitForFences(m_device, 1, &GetCurrentFrame()._renderFence, true, 1000000000));
 	VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame()._renderFence));
 	GetCurrentFrame()._cleanupQueue.Flush();
 	
-	uint32_t swapchainImageIndex;
 	VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapchain.GetSwapchain(), 
 		1000000000, GetCurrentFrame()._swapchainSemaphore, nullptr, &swapchainImageIndex));
 	
-	VkExtent2D drawExtent = {m_drawImage.imageExtent.width, m_drawImage.imageExtent.height};
-	FrameData& currentFrame = GetCurrentFrame();
+	extent = {m_drawImage.imageExtent.width, m_drawImage.imageExtent.height};
+	data = GetCurrentFrame();
 	
-	VkCommandBuffer cmd = currentFrame._mainCommandBuffer;
+	cmd = data._mainCommandBuffer;
 	VK_CHECK(vkResetCommandBuffer(cmd, 0));
 	VkCommandBufferBeginInfo cmdBeginInfo = utils::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
-	
-	//TRANSITION: RenderTarget F:X -> F:General (for draw)
-	utils::TransitionImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+}
 
-	DrawTest(cmd);
+void gns::rendering::Device::ExecuteRenderPasses(VkCommandBuffer& cmd)
+{
+	for (auto& renderPass : renderPasses)
+	{
+		renderPass.ExecuteRenderPass(cmd);
+	}
+}
 
-	
-	//TRANSITION: RenderTarget F:General -> F:Transfer_SRC
-	utils::TransitionImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-	
-	//TRANSITION: Swapchain F:X -> F:Transfer_DST
-	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	//COPY(Transfer): RenderTarget SRC:RenderTarget -> DST:Swapchain
-	utils::CopyImageToImage(cmd, m_drawImage.image, m_swapchain.GetImage(swapchainImageIndex), 
-		drawExtent, m_swapchain.GetExtent());
-
-	
-	//TRANSITION: Swapchain F:Tranfer_DST -> F:ColorAttachment (Ready for imgui Draw)
-	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-	
-	VkRenderingAttachmentInfo colorAttachment = 
-		utils::AttachmentInfo( m_swapchain.GetImageView(swapchainImageIndex), nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	const VkRenderingInfo renderInfo = utils::RenderingInfo(m_swapchain.GetExtent(), &colorAttachment, nullptr);
-	//draw imgui into the swapchain image
-	gns::gui::GuiBackend::DrawImGui(cmd, renderInfo);
-
-	//TRANSITION: Swapchain F:ColorAttachment -> F:Preset_optimal (presentation)
-	utils::TransitionImage(cmd, m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
+void gns::rendering::Device::EndFrame(
+	VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data )
+{
 	VK_CHECK(vkEndCommandBuffer(cmd));
 	
 	
 	VkCommandBufferSubmitInfo cmdinfo = utils::CommandBufferSubmitInfo(cmd);	
 	VkSemaphoreSubmitInfo waitInfo = utils::SemaphoreSubmitInfo(
-		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,currentFrame._swapchainSemaphore);
+		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,data._swapchainSemaphore);
 	VkSemaphoreSubmitInfo signalInfo = utils::SemaphoreSubmitInfo(
-		VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, currentFrame._renderSemaphore);
+		VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, data._renderSemaphore);
 	VkSubmitInfo2 submit = utils::SubmitInfo(&cmdinfo,&signalInfo,&waitInfo);	
-	VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, currentFrame._renderFence));
+	VK_CHECK(vkQueueSubmit2(m_graphicsQueue, 1, &submit, data._renderFence));
 	
 	
 	VkPresentInfoKHR presentInfo = {};
@@ -365,6 +371,13 @@ void gns::rendering::Device::DrawFrame()
 	VK_CHECK(vkQueuePresentKHR(m_graphicsQueue, &presentInfo));
 	
 	m_currentFrame++;
+}
+
+gns::rendering::RenderPass& gns::rendering::Device::CreateRenderPass(std::string name,
+			std::function<bool(VkCommandBuffer, RenderPassData&)> renderPassFunction)
+{
+	renderPasses.emplace_back(name, renderPassFunction);
+	return renderPasses[renderPasses.size()-1];
 }
 
 void gns::rendering::Device::Cleanup()
@@ -388,10 +401,25 @@ void gns::rendering::Device::Cleanup()
 	vkDestroyInstance(m_instance, nullptr);
 }
 
+glm::vec4 to01rgba(float r, float g, float b, float a)
+{
+	return { r / 255 ,g / 255,  b/255,  a /255 };
+}
 void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
 {
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
+	vkCmdBindDescriptorSets(
+		cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0,
+		1, &_drawImageDescriptors, 0, nullptr);
+	
+	ComputePushConstants pc;
+	pc.data1 = to01rgba(182, 202, 255, 255);
+	pc.data2 = to01rgba(87, 95, 99, 255);
+	pc.data2 = to01rgba(0, 0, 0, 255);
+
+	vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
+
+	
 	vkCmdDispatch(cmd, 
 		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().width / 16.0)), 
 		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().height / 16.0)), 
@@ -413,6 +441,7 @@ void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
 void gns::rendering::Device::init_pipelines()
 {
 	init_background_pipelines();
+	init_triangle_pipeline();
 }
 
 void gns::rendering::Device::init_background_pipelines()
@@ -423,10 +452,18 @@ void gns::rendering::Device::init_background_pipelines()
 	computeLayout.pSetLayouts = &_drawImageDescriptorLayout;
 	computeLayout.setLayoutCount = 1;
 
+	VkPushConstantRange pushConstant{};
+	pushConstant.offset = 0;
+	pushConstant.size = sizeof(ComputePushConstants) ;
+	pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+	computeLayout.pPushConstantRanges = &pushConstant;
+	computeLayout.pushConstantRangeCount = 1;
+	
 	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &_gradientPipelineLayout));
 	
 	VkShaderModule computeDrawShader;
-	std::string shaderPath = gns::path::InResourcesDirectory(R"(Shaders\TestShader.comp.spv)").string();
+	std::string shaderPath = gns::path::InResourcesDirectory(R"(Shaders\sky.comp.spv)").string();
 	if (!utils::LoadShaderModule(shaderPath, m_device, &computeDrawShader))
 	{
 		LOG_ERROR("Error when building the compute shader \n");
@@ -453,4 +490,74 @@ void gns::rendering::Device::init_background_pipelines()
 		vkDestroyPipelineLayout(m_device, _gradientPipelineLayout, nullptr);
 		vkDestroyPipeline(m_device, _gradientPipeline, nullptr);
 		});
+}
+
+void gns::rendering::Device::init_triangle_pipeline()
+{
+	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
+	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.vert)").string();
+	
+	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
+	VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &_trianglePipelineLayout));
+	
+	Shader* shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_shader");
+	PipelineBuilder builder{this};
+	builder.m_pipelineLayout = _trianglePipelineLayout;
+	builder.SetShaders(*shader);
+	builder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//filled triangles
+	builder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//no backface culling
+	builder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+	//no multisampling
+	builder.SetMultisampling();
+	//no blending
+	builder.DisableBlending();
+	//no depth testing
+	builder.DisableDepthTest();
+	
+	builder.SetColorAttachmentFormat(m_drawImage.imageFormat);
+	builder.SetDepthFormat(VK_FORMAT_UNDEFINED);
+	
+	_trianglePipeline = builder.BuildPipeline(m_device);
+	
+	m_cleanupQueue.Push([&]() {
+		vkDestroyPipelineLayout(m_device, _trianglePipelineLayout, nullptr);
+		vkDestroyPipeline(m_device, _trianglePipeline, nullptr);
+	});
+}
+
+void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
+{
+	//begin a render pass  connected to our draw image
+	VkRenderingAttachmentInfo colorAttachment = utils::AttachmentInfo(m_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	
+	VkRenderingInfo renderInfo = utils::RenderingInfo(m_swapchain.GetExtent(), &colorAttachment, nullptr);
+	vkCmdBeginRendering(cmd, &renderInfo);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+
+	//set dynamic viewport and scissor
+	VkViewport viewport = {};
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = static_cast<float>(m_swapchain.GetExtent().width);
+	viewport.height = static_cast<float>(m_swapchain.GetExtent().height);
+	viewport.minDepth = 0.f;
+	viewport.maxDepth = 1.f;
+
+	vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+	VkRect2D scissor = {};
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = m_swapchain.GetExtent().width;
+	scissor.extent.height = m_swapchain.GetExtent().height;
+
+	vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+	//launch a draw command to draw 3 vertices
+	vkCmdDraw(cmd, 3, 1, 0, 0);
+
+	vkCmdEndRendering(cmd);
 }

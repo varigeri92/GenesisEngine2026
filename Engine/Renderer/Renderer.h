@@ -4,7 +4,10 @@
 namespace gns::rendering {
 	class Renderer
 	{
-
+	private:
+		uint32_t swapchainImageIndex = -1;
+		VkExtent2D extent = {};
+		Device::FrameData data = {};
 	public:
 		Device m_device;
 

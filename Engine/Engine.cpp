@@ -11,6 +11,7 @@
 #include "Systems/GuiSystem.h"
 #include "Utils/Path.h"
 
+
 gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{cfg.headless, cfg.InitTetsSystem} {}
 
 void gns::core::Engine::Initialize(std::function<void()> callback)

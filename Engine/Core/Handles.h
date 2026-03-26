@@ -2,13 +2,36 @@
 #include <cstdint>
 #include "API.h"
 
+constexpr uint64_t HashString_constexpr_(std::string_view str) noexcept
+{
+	uint64_t hash = 14695981039346656037ull; // FNV offset basis
+	for (unsigned char c : str)
+	{
+		hash ^= c;
+		hash *= 1099511628211ull; // FNV prime
+	}
+	return hash;
+}
+
+inline uint64_t HashString(const std::string& str) noexcept
+{
+	uint64_t hash = 14695981039346656037ull; // FNV offset basis
+	for (unsigned char c : str)
+	{
+		hash ^= c;
+		hash *= 1099511628211ull; // FNV prime
+	}
+	return hash;
+}
+
 namespace gns{
 	struct Handle {
 		static constexpr uint64_t Invalid = static_cast<uint64_t>(-1);
 		GNS_API static Handle New();
 		GNS_API static Handle Create(uint64_t handle);
+		GNS_API static Handle CreateFromString(const std::string& name);
 
-		constexpr Handle() noexcept = default;
+		constexpr Handle() noexcept =default;
 		constexpr Handle(const Handle&) noexcept = default;
 		constexpr Handle& operator=(const Handle&) noexcept = default;
 		constexpr Handle(Handle&& other) noexcept = default;

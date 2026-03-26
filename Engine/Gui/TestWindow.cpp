@@ -3,11 +3,9 @@
 
 #include "imgui.h"
 
-TestWindow::~TestWindow(){}
+TestWindow::~TestWindow() = default;
 
 void TestWindow::OnDraw()
 {
-    ImGui::Begin(Title.c_str());
     ImGui::Text("Hello");
-    ImGui::End();
 }

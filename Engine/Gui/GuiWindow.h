@@ -1,18 +1,15 @@
 ﻿#pragma once
-
+#include "API.h"
 class GuiWindow
 {
 protected:
     bool open = true;
     std::string Title = "new Window";
 public:
-    GuiWindow(std::string title);
-    virtual ~GuiWindow() = default;
-    std::string& GetTitle() {return Title;};
-public:
-    //virtual void OnCreate();
-    //virtual void OnOpen();
-    virtual void OnDraw() = 0;
-    //virtual void OnClose();
-    //virtual void OnDestroy();
+    GNS_API GuiWindow(std::string title);
+    GNS_API virtual ~GuiWindow() = default;
+    GNS_API std::string& GetTitle() {return Title;}
+    GNS_API virtual void BeginWindow();
+    GNS_API virtual void OnDraw() = 0;
+    GNS_API virtual void EndWindow();
 };
