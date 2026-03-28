@@ -1,5 +1,8 @@
 #include "gnspch.h"
 #include "TestSystem.h"
+
+#include "SystemsManager.h"
+#include "../Core/ComponentLibrary.h"
 #include "../Log/Logger.h"
 #include "../Input/InputBackend.h"
 #include "SDL2/SDL_keycode.h"
@@ -28,6 +31,17 @@ void gns::core::TestSystem::OnEnable()
 
 void gns::core::TestSystem::OnUpdate(float deltaTime)
 {
+	
+	auto view = SystemsManager::GetRegistry().view<EntityComponent, Transform>();
+
+	LOG_INFO("Test System iterate entity view!");
+	view.each([deltaTime](auto &entityComp, auto &transform)
+	{
+		transform.position = transform.position + (glm::vec3(1,1,1) * deltaTime);
+		LOG_INFO(entityComp.name);
+		LOG_INFO(std::to_string(transform.position.y));
+	});
+	
 	if (gns::core::InputBackend::GetKeyUp(SDLK_w))
 	{
 		LOG_INFO("W up");

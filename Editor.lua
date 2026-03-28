@@ -30,13 +30,13 @@ project "Editor"
         IncludeDir.Engine_Include,
         IncludeDir.ImGui,
         IncludeDir.Vulkan,
+        IncludeDir.EnTT,
         IncludeDir.gnsGui
         --[[
             IncludeDir.SDL,
             IncludeDir.Assimp,
             IncludeDir.Assimp_Build,
             IncludeDir.VKBootstrap,
-            IncludeDir.EnTT,
             IncludeDir.ImGuizmo,
             IncludeDir.YAML,
             IncludeDir.SpirvReflect

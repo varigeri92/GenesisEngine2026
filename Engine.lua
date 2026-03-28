@@ -47,11 +47,11 @@ project "Engine"
         IncludeDir.Engine_pch,
         IncludeDir.VKBootstrap,
         IncludeDir.fmt,
+        IncludeDir.EnTT,
         IncludeDir.ImGui
         --[[
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
-        IncludeDir.EnTT,
         IncludeDir.YAML,
         IncludeDir.ImGuizmo
         ]]  

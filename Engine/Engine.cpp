@@ -1,6 +1,7 @@
 #include "gnspch.h"
 #include "Engine.h"
 
+#include "Core/Entity.h"
 #include "Gui/TestWindow.h"
 #include "Log/Logger.h"
 #include "Systems/SystemsManager.h"
@@ -34,6 +35,12 @@ void gns::core::Engine::Initialize(std::function<void()> callback)
 		SystemsManager::RegisterSystem<TestSystem>();
 	
 	callback();
+	
+	
+	gns::Entity::CreateEntity("test_entity_1");
+	gns::Entity::CreateEntity("test_entity_2");
+	gns::Entity::CreateEntity("test_entity_3");
+	gns::Entity::CreateEntity("test_entity_4");
 }
 
 void gns::core::Engine::Run()

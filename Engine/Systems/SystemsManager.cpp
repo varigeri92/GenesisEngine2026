@@ -2,6 +2,8 @@
 #include "SystemsManager.h"
 #include "SystemsManager.h"
 
+entt::registry gns::core::SystemsManager::Registry = entt::registry();
+
 std::vector<std::unique_ptr<gns::core::System>> gns::core::SystemsManager::Systems = {};
 std::vector<size_t> gns::core::SystemsManager::deletionQeue = {};
 
@@ -62,4 +64,9 @@ void gns::core::SystemsManager::Clear()
 	}
 
 	Systems.clear();
+}
+
+entt::registry& gns::core::SystemsManager::GetRegistry()
+{
+	return SystemsManager::Registry;
 }
