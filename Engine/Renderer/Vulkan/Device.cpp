@@ -4,7 +4,6 @@
 #include <VkBootstrap.h>
 #include "vkutils.h"
 #include "Pipelines.h"
-
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
@@ -16,26 +15,26 @@ constexpr unsigned int FRAME_OVERLAP = 3;
 constexpr bool _useValidationLayers = true;
 
 
-gns::rendering::RenderPass::RenderPass(std::string name, std::function<bool(VkCommandBuffer, RenderPassData&)> renderPassFunction)
+gns::rendering::RenderStep::RenderStep(std::string name, std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> renderPassFunction)
 {
 	m_name = name;
 	m_renderPassFunction = std::move(renderPassFunction);
 }
 
-void gns::rendering::RenderPass::ExecuteRenderPass(VkCommandBuffer cmd)
+void gns::rendering::RenderStep::ExecuteRenderPass(VkCommandBuffer cmd,  FrameData& frameData)
 {
-	if (!m_renderPassFunction(cmd, this->data))
+	if (!m_renderPassFunction(cmd, this->data, frameData))
 	{
 		LOG_ERROR("Error While Executing RenderPass - '" + m_name + "'");	
 	}
 }
 
-void gns::rendering::Device::CleanupQueue::Push(std::function<void()>&& func)
+void gns::rendering::CleanupQueue::Push(std::function<void()>&& func)
 {
 	m_queue.push_back(func);
 }
 
-void gns::rendering::Device::CleanupQueue::Flush()
+void gns::rendering::CleanupQueue::Flush()
 {
 	for (auto it = m_queue.rbegin(); it != m_queue.rend(); it++) {
 		(*it)();
@@ -281,13 +280,13 @@ void gns::rendering::Device::InitDescriptors()
 	
 }
 
-gns::rendering::Device::FrameData& gns::rendering::Device::GetCurrentFrame()
+gns::rendering::FrameData& gns::rendering::Device::GetCurrentFrame()
 {
 	size_t currentFrame = m_currentFrame % FRAME_OVERLAP;
 	return m_frames[currentFrame];
 }
 
-gns::rendering::Device::FrameData& gns::rendering::Device::GetFrameByIndex(size_t index)
+gns::rendering::FrameData& gns::rendering::Device::GetFrameByIndex(size_t index)
 {
 	return m_frames[index];
 }
@@ -327,18 +326,19 @@ void gns::rendering::Device::BeginFrame(
 	
 	extent = {m_drawImage.imageExtent.width, m_drawImage.imageExtent.height};
 	data = GetCurrentFrame();
-	
 	cmd = data._mainCommandBuffer;
+	data._swapchainImageIndex=swapchainImageIndex;
+	data._swapchain = &m_swapchain;
 	VK_CHECK(vkResetCommandBuffer(cmd, 0));
 	VkCommandBufferBeginInfo cmdBeginInfo = utils::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 }
 
-void gns::rendering::Device::ExecuteRenderPasses(VkCommandBuffer& cmd)
+void gns::rendering::Device::ExecuteRenderPasses(VkCommandBuffer& cmd,  FrameData& frameData)
 {
 	for (auto& renderPass : renderPasses)
 	{
-		renderPass.ExecuteRenderPass(cmd);
+		renderPass.ExecuteRenderPass(cmd, frameData);
 	}
 }
 
@@ -373,8 +373,8 @@ void gns::rendering::Device::EndFrame(
 	m_currentFrame++;
 }
 
-gns::rendering::RenderPass& gns::rendering::Device::CreateRenderPass(std::string name,
-			std::function<bool(VkCommandBuffer, RenderPassData&)> renderPassFunction)
+gns::rendering::RenderStep& gns::rendering::Device::CreateRenderPass(std::string name,
+			std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> renderPassFunction)
 {
 	renderPasses.emplace_back(name, renderPassFunction);
 	return renderPasses[renderPasses.size()-1];
@@ -442,6 +442,8 @@ void gns::rendering::Device::init_pipelines()
 {
 	init_background_pipelines();
 	init_triangle_pipeline();
+	init_mesh_pipeline();
+	init_mesh_data();
 }
 
 void gns::rendering::Device::init_background_pipelines()
@@ -527,6 +529,81 @@ void gns::rendering::Device::init_triangle_pipeline()
 	});
 }
 
+void gns::rendering::Device::init_mesh_pipeline()
+{
+	
+	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
+	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\mesh.vert)").string();
+	
+	VkPushConstantRange bufferRange{};
+	bufferRange.offset = 0;
+	bufferRange.size = sizeof(GPUDrawPushConstants);
+	bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	
+	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
+	pipeline_layout_info.pPushConstantRanges = &bufferRange;
+	pipeline_layout_info.pushConstantRangeCount = 1;
+	VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &_meshPipelineLayout));
+	
+	Shader* shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_mesh_shader");
+	PipelineBuilder builder{this};
+	builder.m_pipelineLayout = _meshPipelineLayout;
+	builder.SetShaders(*shader);
+	builder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//filled triangles
+	builder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//no backface culling
+	builder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+	//no multisampling
+	builder.SetMultisampling();
+	//no blending
+	builder.DisableBlending();
+	//no depth testing
+	builder.DisableDepthTest();
+	
+	builder.SetColorAttachmentFormat(m_drawImage.imageFormat);
+	builder.SetDepthFormat(VK_FORMAT_UNDEFINED);
+	
+	_meshPipeline = builder.BuildPipeline(m_device);
+	
+	m_cleanupQueue.Push([&]() {
+		vkDestroyPipelineLayout(m_device, _meshPipelineLayout, nullptr);
+		vkDestroyPipeline(m_device, _meshPipeline, nullptr);
+	});
+}
+
+void gns::rendering::Device::init_mesh_data()
+{
+	std::array<Vertex,4> rect_vertices;
+	rect_vertices[0].position = {0.5,-0.5, 0};
+	rect_vertices[1].position = {0.5,0.5, 0};
+	rect_vertices[2].position = {-0.5,-0.5, 0};
+	rect_vertices[3].position = {-0.5,0.5, 0};
+
+	rect_vertices[0].color = {0,0, 0,1};
+	rect_vertices[1].color = { 0.5,0.5,0.5 ,1};
+	rect_vertices[2].color = { 1,0, 0,1 };
+	rect_vertices[3].color = { 0,1, 0,1 };
+
+	std::array<uint32_t,6> rect_indices;
+
+	rect_indices[0] = 0;
+	rect_indices[1] = 1;
+	rect_indices[2] = 2;
+
+	rect_indices[3] = 2;
+	rect_indices[4] = 1;
+	rect_indices[5] = 3;
+
+	rectangle = VulkanMesh::UploadMesh(*this, m_allocator, rect_indices,rect_vertices);
+
+	//delete the rectangle data on engine shutdown
+	m_cleanupQueue.Push([&](){
+		rectangle.indexBuffer.reset();
+		rectangle.vertexBuffer.reset();
+	});
+}
+
 void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 {
 	//begin a render pass  connected to our draw image
@@ -534,8 +611,6 @@ void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 	
 	VkRenderingInfo renderInfo = utils::RenderingInfo(m_swapchain.GetExtent(), &colorAttachment, nullptr);
 	vkCmdBeginRendering(cmd, &renderInfo);
-
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
 
 	//set dynamic viewport and scissor
 	VkViewport viewport = {};
@@ -545,19 +620,37 @@ void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 	viewport.height = static_cast<float>(m_swapchain.GetExtent().height);
 	viewport.minDepth = 0.f;
 	viewport.maxDepth = 1.f;
-
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-
+	
 	VkRect2D scissor = {};
 	scissor.offset.x = 0;
 	scissor.offset.y = 0;
 	scissor.extent.width = m_swapchain.GetExtent().width;
 	scissor.extent.height = m_swapchain.GetExtent().height;
 
+	vkCmdSetViewport(cmd, 0, 1, &viewport);
 	vkCmdSetScissor(cmd, 0, 1, &scissor);
-
+	
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+	
 	//launch a draw command to draw 3 vertices
 	vkCmdDraw(cmd, 3, 1, 0, 0);
+	
+	
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+
+	GPUDrawPushConstants push_constants;
+	push_constants.worldMatrix = glm::mat4{ 1.f };
+	push_constants.vertexBuffer = rectangle.vertexBufferAddress;
+
+	vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+	vkCmdBindIndexBuffer(cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+	vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 
 	vkCmdEndRendering(cmd);
+}
+
+void* gns::rendering::Device::GetMappedDataFromAllocation(VmaAllocation allocation)
+{
+	return allocation->GetMappedData();
 }

@@ -6,82 +6,111 @@
 void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 {
 	m_device.Create(sdl_window);
+	SetupRenderPasses();
+}
+
+void gns::rendering::Renderer::SetupRenderPasses()
+{
+	
+	auto& transitionStep = m_device.CreateRenderPass("ImageTransition step",
+		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
+	{
+		utils::TransitionImage(
+			cmd, rp_data.renderTarget->image, rp_data.srcImageLayout, rp_data.dstImageLayout);
+		return true;
+	});
+	transitionStep.data.srcImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	transitionStep.data.dstImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	transitionStep.data.renderTarget = m_device.GetRenderTarget();
 	
 	auto& backgroundPass = m_device.CreateRenderPass("background pass", 
-		[&](VkCommandBuffer cmd, RenderPassData& rp_data)
+		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
-		//TRANSITION: RenderTarget F:X -> F:General (for draw)
-		utils::TransitionImage(cmd, rp_data.renderTarget->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 		m_device.DrawTest(cmd);
-		//TRANSITION: RenderTarget F:General -> F:ColorAttachment (for drawing geometry)
-		utils::TransitionImage(cmd, rp_data.renderTarget->image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-			
 		return rp_data.randomBool;
 	});
-	backgroundPass.data.renderTarget = &m_device.m_drawImage;
+	backgroundPass.data.renderTarget = m_device.GetRenderTarget();
+	
+	auto& transitionToColorAttachment = m_device.CreateRenderPass("ImageTransition step",
+	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
+	{
+		utils::TransitionImage(
+			cmd, rp_data.renderTarget->image, rp_data.srcImageLayout, rp_data.dstImageLayout);
+		return true;
+	});
+	transitionToColorAttachment.data.srcImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	transitionToColorAttachment.data.dstImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	transitionToColorAttachment.data.renderTarget = m_device.GetRenderTarget();
 	
 	auto& geometryPass = m_device.CreateRenderPass("geometry pass", 
-		[&](VkCommandBuffer cmd, RenderPassData& rp_data)
+		[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
-
 		m_device.DrawGeometry(cmd);
-		//TRANSITION: RenderTarget F:ColorAttachment -> F:TransferSRC (for copy to swapchain.)
-		utils::TransitionImage(cmd, m_device.m_drawImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-		//TRANSITION: Swapchain F:X -> F:Transfer_DST
-		utils::TransitionImage(cmd, m_device.m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		//COPY(Transfer): RenderTarget SRC:RenderTarget -> DST:Swapchain
-		utils::CopyImageToImage(cmd, m_device.m_drawImage.image, m_device.m_swapchain.GetImage(swapchainImageIndex), 
-	extent, m_device.m_swapchain.GetExtent());
+		
 		return rp_data.randomBool;
 	});
-	geometryPass.data.renderTarget = &m_device.m_drawImage;
+	geometryPass.data.renderTarget = m_device.GetRenderTarget();
 	
+	auto& copyToSwapchain = m_device.CreateRenderPass("ImageTransition step",
+	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
+	{
+		utils::TransitionImage(
+			cmd, rp_data.renderTarget->image, rp_data.srcImageLayout, rp_data.dstImageLayout);
+		utils::TransitionImage(
+			cmd, frameData._swapchain->GetImage(frameData._swapchainImageIndex), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		utils::CopyImageToImage(
+			cmd, rp_data.renderTarget->image, frameData._swapchain->GetImage(frameData._swapchainImageIndex), 
+	{rp_data.renderTarget->imageExtent.width, rp_data.renderTarget->imageExtent.height}, 
+	frameData._swapchain->GetExtent());
+		return true;
+	});
+	copyToSwapchain.data.srcImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	copyToSwapchain.data.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	copyToSwapchain.data.renderTarget = m_device.GetRenderTarget();
 	
 	auto& imguiPass = m_device.CreateRenderPass("test pass", 
-	[&](VkCommandBuffer cmd, RenderPassData& rp_data)
+	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
-		//TRANSITION: Swapchain F:Tranfer_DST -> F:ColorAttachment (Ready for imgui Draw)
-	utils::TransitionImage(cmd, m_device.m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-	
-	VkRenderingAttachmentInfo colorAttachment = 
-		utils::AttachmentInfo( m_device.m_swapchain.GetImageView(swapchainImageIndex), nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	const VkRenderingInfo renderInfo = utils::RenderingInfo(m_device.m_swapchain.GetExtent(), &colorAttachment, nullptr);
-	//draw imgui into the swapchain image
-	gns::gui::GuiBackend::DrawImGui(cmd, renderInfo);
-
-	//TRANSITION: Swapchain F:ColorAttachment -> F:Preset_optimal (presentation)
-	utils::TransitionImage(cmd, m_device.m_swapchain.GetImage(swapchainImageIndex), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+		utils::TransitionImage(cmd, frameData._swapchain->GetImage(frameData._swapchainImageIndex), rp_data.srcImageLayout, rp_data.dstImageLayout);
+		VkRenderingAttachmentInfo colorAttachment = 
+			utils::AttachmentInfo( frameData._swapchain->GetImageView(frameData._swapchainImageIndex), nullptr, rp_data.dstImageLayout);
+		const VkRenderingInfo renderInfo = utils::RenderingInfo(frameData._swapchain->GetExtent(), &colorAttachment, nullptr);
+		gns::gui::GuiBackend::DrawImGui(cmd, renderInfo);
+		utils::TransitionImage(cmd, frameData._swapchain->GetImage(frameData._swapchainImageIndex), rp_data.dstImageLayout, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 		return rp_data.randomBool;
 	});
-	imguiPass.data.renderTarget = &m_device.m_drawImage;
+	imguiPass.data.renderTarget = m_device.GetRenderTarget();
+	imguiPass.data.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	imguiPass.data.dstImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+}
+
+void gns::rendering::Renderer::BuildDrawData()
+{
+	
 }
 
 void gns::rendering::Renderer::DrawFrame()
 {
-    VkCommandBuffer cmd;
-    m_device.BeginFrame(cmd, swapchainImageIndex, extent, data);
-	m_device.ExecuteRenderPasses(cmd);
-	m_device.DrawFrame(cmd, swapchainImageIndex, extent, data);
-	m_device.EndFrame(cmd, swapchainImageIndex, extent, data);
 	//CreateDrawData
+	void BuildDrawData();
+    VkCommandBuffer cmd;
+	uint32_t swapchainImageIndex;
+	VkExtent2D extent;
+	FrameData frameData;
 	//BeginFrame
-	
+    m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData);
+	m_device.ExecuteRenderPasses(cmd, frameData);
 	//depth prepass
 	//Shadows prepass
-	
 	//culling pass
-	
 	//geometry pass
 		//Opaque pass
 		//transparent pass
-	
 	//PostProcessing Pass
 	//GuiPass <- gameGUI
-	
 	//imgui pass
-
 	//present
+	m_device.EndFrame(cmd, swapchainImageIndex, extent, frameData);
 }
 
 VkDevice gns::rendering::Renderer::GetDevice()

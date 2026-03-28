@@ -10,29 +10,38 @@
 #include "DescriptorLayoutBuilder.h"
 #include "VulkanImage.h"
 #include "../Gui/GuiBackend.h"
+#include "VulkanMesh.h"
 
 #include <glm/glm.hpp>
 namespace gns::rendering 
 {
+	struct RenderStepData;
+	struct RenderStep;
 	class VulkanShader;
-
-	struct RenderPassData
-	{
-		VulkanShader* shaderOverride = nullptr;
-		VulkanImage* renderTarget = nullptr;
-		bool randomBool = true;
-	};
-	struct RenderPass
-	{
-		RenderPassData data;
-		std::string m_name;
-		RenderPass() = default;
-		RenderPass(std::string name, std::function<bool(VkCommandBuffer, RenderPassData&)> renderPassFunction);
-		void ExecuteRenderPass(VkCommandBuffer cmd);
-	private:
-		std::function<bool(VkCommandBuffer, RenderPassData&)> m_renderPassFunction;
-	};
 	
+	struct CleanupQueue
+	{
+		CleanupQueue() = default;
+		~CleanupQueue() = default;
+	private:
+		std::deque<std::function<void()>> m_queue;
+	public:
+		void Push(std::function<void()>&& func);
+		void Flush();	
+	};
+	struct FrameData {
+		VkCommandPool _commandPool;
+		VkCommandBuffer _mainCommandBuffer;
+		
+		VkSemaphore _swapchainSemaphore; 
+		VkSemaphore _renderSemaphore;
+		VkFence _renderFence;
+		
+		CleanupQueue _cleanupQueue;
+		
+		Swapchain* _swapchain;
+		uint32_t _swapchainImageIndex;
+	};
 	class Device
 	{
 		struct ComputePushConstants {
@@ -42,30 +51,8 @@ namespace gns::rendering
 			glm::vec4 data4;
 		};
 		
-		std::vector<RenderPass> renderPasses;
-		
-		struct CleanupQueue
-		{
-			CleanupQueue() = default;
-			~CleanupQueue() = default;
-		private:
-			std::deque<std::function<void()>> m_queue;
-		public:
-			void Push(std::function<void()>&& func);
-			void Flush();	
-		};
-
+		std::vector<RenderStep> renderPasses;
 	public:
-		struct FrameData {
-			VkCommandPool _commandPool;
-			VkCommandBuffer _mainCommandBuffer;
-			
-			VkSemaphore _swapchainSemaphore; 
-			VkSemaphore _renderSemaphore;
-			VkFence _renderFence;
-			
-			CleanupQueue _cleanupQueue;
-		};
 		
 		Device();
 		~Device();
@@ -84,16 +71,19 @@ namespace gns::rendering
 		VkCommandPool m_immediateCommandPool;
 		
 		void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
-		void BeginFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data);
+		void BeginFrame(
+			VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data);
 		void DrawFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent , FrameData& data);
-		void ExecuteRenderPasses(VkCommandBuffer& cmd);
+		void ExecuteRenderPasses(VkCommandBuffer& cmd, FrameData& frameData);
 		void EndFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent , FrameData& data);
-		RenderPass& CreateRenderPass(std::string name, 
-			std::function<bool(VkCommandBuffer, RenderPassData&)> renderPassFunction);
+		RenderStep& CreateRenderPass(std::string name, 
+			std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> renderPassFunction);
+		VulkanImage* GetRenderTarget() { return &m_drawImage; }
 
 		void DrawTest(VkCommandBuffer cmd);
-		
-	//private:
+		void DrawGeometry(VkCommandBuffer cmd);
+		void* GetMappedDataFromAllocation(VmaAllocation allocation);
+	private:
 		CleanupQueue m_cleanupQueue;
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debugMessenger;
@@ -146,8 +136,40 @@ namespace gns::rendering
 		VkPipeline _trianglePipeline;
 
 		void init_triangle_pipeline();
-		void DrawGeometry(VkCommandBuffer cmd);
+		
+		VkPipelineLayout _meshPipelineLayout;
+		VkPipeline _meshPipeline;
+
+		VulkanMesh rectangle;
+
+		void init_mesh_pipeline();
+		void init_mesh_data();
+		
 		
 	};
+	struct RenderStepData
+	{
+		VulkanShader* shaderOverride = nullptr;
+		VulkanImage* renderTarget = nullptr;
+		bool randomBool = true;
+		VkImageLayout srcImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		VkImageLayout dstImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		
+		VkRenderingInfo renderingInfo = {};
+		VkRenderingAttachmentInfo colorAttachment = {};
+		VkRenderingAttachmentInfo depthAttachment = {};
+	};
+	struct RenderStep
+	{
+		RenderStepData data;
+		std::string m_name;
+		RenderStep() = default;
+		RenderStep(std::string name, std::function<bool(VkCommandBuffer, RenderStepData&, FrameData&)> renderPassFunction);
+		void ExecuteRenderPass(VkCommandBuffer cmd,  FrameData& frameData);
+	private:
+		std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> m_renderPassFunction;
+		RenderStep* p_next;
+	};
+
 }
 

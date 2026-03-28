@@ -5,15 +5,14 @@ namespace gns::rendering {
 	class Renderer
 	{
 	private:
-		uint32_t swapchainImageIndex = -1;
-		VkExtent2D extent = {};
-		Device::FrameData data = {};
-	public:
 		Device m_device;
+	public:
 
 		Renderer() = default;
 		~Renderer() = default;
 		void CreateDevice(SDL_Window* sdl_window);
+		void SetupRenderPasses();
+		void BuildDrawData();
 		void DrawFrame();
 		
 		GNS_API VkDevice GetDevice();
