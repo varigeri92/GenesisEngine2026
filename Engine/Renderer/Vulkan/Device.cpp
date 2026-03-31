@@ -170,24 +170,33 @@ void gns::rendering::Device::InitSwapchain()
 	drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	
 	VkImageCreateInfo rimg_info = utils::ImageCreateInfo(m_drawImage.imageFormat, drawImageUsages, drawImageExtent);
-
 	//for the draw image, we want to allocate it from gpu local memory
 	VmaAllocationCreateInfo rimg_allocinfo = {};
 	rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
 	//allocate and create the image
 	vmaCreateImage(m_allocator, &rimg_info, &rimg_allocinfo, &m_drawImage.image, &m_drawImage.allocation, nullptr);
-
 	//build a image-view for the draw image to use for rendering
 	VkImageViewCreateInfo rview_info = utils::ImageViewCreateInfo(m_drawImage.imageFormat, m_drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-
 	VK_CHECK(vkCreateImageView(m_device, &rview_info, nullptr, &m_drawImage.imageView));
 
+	m_depthImage = {drawImageExtent, VK_FORMAT_D32_SFLOAT};
+	VkImageUsageFlags depthImageUsages{};
+	depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	VkImageCreateInfo dimg_info = utils::ImageCreateInfo(m_depthImage.imageFormat, depthImageUsages, drawImageExtent);
+	//allocate and create the image
+	vmaCreateImage(m_allocator, &dimg_info, &rimg_allocinfo, &m_depthImage.image, &m_depthImage.allocation, nullptr);
+	//build an image-view for the draw image to use for rendering
+	VkImageViewCreateInfo dview_info = utils::ImageViewCreateInfo(m_depthImage.imageFormat, m_depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+	VK_CHECK(vkCreateImageView(m_device, &dview_info, nullptr, &m_depthImage.imageView));
+	
 	//add to deletion queues
 	m_cleanupQueue.Push([this]() {
 		vkDestroyImageView(m_device, m_drawImage.imageView, nullptr);
 		vmaDestroyImage(m_allocator, m_drawImage.image, m_drawImage.allocation);
+		
+		vkDestroyImageView(m_device, m_depthImage.imageView, nullptr);
+		vmaDestroyImage(m_allocator, m_depthImage.image, m_depthImage.allocation);
 	});
 	
 }
@@ -553,7 +562,7 @@ void gns::rendering::Device::init_mesh_pipeline()
 	builder.m_pipelineLayout = _meshPipelineLayout;
 	builder.SetShaders(*shader);
 	builder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	//filled triangles
+	//filled triangle's
 	builder.SetPolygonMode(VK_POLYGON_MODE_FILL);
 	//no backface culling
 	builder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
@@ -633,9 +642,12 @@ void gns::rendering::Device::EndRendering(VkCommandBuffer cmd)
 void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 {
 	//begin a render pass  connected to our draw image
-	VkRenderingAttachmentInfo colorAttachment = utils::AttachmentInfo(m_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	VkRenderingAttachmentInfo colorAttachment = utils::AttachmentInfo(
+		m_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	VkRenderingAttachmentInfo depthAttachment = utils::DepthAttachmentInfo(
+		m_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 	
-	VkRenderingInfo renderInfo = utils::RenderingInfo(m_swapchain.GetExtent(), &colorAttachment, nullptr);
+	VkRenderingInfo renderInfo = utils::RenderingInfo(m_swapchain.GetExtent(), &colorAttachment, &depthAttachment);
 	vkCmdBeginRendering(cmd, &renderInfo);
 
 	//set dynamic viewport and scissor
@@ -655,10 +667,11 @@ void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 
 	vkCmdSetViewport(cmd, 0, 1, &viewport);
 	vkCmdSetScissor(cmd, 0, 1, &scissor);
-	
+	/* 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
 	//launch a draw command to draw 3 vertices
 	vkCmdDraw(cmd, 3, 1, 0, 0);
+	*/
 }
 
 void* gns::rendering::Device::GetMappedDataFromAllocation(VmaAllocation allocation)

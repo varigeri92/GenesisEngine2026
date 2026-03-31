@@ -14,15 +14,14 @@ public:
 
 	GNS_API System() = default;
 	GNS_API virtual ~System() = default;
-	
-	GNS_API virtual void OnCreate() = 0;
-	GNS_API virtual void OnStart() = 0;
-	GNS_API virtual void OnEnable() = 0;
-	GNS_API virtual void OnUpdate(float deltaTime) = 0;
-	GNS_API virtual void OnLateUpdate(float deltaTime) = 0;
-	GNS_API virtual void OnFixedUpdate() = 0;
-	GNS_API virtual void OnDisable() = 0;
-	GNS_API virtual void OnDestroy() = 0;
+	GNS_API virtual void OnCreate(){}
+	GNS_API virtual void OnStart(){}
+	GNS_API virtual void OnEnable(){}
+	GNS_API virtual void OnUpdate(float deltaTime){}
+	GNS_API virtual void OnLateUpdate(float deltaTime){}
+	GNS_API virtual void OnFixedUpdate(){}
+	GNS_API virtual void OnDisable(){}
+	GNS_API virtual void OnDestroy(){}
 
 	SystemState State = SystemState::Created;
 protected:

@@ -2,9 +2,11 @@
 #include "Shader.h"
 #include "Vulkan/Device.h"
 #include "Resources/VulkanShader.h"
+#include "../Core/Camera.h" 
 
 namespace gns
 {
+	class RenderSystem;
 	struct Mesh;
 }
 namespace gns::rendering {
@@ -13,6 +15,8 @@ namespace gns::rendering {
 	private:
 		Device m_device;
 		std::vector<DrawData> m_drawData;
+		CameraBackend m_cameraBackend;
+
 	public:
 
 		Renderer() = default;
@@ -31,6 +35,7 @@ namespace gns::rendering {
 		
 		void ApplyMesh(Mesh& mesh);
 		void CreateVulkanShader(Shader& shader);
+		friend class gns::RenderSystem;
 	};
 }
 

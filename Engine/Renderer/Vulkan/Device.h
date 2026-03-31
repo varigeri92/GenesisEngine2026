@@ -80,6 +80,7 @@ namespace gns::rendering
 		RenderStep& CreateRenderPass(std::string name, 
 			std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> renderPassFunction);
 		VulkanImage* GetRenderTarget() { return &m_drawImage; }
+		VulkanImage* GetDepthTarget() { return &m_depthImage; }
 
 		void DrawTest(VkCommandBuffer cmd);
 		void DrawGeometry(VkCommandBuffer cmd);
@@ -109,6 +110,7 @@ namespace gns::rendering
 		
 		std::vector<FrameData> m_frames;
 		VulkanImage m_drawImage;
+		VulkanImage m_depthImage;
 		
 		VkQueue m_graphicsQueue;
 		uint32_t m_graphicsQueueFamily;
@@ -152,6 +154,7 @@ namespace gns::rendering
 	{
 		VulkanShader* shaderOverride = nullptr;
 		VulkanImage* renderTarget = nullptr;
+		VulkanImage* depthTarget = nullptr;
 		bool randomBool = true;
 		VkImageLayout srcImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VkImageLayout dstImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -169,7 +172,6 @@ namespace gns::rendering
 		void ExecuteRenderPass(VkCommandBuffer cmd,  FrameData& frameData);
 	private:
 		std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> m_renderPassFunction;
-		RenderStep* p_next;
 	};
 
 }

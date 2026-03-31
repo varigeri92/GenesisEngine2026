@@ -45,11 +45,13 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	{
 		utils::TransitionImage(
 			cmd, rp_data.renderTarget->image, rp_data.srcImageLayout, rp_data.dstImageLayout);
+		utils::TransitionImage(cmd,  rp_data.depthTarget->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 		return true;
 	});
 	transitionToColorAttachment.data.srcImageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	transitionToColorAttachment.data.dstImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	transitionToColorAttachment.data.renderTarget = m_device.GetRenderTarget();
+	transitionToColorAttachment.data.depthTarget = m_device.GetDepthTarget();
 	
 	auto& geometryPass = m_device.CreateRenderPass("geometry pass", 
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
@@ -115,7 +117,7 @@ void gns::rendering::Renderer::BuildDrawData()
 		auto* mesh = Object::Get<Mesh>(meshComp.mesh.m_handle);
 		auto* vulkan_mesh = VulkanResource::Get<VulkanMesh>(mesh->vulkanMeshHandle);
 		DrawData drawData;
-		drawData.transform = {1};
+		drawData.transform = m_cameraBackend.viewProjection;
 		drawData.vkShader = *vulkan_shader;
 		drawData.vk_indexBuffer = vulkan_mesh->indexBuffer.buffer;
 		drawData.vk_vertexBufferAddress = vulkan_mesh->vertexBufferAddress;
@@ -220,11 +222,10 @@ void gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	builder.SetMultisampling();
 	//no blending
 	builder.DisableBlending();
-	//no depth testing
-	builder.DisableDepthTest();
+	builder.EnableDepthTest(true,VK_COMPARE_OP_GREATER_OR_EQUAL);
 	
 	builder.SetColorAttachmentFormat(m_device.GetRenderTarget()->imageFormat);
-	builder.SetDepthFormat(VK_FORMAT_UNDEFINED);
+	builder.SetDepthFormat(m_device.GetDepthTarget()->imageFormat);
 	
 	vkShader.m_pipeline = builder.BuildPipeline(m_device.GetDevice());
 }

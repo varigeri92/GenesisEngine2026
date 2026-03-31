@@ -4,3 +4,4 @@
 #include "../Input/InputBackend.h"
 #include "../Systems/System.h"
 #include "../Systems/SystemsManager.h"
+#include "../Core/Camera.h"

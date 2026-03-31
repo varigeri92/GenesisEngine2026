@@ -2,6 +2,8 @@
 #include "../Systems/System.h"
 #include "Renderer.h"
 
+struct CameraBackend;
+
 namespace gns::window {
 	class WindowSystem;
 }
@@ -27,6 +29,7 @@ namespace gns {
 		
 		GNS_API rendering::Renderer& GetRenderer();
 		void WaitForIdle();
+		GNS_API void SetCamera(const CameraBackend& camera_backend);
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;

@@ -34,12 +34,16 @@ void gns::RenderSystem::OnStart()
 	_shader->CreateVulkanShader();
 	
 	std::vector<gns::assets::LoadedObject> loaded 
-		= assets::AssetManager::LoadAsset(R"(D:\__ProjectGenesis\GenesisEngine_TestProject\Assets\basicmesh.glb)");
+		= assets::AssetManager::LoadAsset(
+			R"(D:\__ProjectGenesis\GenesisEngine_TestProject\Assets\basicmesh.glb)");
 	for (auto& loaded_object : loaded)
 	{
 		Mesh* mesh = loaded_object.As<Mesh>();
 		mesh->Apply();
 		std::string name = mesh->GetName();
+		if (name != "Suzanne")
+			continue;
+		
 		gns::Entity entity = gns::Entity::CreateEntity(name);
 		MeshComponent& mesh_comp = entity.AddComponent<MeshComponent>();
 		mesh_comp.mesh = mesh->Ref<Mesh>();
@@ -81,4 +85,9 @@ gns::rendering::Renderer& gns::RenderSystem::GetRenderer()
 void gns::RenderSystem::WaitForIdle()
 {
 	m_renderer.WaitForIdle();
+}
+
+void gns::RenderSystem::SetCamera(const CameraBackend& camera_backend)
+{
+	m_renderer.m_cameraBackend = camera_backend;
 }
