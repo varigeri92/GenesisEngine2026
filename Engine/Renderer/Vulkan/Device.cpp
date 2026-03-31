@@ -10,6 +10,7 @@
 #include "PipelineBuilder.h"
 #include "../Shader.h"
 #include "../../Utils/Path.h"
+#include "../Resources/VulkanShader.h"
 
 constexpr unsigned int FRAME_OVERLAP = 3;
 constexpr bool _useValidationLayers = true;
@@ -443,7 +444,7 @@ void gns::rendering::Device::init_pipelines()
 	init_background_pipelines();
 	init_triangle_pipeline();
 	init_mesh_pipeline();
-	init_mesh_data();
+	//init_mesh_data();
 }
 
 void gns::rendering::Device::init_background_pipelines()
@@ -531,7 +532,8 @@ void gns::rendering::Device::init_triangle_pipeline()
 
 void gns::rendering::Device::init_mesh_pipeline()
 {
-	
+	/*
+	 
 	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
 	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\mesh.vert)").string();
 	
@@ -546,6 +548,7 @@ void gns::rendering::Device::init_mesh_pipeline()
 	VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &_meshPipelineLayout));
 	
 	Shader* shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_mesh_shader");
+	
 	PipelineBuilder builder{this};
 	builder.m_pipelineLayout = _meshPipelineLayout;
 	builder.SetShaders(*shader);
@@ -570,6 +573,7 @@ void gns::rendering::Device::init_mesh_pipeline()
 		vkDestroyPipelineLayout(m_device, _meshPipelineLayout, nullptr);
 		vkDestroyPipeline(m_device, _meshPipeline, nullptr);
 	});
+	*/	
 }
 
 void gns::rendering::Device::init_mesh_data()
@@ -595,13 +599,35 @@ void gns::rendering::Device::init_mesh_data()
 	rect_indices[4] = 1;
 	rect_indices[5] = 3;
 
-	rectangle = VulkanMesh::UploadMesh(*this, m_allocator, rect_indices,rect_vertices);
+	//rectangle = VulkanMesh::UploadMesh(*this, m_allocator, rect_indices,rect_vertices);
 
 	//delete the rectangle data on engine shutdown
 	m_cleanupQueue.Push([&](){
 		rectangle.indexBuffer.reset();
 		rectangle.vertexBuffer.reset();
 	});
+}
+
+void gns::rendering::Device::DrawMesh(
+VkCommandBuffer cmd, DrawData draw_data) const
+{
+	VkPipeline pipeline = draw_data.vkShader.GetPipeline();
+	VkPipelineLayout layout = draw_data.vkShader.GetPipelineLayout();
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+	GPUDrawPushConstants push_constants;
+	push_constants.worldMatrix = draw_data.transform;
+	push_constants.vertexBuffer = draw_data.vk_vertexBufferAddress;
+
+	vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+	vkCmdBindIndexBuffer(cmd, draw_data.vk_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(draw_data.Count), 1, draw_data.StartIndex, 0, 0);
+}
+
+void gns::rendering::Device::EndRendering(VkCommandBuffer cmd)
+{
+	vkCmdEndRendering(cmd);
 }
 
 void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
@@ -631,23 +657,8 @@ void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 	vkCmdSetScissor(cmd, 0, 1, &scissor);
 	
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
-	
 	//launch a draw command to draw 3 vertices
 	vkCmdDraw(cmd, 3, 1, 0, 0);
-	
-	
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
-
-	GPUDrawPushConstants push_constants;
-	push_constants.worldMatrix = glm::mat4{ 1.f };
-	push_constants.vertexBuffer = rectangle.vertexBufferAddress;
-
-	vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-	vkCmdBindIndexBuffer(cmd, rectangle.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
-	vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
-
-	vkCmdEndRendering(cmd);
 }
 
 void* gns::rendering::Device::GetMappedDataFromAllocation(VmaAllocation allocation)

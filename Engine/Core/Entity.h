@@ -41,6 +41,14 @@ namespace gns
         }
         
         template<typename T>
+        T& AddComponent()
+        {
+            T& component = gns::core::SystemsManager::GetRegistry()
+                .emplace<T>(entity_handle);
+            return component;
+        }
+        
+        template<typename T>
         T& GetComponent()
         {
             return gns::core::SystemsManager::GetRegistry().get<T>(entity_handle);

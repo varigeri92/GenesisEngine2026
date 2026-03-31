@@ -31,11 +31,11 @@ project "Editor"
         IncludeDir.ImGui,
         IncludeDir.Vulkan,
         IncludeDir.EnTT,
+        IncludeDir.Assimp,
+        IncludeDir.Assimp_Build,
         IncludeDir.gnsGui
         --[[
             IncludeDir.SDL,
-            IncludeDir.Assimp,
-            IncludeDir.Assimp_Build,
             IncludeDir.VKBootstrap,
             IncludeDir.ImGuizmo,
             IncludeDir.YAML,

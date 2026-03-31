@@ -11,13 +11,13 @@
 #include "VulkanImage.h"
 #include "../Gui/GuiBackend.h"
 #include "VulkanMesh.h"
-
 #include <glm/glm.hpp>
+#include "DrawData.h"
 namespace gns::rendering 
 {
 	struct RenderStepData;
 	struct RenderStep;
-	class VulkanShader;
+	struct VulkanShader;
 	
 	struct CleanupQueue
 	{
@@ -65,7 +65,8 @@ namespace gns::rendering
 		VkInstance GetInstance() { return m_instance; }
 		VkQueue GetGraphicsQueue() { return m_graphicsQueue; }
 		Swapchain GetSwapchain() { return m_swapchain; }
-		
+		VmaAllocator GetAlocator(){return m_allocator;}
+
 		VkFence m_immediateFence;
 		VkCommandBuffer m_immediateCommandBuffer;
 		VkCommandPool m_immediateCommandPool;
@@ -82,7 +83,9 @@ namespace gns::rendering
 
 		void DrawTest(VkCommandBuffer cmd);
 		void DrawGeometry(VkCommandBuffer cmd);
+		void EndRendering(VkCommandBuffer cmd);
 		void* GetMappedDataFromAllocation(VmaAllocation allocation);
+		void DrawMesh(VkCommandBuffer cmd, DrawData drawData) const;
 	private:
 		CleanupQueue m_cleanupQueue;
 		VkInstance m_instance;
@@ -126,7 +129,7 @@ namespace gns::rendering
 		VkDescriptorSetLayout _drawImageDescriptorLayout;
 		
 		
-		//test pipelines:
+		//test stuff:
 		VkPipeline _gradientPipeline;
 		VkPipelineLayout _gradientPipelineLayout;
 		void init_pipelines();
@@ -137,15 +140,13 @@ namespace gns::rendering
 
 		void init_triangle_pipeline();
 		
-		VkPipelineLayout _meshPipelineLayout;
-		VkPipeline _meshPipeline;
+		//VkPipelineLayout _meshPipelineLayout;
+		//VkPipeline _meshPipeline;
 
 		VulkanMesh rectangle;
 
 		void init_mesh_pipeline();
 		void init_mesh_data();
-		
-		
 	};
 	struct RenderStepData
 	{

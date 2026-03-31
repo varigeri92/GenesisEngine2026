@@ -12,8 +12,8 @@
 #include "Systems/GuiSystem.h"
 #include "Utils/Path.h"
 
-
 gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{cfg.headless, cfg.InitTetsSystem} {}
+
 
 void gns::core::Engine::Initialize(std::function<void()> callback)
 {
@@ -35,12 +35,6 @@ void gns::core::Engine::Initialize(std::function<void()> callback)
 		SystemsManager::RegisterSystem<TestSystem>();
 	
 	callback();
-	
-	
-	gns::Entity::CreateEntity("test_entity_1");
-	gns::Entity::CreateEntity("test_entity_2");
-	gns::Entity::CreateEntity("test_entity_3");
-	gns::Entity::CreateEntity("test_entity_4");
 }
 
 void gns::core::Engine::Run()
@@ -65,7 +59,7 @@ SDL_Window* gns::core::Engine::GetWindow()
 	return ws->GetSDLWindow();
 }
 
-gns::rendering::Renderer* gns::core::Engine::GetRenderer()
+gns::rendering::Renderer& gns::core::Engine::GetRenderer()
 {
 	RenderSystem* rs = SystemsManager::GetSystem<RenderSystem>();
 	return rs->GetRenderer();

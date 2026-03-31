@@ -24,7 +24,7 @@ namespace gns::core {
 		GNS_API void ShutDown();
 
 		GNS_API SDL_Window* GetWindow();
-		GNS_API gns::rendering::Renderer* GetRenderer();
+		GNS_API gns::rendering::Renderer& GetRenderer();
 		
 		bool close;
 	private:

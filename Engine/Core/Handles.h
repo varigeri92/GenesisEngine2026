@@ -74,17 +74,37 @@ namespace std
 	};
 }
 
+#define getTypeID(T) typeid(T).hash_code()
 
 namespace gns {
 
+	struct gns_null{};
+	
 	template<typename T>
 	struct Reference
 	{
 		Handle m_handle;
 		size_t typeID;
 		
-		Reference(Handle handle):m_handle(handle) {
-			typeID = typeid(T).hash_code();
+		Reference() noexcept
+		{
+			m_handle = {};
+			typeID = getTypeID(gns_null);
 		}
+		
+		Reference(Handle handle):m_handle(handle) {
+			typeID = getTypeID(T);
+		}
+	private:
+		static Reference CreateObjectReference(Handle handle, size_t typeId)
+		{
+			/*
+			if (getTypeID(T) != getTypeID(gns_null) || typeId != getTypeID(gns_null))
+				assert(typeId == getTypeID(T) && "Reference type mismatch");
+			*/
+			return Reference(handle);
+		}
+		
+		friend struct Object;
 	};
 }

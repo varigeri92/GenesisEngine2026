@@ -1,10 +1,19 @@
 #include "gnspch.h"
 #include "Renderer.h"
 #include "../Log/Logger.h"
+#include "../Object/Mesh.h"
+#include "Vulkan/PipelineBuilder.h"
 #include "Vulkan/vkutils.h"
+#include "Vulkan/vulkan_log.h"
+#include "Resources/VulkanShader.h"
+#include "../Systems/SystemsManager.h"
+#include "../Core/ComponentLibrary.h"
+
+struct EntityComponent;
 
 void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 {
+	m_drawData = {};
 	m_device.Create(sdl_window);
 	SetupRenderPasses();
 }
@@ -46,7 +55,11 @@ void gns::rendering::Renderer::SetupRenderPasses()
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
 		m_device.DrawGeometry(cmd);
-		
+		for (auto& drawData : m_drawData)
+		{
+			m_device.DrawMesh(cmd, drawData);
+		}
+		m_device.EndRendering(cmd);
 		return rp_data.randomBool;
 	});
 	geometryPass.data.renderTarget = m_device.GetRenderTarget();
@@ -86,13 +99,36 @@ void gns::rendering::Renderer::SetupRenderPasses()
 
 void gns::rendering::Renderer::BuildDrawData()
 {
-	
+	size_t drawSize = m_drawData.size();
+	m_drawData.clear();
+	m_drawData.reserve(drawSize);
+	auto view = gns::core::SystemsManager::GetRegistry().view<EntityComponent, Transform, MeshComponent>();
+	view.each([&](
+		EntityComponent& entityComp, 
+		Transform& transform, 
+		MeshComponent& meshComp)
+	{
+		
+		auto* shader = Object::Get<Shader>(meshComp.shader.m_handle);
+		auto* vulkan_shader = VulkanResource::Get<VulkanShader>(shader->m_vulkanShaderHandle);
+
+		auto* mesh = Object::Get<Mesh>(meshComp.mesh.m_handle);
+		auto* vulkan_mesh = VulkanResource::Get<VulkanMesh>(mesh->vulkanMeshHandle);
+		DrawData drawData;
+		drawData.transform = {1};
+		drawData.vkShader = *vulkan_shader;
+		drawData.vk_indexBuffer = vulkan_mesh->indexBuffer.buffer;
+		drawData.vk_vertexBufferAddress = vulkan_mesh->vertexBufferAddress;
+		drawData.StartIndex = vulkan_mesh->startIndex;
+		drawData.Count = vulkan_mesh->count;
+		m_drawData.emplace_back(drawData);
+	});
 }
 
 void gns::rendering::Renderer::DrawFrame()
 {
 	//CreateDrawData
-	void BuildDrawData();
+	BuildDrawData();
     VkCommandBuffer cmd;
 	uint32_t swapchainImageIndex;
 	VkExtent2D extent;
@@ -140,4 +176,55 @@ VkFormat* gns::rendering::Renderer::GetSwapChainFormat()
 void gns::rendering::Renderer::WaitForIdle()
 {
 	m_device.WaitForIdle();
+}
+
+void gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
+{
+	std::vector<Vertex> vertices = {};
+	vertices.reserve(mesh.positions.size());
+	for (size_t i = 0; i < mesh.positions.size(); ++i)
+	{
+		vertices.emplace_back(mesh.positions[i], mesh.uvs[i].x, mesh.normals[i],mesh.uvs[i].y, mesh.colors[i]);
+	}
+	VulkanMesh& vulkan_mesh = VulkanMesh::UploadMesh(m_device, m_device.GetAlocator(), mesh.indices, vertices);
+	mesh.vulkanMeshHandle = vulkan_mesh.GetHandle();
+	vulkan_mesh.startIndex = mesh.bufferRange.startIndex;
+	vulkan_mesh.count = mesh.bufferRange.count;
+}
+
+void gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
+{
+	VulkanShader& vkShader = *VulkanResource::Create<VulkanShader>();
+	shader.m_vulkanShaderHandle = vkShader.GetHandle();
+	
+	VkPushConstantRange bufferRange{};
+	bufferRange.offset = 0;
+	bufferRange.size = sizeof(GPUDrawPushConstants);
+	bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	
+	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
+	pipeline_layout_info.pPushConstantRanges = &bufferRange;
+	pipeline_layout_info.pushConstantRangeCount = 1;
+	VK_CHECK(vkCreatePipelineLayout(m_device.GetDevice(), &pipeline_layout_info, nullptr, &vkShader.m_pipelineLayout));
+	
+	
+	PipelineBuilder builder{&m_device};
+	builder.m_pipelineLayout = vkShader.m_pipelineLayout;
+	builder.SetShaders(shader);
+	builder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//filled triangles
+	builder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//no backface culling
+	builder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+	//no multisampling
+	builder.SetMultisampling();
+	//no blending
+	builder.DisableBlending();
+	//no depth testing
+	builder.DisableDepthTest();
+	
+	builder.SetColorAttachmentFormat(m_device.GetRenderTarget()->imageFormat);
+	builder.SetDepthFormat(VK_FORMAT_UNDEFINED);
+	
+	vkShader.m_pipeline = builder.BuildPipeline(m_device.GetDevice());
 }

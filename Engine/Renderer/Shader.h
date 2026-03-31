@@ -4,7 +4,12 @@
 
 namespace gns
 {
-struct Shader : public Object
+    namespace rendering
+    {
+        class Renderer;
+    }
+
+    struct Shader : public Object
 {
 private:
     std::string m_vertexShaderPath;
@@ -17,5 +22,8 @@ public:
     std::string GetVertexShaderPath() const { return m_vertexShaderPath; }
     std::string GetFragmentShaderPath() const { return m_fragmentShaderPath; }
     Handle GetVulkanShaderHandle() const { return m_vulkanShaderHandle; }
+    Handle CreateVulkanShader();
+    
+    friend class gns::rendering::Renderer;
 };
 }

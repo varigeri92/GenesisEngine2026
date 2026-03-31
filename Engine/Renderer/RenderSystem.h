@@ -6,6 +6,7 @@ namespace gns::window {
 	class WindowSystem;
 }
 namespace gns {
+	struct Mesh;
 
 	class RenderSystem : public gns::core::System
 	{
@@ -24,7 +25,7 @@ namespace gns {
 		void OnDisable() override;
 		void OnDestroy() override;
 		
-		GNS_API rendering::Renderer* GetRenderer();
+		GNS_API rendering::Renderer& GetRenderer();
 		void WaitForIdle();
 
 	private:

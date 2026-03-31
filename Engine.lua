@@ -6,7 +6,8 @@ project "Engine"
     pchheader "gnspch.h"
     pchsource "Engine/pch/gnspch.cpp"
 
-    -- dependson { "ImGui", "yaml-cpp", "assimp" }
+    --dependson { "ImGui", "yaml-cpp", "assimp" }
+    dependson { "assimp" }
 
     libdirs {
         LibDir.Assimp,
@@ -19,9 +20,7 @@ project "Engine"
         Libs.SDL2,
         Libs.SDL2main,
         Libs.Vulkan,
-        --[[ 
-            Libs.Assimp,
-            ]]
+        Libs.Assimp,
         Libs.fmt_d
     }
     
@@ -48,10 +47,10 @@ project "Engine"
         IncludeDir.VKBootstrap,
         IncludeDir.fmt,
         IncludeDir.EnTT,
-        IncludeDir.ImGui
-        --[[
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
+        IncludeDir.ImGui
+        --[[
         IncludeDir.YAML,
         IncludeDir.ImGuizmo
         ]]  

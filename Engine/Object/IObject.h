@@ -2,6 +2,7 @@
 #include "../Core/Handles.h"
 #include <concepts>
 #include <utility>
+#include <entt/entt.hpp>
 
 
 namespace gns
@@ -47,13 +48,19 @@ namespace gns
         template <DerivedFromObject Object_T>
         static Object_T* Get(const gns::Handle handle)
         {
-            return nullptr;
+            if (objectMap.contains(handle))
+            {
+                return reinterpret_cast<Object_T*>(objectMap.at(handle));
+            }
+                LOG_WARNING("[Object]: Does not contain the key!");
+                return nullptr;
         }
         static void Reserve(std::size_t size);
         static void DeleteMarkedObjects();
 //Member:
     private:
         gns::Handle m_handle;
+        size_t typeID;
         std::string m_name;
     public:
         virtual void Dispose();
@@ -63,8 +70,13 @@ namespace gns
         Object(Handle handle, std::string name);
         
         Handle GetHandle() const { return m_handle; }
-        std::string_view GetName() const {return m_name;}
+        std::string GetName() const {return m_name;}
         void Rename(const std::string& name) {m_name = name;}
+        template <DerivedFromObject T>
+        Reference<T> Ref() const
+        {
+            return Reference<T>::CreateObjectReference(m_handle, typeID);
+        }
         
     };
 }

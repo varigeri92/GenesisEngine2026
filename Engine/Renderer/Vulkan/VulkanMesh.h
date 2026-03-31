@@ -2,6 +2,7 @@
 #include <span>
 #include <glm/glm.hpp>
 #include "VulkanBuffer.h"
+#include "../Resources/VulkanResource.h"
 
 
 namespace gns::rendering
@@ -17,13 +18,16 @@ struct Vertex {
     glm::vec4 color;
 };
 
-struct VulkanMesh
+struct VulkanMesh : public gns::VulkanResource
 {
     VulkanBuffer indexBuffer;
     VulkanBuffer vertexBuffer;
     VkDeviceAddress vertexBufferAddress;
+    uint32_t startIndex;
+    uint32_t count;
     
-    static VulkanMesh UploadMesh(gns::rendering::Device& device, VmaAllocator allocator, std::span<uint32_t> indices, std::span<Vertex> vertices);
+    static VulkanMesh& UploadMesh(
+        gns::rendering::Device& device, VmaAllocator allocator, std::span<uint32_t> indices, std::span<Vertex> vertices);
 };
 
 struct GPUDrawPushConstants {

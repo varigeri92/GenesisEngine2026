@@ -2,6 +2,13 @@
 #include <glm/glm.hpp>
 
 #include "Entity.h"
+#include "Handles.h"
+
+namespace gns
+{
+    struct Mesh;
+    struct Shader;
+}
 
 struct EntityComponent
 {
@@ -17,3 +24,8 @@ struct Transform
     glm::vec3 scale;
 };
 
+struct MeshComponent
+{
+    gns::Reference<gns::Mesh> mesh;
+    gns::Reference<gns::Shader> shader;
+};
