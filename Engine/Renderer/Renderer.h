@@ -16,7 +16,7 @@ namespace gns::rendering {
 		Device m_device;
 		std::vector<DrawData> m_drawData;
 		CameraBackend m_cameraBackend;
-
+		VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
 	public:
 
 		Renderer() = default;

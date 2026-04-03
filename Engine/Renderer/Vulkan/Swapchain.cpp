@@ -5,9 +5,6 @@
 #include "vkutils.h"
 #include "vulkan_log.h"
 
-constexpr uint32_t _w = 1920;
-constexpr uint32_t _h = 1080;
-
 gns::rendering::Swapchain::Swapchain() :
 	m_device(nullptr),
 	m_swapchain(VK_NULL_HANDLE),
@@ -54,8 +51,19 @@ void gns::rendering::Swapchain::CreateSwapchain(Device* device, VkExtent2D exten
 void gns::rendering::Swapchain::DestroySwapchain()
 {
 	vkDestroySwapchainKHR(m_device->GetDevice(), m_swapchain, nullptr);
-	for (int i = 0; i < m_swapchainImageViews.size(); i++) {
+	for (size_t i = 0; i < m_swapchainImageViews.size(); i++) {
 
 		vkDestroyImageView(m_device->GetDevice(), m_swapchainImageViews[i], nullptr);
 	}
+}
+
+void gns::rendering::Swapchain::ResizeSwapchain(bool& ref_resize, SDL_Window* sdl_window)
+{
+	DestroySwapchain();
+	int w, h;
+	SDL_GetWindowSize(sdl_window, &w, &h);
+	m_swapchainExtent.width = w;
+	m_swapchainExtent.height = h;
+	CreateSwapchain(m_device, m_swapchainExtent);
+	ref_resize = false;
 }

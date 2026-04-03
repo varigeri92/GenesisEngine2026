@@ -8,6 +8,8 @@
 #include "Resources/VulkanShader.h"
 #include "../Systems/SystemsManager.h"
 #include "../Core/ComponentLibrary.h"
+#include "../Scene/Scene.h"
+#include "../Scene/SceneSystem.h"
 
 struct EntityComponent;
 
@@ -20,7 +22,6 @@ void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 
 void gns::rendering::Renderer::SetupRenderPasses()
 {
-	
 	auto& transitionStep = m_device.CreateRenderPass("ImageTransition step",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
@@ -118,37 +119,49 @@ void gns::rendering::Renderer::BuildDrawData()
 		auto* vulkan_mesh = VulkanResource::Get<VulkanMesh>(mesh->vulkanMeshHandle);
 		DrawData drawData;
 		drawData.transform = m_cameraBackend.viewProjection;
-		drawData.vkShader = *vulkan_shader;
+		drawData.vkShader = vulkan_shader;
 		drawData.vk_indexBuffer = vulkan_mesh->indexBuffer.buffer;
 		drawData.vk_vertexBufferAddress = vulkan_mesh->vertexBufferAddress;
 		drawData.StartIndex = vulkan_mesh->startIndex;
 		drawData.Count = vulkan_mesh->count;
 		m_drawData.emplace_back(drawData);
 	});
+	
+	auto SceneData = gns::core::SystemsManager::GetRegistry()
+		.view<EntityComponent, Transform, gns::SceneData>();
+	SceneData.each([&](EntityComponent& entityComp, Transform& transform, gns::SceneData& scene_data)
+	{
+		GpuDataDescriptor descriptor = GpuDataDescriptor::GetFromType<gns::SceneData>(&scene_data);
+		m_device.UpdateDescriptorSet(descriptor, _gpuSceneDataDescriptorLayout);
+	});
 }
 
 void gns::rendering::Renderer::DrawFrame()
 {
-	//CreateDrawData
-	BuildDrawData();
-    VkCommandBuffer cmd;
+	if (m_device.m_resizeRequest)
+		m_device.ResizeSwapchain();
+	
+	VkCommandBuffer cmd;
 	uint32_t swapchainImageIndex;
 	VkExtent2D extent;
 	FrameData frameData;
-	//BeginFrame
-    m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData);
-	m_device.ExecuteRenderPasses(cmd, frameData);
-	//depth prepass
-	//Shadows prepass
-	//culling pass
-	//geometry pass
-		//Opaque pass
-		//transparent pass
-	//PostProcessing Pass
-	//GuiPass <- gameGUI
-	//imgui pass
-	//present
-	m_device.EndFrame(cmd, swapchainImageIndex, extent, frameData);
+    if (m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData))
+    {
+		//CreateDrawData
+		BuildDrawData();
+    	m_device.ExecuteRenderPasses(cmd, frameData);
+		//depth prepass
+		//Shadows prepass
+		//culling pass
+		//geometry pass
+			//Opaque pass
+			//transparent pass
+		//PostProcessing Pass
+		//GuiPass <- gameGUI
+		//imgui pass
+		//present
+		m_device.EndFrame(cmd, swapchainImageIndex, extent, frameData);
+    }
 }
 
 VkDevice gns::rendering::Renderer::GetDevice()
@@ -196,17 +209,24 @@ void gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
 
 void gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 {
-	VulkanShader& vkShader = *VulkanResource::Create<VulkanShader>();
+	VulkanShader& vkShader = *VulkanResource::Create<VulkanShader>(&m_device);
 	shader.m_vulkanShaderHandle = vkShader.GetHandle();
 	
 	VkPushConstantRange bufferRange{};
 	bufferRange.offset = 0;
 	bufferRange.size = sizeof(GPUDrawPushConstants);
 	bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	{
+		DescriptorLayoutBuilder builder;
+		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		_gpuSceneDataDescriptorLayout = builder.Build(m_device.GetDevice(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+	}
 	
 	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
 	pipeline_layout_info.pPushConstantRanges = &bufferRange;
 	pipeline_layout_info.pushConstantRangeCount = 1;
+	pipeline_layout_info.setLayoutCount = 1;
+	pipeline_layout_info.pSetLayouts = &_gpuSceneDataDescriptorLayout;
 	VK_CHECK(vkCreatePipelineLayout(m_device.GetDevice(), &pipeline_layout_info, nullptr, &vkShader.m_pipelineLayout));
 	
 	

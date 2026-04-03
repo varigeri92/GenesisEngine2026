@@ -5,13 +5,25 @@
 
 namespace gns
 {
-struct DrawData
-{
-    glm::mat4 transform;
-    VkBuffer vk_indexBuffer;
-    gns::rendering::VulkanShader vkShader; 
-    VkDeviceAddress vk_vertexBufferAddress;
-    size_t StartIndex;
-    size_t Count;
-};
+    struct DrawData
+    {
+        glm::mat4 transform;
+        VkBuffer vk_indexBuffer;
+        gns::rendering::VulkanShader* vkShader; 
+        VkDeviceAddress vk_vertexBufferAddress;
+        size_t StartIndex;
+        size_t Count;
+    };
+    
+    struct GpuDataDescriptor
+    {
+        void* data;
+        size_t size;
+        
+        template<typename T>
+        static GpuDataDescriptor GetFromType(T* data)
+        {
+            return {.data = static_cast<void*>(data), .size = sizeof(T)};
+        }
+    };
 }

@@ -1,8 +1,12 @@
 ﻿#include "TestEditorWindow.h"
-
 #include "EditorCameraSystem.h"
 #include "GenesisGUI.h"
 #include "../Engine/Systems/SystemsManager.h"
+#include "EditorGUI/EditorWidgets.h"
+#include "Genesis.h"
+#include "entt/entt.hpp"
+
+float testFloat[] = {0, 1, 2, 3};
 
 void TestEditorWindow::OnDraw()
 {
@@ -17,5 +21,20 @@ void TestEditorWindow::OnDraw()
     {
         editor_camera_system->test = !editor_camera_system->test;
     }
+
+    
+    auto SceneData = gns::core::SystemsManager::GetRegistry()
+    .view<EntityComponent, Transform, gns::SceneData>();
+    SceneData.each([&](EntityComponent& entityComp, Transform& transform, gns::SceneData& scene_data)
+    {
+        if (widgets::startWidgets("test")){
+            widgets::float4_widget("Ambient Color", reinterpret_cast<float*>(&scene_data.ambientColor));
+            widgets::float4_widget("Sun Direction", reinterpret_cast<float*>(&scene_data.sunlightDirection));
+            widgets::float4_widget("sun Color", reinterpret_cast<float*>(&scene_data.sunlightColor));
+            widgets::endWidgets();
+        }
+        
+    });
+    
     
 }

@@ -7,18 +7,21 @@
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
+#include <utility>
+
 #include "PipelineBuilder.h"
 #include "../Shader.h"
+#include "../../Scene/Scene.h"
 #include "../../Utils/Path.h"
 #include "../Resources/VulkanShader.h"
 
 constexpr unsigned int FRAME_OVERLAP = 3;
-constexpr bool _useValidationLayers = true;
+constexpr bool useValidationLayers = true;
 
 
 gns::rendering::RenderStep::RenderStep(std::string name, std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> renderPassFunction)
 {
-	m_name = name;
+	m_name = std::move(name);
 	m_renderPassFunction = std::move(renderPassFunction);
 }
 
@@ -43,11 +46,12 @@ void gns::rendering::CleanupQueue::Flush()
 	m_queue.clear();
 }
 
-gns::rendering::Device::Device() : m_cleanupQueue{}
+gns::rendering::Device::Device() : 
+m_graphicsQueueFamily(0), m_computeQueueFamily(0), m_transferQueueFamily(0),m_presentQueueFamily(0)
 {
 	m_currentFrame = 0;
 	m_frames.reserve(FRAME_OVERLAP);
-	for (int i = 0; i < FRAME_OVERLAP; ++i)
+	for (unsigned int i = 0; i < FRAME_OVERLAP; ++i)
 	{
 		m_frames.emplace_back();
 	}
@@ -80,7 +84,7 @@ void gns::rendering::Device::WaitForIdle()
 void gns::rendering::Device::InitVulkan(SDL_Window* sdl_window)
 {
 	vkb::InstanceBuilder builder;
-	auto inst_ret = builder.request_validation_layers(_useValidationLayers).set_debug_callback(VulkanDebugCallback)
+	auto inst_ret = builder.request_validation_layers(useValidationLayers).set_debug_callback(VulkanDebugCallback)
 		.set_debug_messenger_severity(
 			VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | 
 			VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
@@ -161,34 +165,35 @@ void gns::rendering::Device::InitSwapchain()
 	VkExtent3D drawImageExtent = {
 	static_cast<uint32_t>(w),static_cast<uint32_t>(h), 1
 	};
-	m_drawImage = {drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT};
-	
+	m_drawImage = *VulkanResource::Create<VulkanImage>(this, drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT);
 	VkImageUsageFlags drawImageUsages{};
 	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
 	drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	m_drawImage.CreateImage(drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT, drawImageUsages, false);
 	
-	VkImageCreateInfo rimg_info = utils::ImageCreateInfo(m_drawImage.imageFormat, drawImageUsages, drawImageExtent);
-	//for the draw image, we want to allocate it from gpu local memory
-	VmaAllocationCreateInfo rimg_allocinfo = {};
-	rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	//allocate and create the image
-	vmaCreateImage(m_allocator, &rimg_info, &rimg_allocinfo, &m_drawImage.image, &m_drawImage.allocation, nullptr);
-	//build a image-view for the draw image to use for rendering
-	VkImageViewCreateInfo rview_info = utils::ImageViewCreateInfo(m_drawImage.imageFormat, m_drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-	VK_CHECK(vkCreateImageView(m_device, &rview_info, nullptr, &m_drawImage.imageView));
-
-	m_depthImage = {drawImageExtent, VK_FORMAT_D32_SFLOAT};
+	m_depthImage = *VulkanResource::Create<VulkanImage>(this, drawImageExtent, VK_FORMAT_D32_SFLOAT);
 	VkImageUsageFlags depthImageUsages{};
 	depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	VkImageCreateInfo dimg_info = utils::ImageCreateInfo(m_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-	//allocate and create the image
-	vmaCreateImage(m_allocator, &dimg_info, &rimg_allocinfo, &m_depthImage.image, &m_depthImage.allocation, nullptr);
-	//build an image-view for the draw image to use for rendering
-	VkImageViewCreateInfo dview_info = utils::ImageViewCreateInfo(m_depthImage.imageFormat, m_depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-	VK_CHECK(vkCreateImageView(m_device, &dview_info, nullptr, &m_depthImage.imageView));
+	m_depthImage.CreateImage(drawImageExtent, VK_FORMAT_D32_SFLOAT, depthImageUsages, false);
+	
+	for (size_t i = 0; i < FRAME_OVERLAP; i++) {
+		std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> frame_sizes = { 
+			{.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .ratio = 3 },
+			{.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .ratio = 3 },
+			{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .ratio = 3 },
+			{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .ratio = 4 },
+		};
+
+		m_frames[i]._frameDescriptors = DescriptorAllocatorGrowable{};
+		m_frames[i]._frameDescriptors.Init(m_device, 1000, frame_sizes);
+	
+		m_cleanupQueue.Push([&, i]() {
+			m_frames[i]._frameDescriptors.DestroyPools(m_device);
+		});
+	}
+	
 	
 	//add to deletion queues
 	m_cleanupQueue.Push([this]() {
@@ -199,6 +204,23 @@ void gns::rendering::Device::InitSwapchain()
 		vmaDestroyImage(m_allocator, m_depthImage.image, m_depthImage.allocation);
 	});
 	
+}
+
+void gns::rendering::Device::ResizeSwapchain()
+{
+	vkDeviceWaitIdle(m_device);
+	m_swapchain.ResizeSwapchain(m_resizeRequest, m_sdl_window);
+}
+
+void gns::rendering::Device::UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout)
+{
+	void* mappedBufferData = gpuSceneDataBuffer.allocation->GetMappedData();
+	memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);
+	
+	_sceneDataDescriptors = GetCurrentFrame()._frameDescriptors.Allocate(m_device, setlayout);
+	DescriptorWriter writer;
+	writer.WriteBuffer(0, gpuSceneDataBuffer.buffer, dataDescriptor.size, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	writer.UpdateSet(m_device, _sceneDataDescriptors);
 }
 
 void gns::rendering::Device::InitCommands()
@@ -251,7 +273,7 @@ void gns::rendering::Device::InitDescriptors()
 	//create a descriptor pool that will hold 10 sets with 1 image each
 	std::vector<DescriptorAllocator::PoolSizeRatio> sizes =
 	{
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }
+		{.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .ratio = 1 }
 	};
 
 	m_descriptorAllocator.InitPool(m_device, 10, sizes);
@@ -262,10 +284,9 @@ void gns::rendering::Device::InitDescriptors()
 		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
 		_drawImageDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_COMPUTE_BIT);
 	}
-	
 	//allocate a descriptor set for our draw image
 	_drawImageDescriptors = m_descriptorAllocator.Allocate(m_device,_drawImageDescriptorLayout);	
-
+	
 	VkDescriptorImageInfo imgInfo{};
 	imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	imgInfo.imageView = m_drawImage.imageView;
@@ -324,17 +345,21 @@ void gns::rendering::Device::DrawFrame(
 	
 }
 
-void gns::rendering::Device::BeginFrame(
+bool gns::rendering::Device::BeginFrame(
 	VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data)
 {
 	VK_CHECK(vkWaitForFences(m_device, 1, &GetCurrentFrame()._renderFence, true, 1000000000));
 	VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame()._renderFence));
 	GetCurrentFrame()._cleanupQueue.Flush();
+	GetCurrentFrame()._frameDescriptors.ClearPools(m_device);
 	
-	VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapchain.GetSwapchain(), 
-		1000000000, GetCurrentFrame()._swapchainSemaphore, nullptr, &swapchainImageIndex));
-	
-	extent = {m_drawImage.imageExtent.width, m_drawImage.imageExtent.height};
+	VkResult e = vkAcquireNextImageKHR(m_device, m_swapchain.GetSwapchain(), 
+		1000000000, GetCurrentFrame()._swapchainSemaphore, nullptr, &swapchainImageIndex);
+	if (e == VK_ERROR_OUT_OF_DATE_KHR) {
+		m_resizeRequest = true;
+		return false;
+	}
+	extent = {.width = m_drawImage.imageExtent.width, .height = m_drawImage.imageExtent.height};
 	data = GetCurrentFrame();
 	cmd = data._mainCommandBuffer;
 	data._swapchainImageIndex=swapchainImageIndex;
@@ -342,6 +367,15 @@ void gns::rendering::Device::BeginFrame(
 	VK_CHECK(vkResetCommandBuffer(cmd, 0));
 	VkCommandBufferBeginInfo cmdBeginInfo = utils::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+	
+	gpuSceneDataBuffer.allocator = m_allocator;
+	gpuSceneDataBuffer.CreateBuffer(sizeof(SceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	
+	GetCurrentFrame()._cleanupQueue.Push([=, this]() {
+		gpuSceneDataBuffer.reset();
+	});
+	
+	return true;
 }
 
 void gns::rendering::Device::ExecuteRenderPasses(VkCommandBuffer& cmd,  FrameData& frameData)
@@ -378,8 +412,10 @@ void gns::rendering::Device::EndFrame(
 
 	presentInfo.pImageIndices = &swapchainImageIndex;
 
-	VK_CHECK(vkQueuePresentKHR(m_graphicsQueue, &presentInfo));
-	
+	VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+	if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
+		m_resizeRequest = true;
+	}
 	m_currentFrame++;
 }
 
@@ -393,6 +429,11 @@ gns::rendering::RenderStep& gns::rendering::Device::CreateRenderPass(std::string
 void gns::rendering::Device::Cleanup()
 {
 	vkDeviceWaitIdle(m_device);
+	
+	VulkanResource::FreeAll();
+	
+	gpuSceneDataBuffer.reset();
+	
 	for (size_t i = 0; i < FRAME_OVERLAP; i++) 
 	{
 		vkDestroyFence(m_device, m_frames[i]._renderFence, nullptr);
@@ -434,26 +475,11 @@ void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
 		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().width / 16.0)), 
 		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().height / 16.0)), 
 		1);
-	
-	/* 
-	//make a clear-color from frame number. This will flash with a 120 frame period.
-	VkClearColorValue clearValue;
-	float flash = std::abs(std::sin(m_currentFrame / 120.f));
-	clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
-
-	VkImageSubresourceRange clearRange = utils::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
-
-	//clear image
-	vkCmdClearColorImage(cmd, m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
-	*/
 }
 
 void gns::rendering::Device::init_pipelines()
 {
 	init_background_pipelines();
-	init_triangle_pipeline();
-	init_mesh_pipeline();
-	//init_mesh_data();
 }
 
 void gns::rendering::Device::init_background_pipelines()
@@ -504,126 +530,15 @@ void gns::rendering::Device::init_background_pipelines()
 		});
 }
 
-void gns::rendering::Device::init_triangle_pipeline()
+void gns::rendering::Device::DrawMesh(VkCommandBuffer cmd, DrawData draw_data) const
 {
-	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
-	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.vert)").string();
-	
-	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
-	VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &_trianglePipelineLayout));
-	
-	Shader* shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_shader");
-	PipelineBuilder builder{this};
-	builder.m_pipelineLayout = _trianglePipelineLayout;
-	builder.SetShaders(*shader);
-	builder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	//filled triangles
-	builder.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	//no backface culling
-	builder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
-	//no multisampling
-	builder.SetMultisampling();
-	//no blending
-	builder.DisableBlending();
-	//no depth testing
-	builder.DisableDepthTest();
-	
-	builder.SetColorAttachmentFormat(m_drawImage.imageFormat);
-	builder.SetDepthFormat(VK_FORMAT_UNDEFINED);
-	
-	_trianglePipeline = builder.BuildPipeline(m_device);
-	
-	m_cleanupQueue.Push([&]() {
-		vkDestroyPipelineLayout(m_device, _trianglePipelineLayout, nullptr);
-		vkDestroyPipeline(m_device, _trianglePipeline, nullptr);
-	});
-}
-
-void gns::rendering::Device::init_mesh_pipeline()
-{
-	/*
-	 
-	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
-	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\mesh.vert)").string();
-	
-	VkPushConstantRange bufferRange{};
-	bufferRange.offset = 0;
-	bufferRange.size = sizeof(GPUDrawPushConstants);
-	bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	
-	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
-	pipeline_layout_info.pPushConstantRanges = &bufferRange;
-	pipeline_layout_info.pushConstantRangeCount = 1;
-	VK_CHECK(vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &_meshPipelineLayout));
-	
-	Shader* shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_mesh_shader");
-	
-	PipelineBuilder builder{this};
-	builder.m_pipelineLayout = _meshPipelineLayout;
-	builder.SetShaders(*shader);
-	builder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	//filled triangle's
-	builder.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	//no backface culling
-	builder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
-	//no multisampling
-	builder.SetMultisampling();
-	//no blending
-	builder.DisableBlending();
-	//no depth testing
-	builder.DisableDepthTest();
-	
-	builder.SetColorAttachmentFormat(m_drawImage.imageFormat);
-	builder.SetDepthFormat(VK_FORMAT_UNDEFINED);
-	
-	_meshPipeline = builder.BuildPipeline(m_device);
-	
-	m_cleanupQueue.Push([&]() {
-		vkDestroyPipelineLayout(m_device, _meshPipelineLayout, nullptr);
-		vkDestroyPipeline(m_device, _meshPipeline, nullptr);
-	});
-	*/	
-}
-
-void gns::rendering::Device::init_mesh_data()
-{
-	std::array<Vertex,4> rect_vertices;
-	rect_vertices[0].position = {0.5,-0.5, 0};
-	rect_vertices[1].position = {0.5,0.5, 0};
-	rect_vertices[2].position = {-0.5,-0.5, 0};
-	rect_vertices[3].position = {-0.5,0.5, 0};
-
-	rect_vertices[0].color = {0,0, 0,1};
-	rect_vertices[1].color = { 0.5,0.5,0.5 ,1};
-	rect_vertices[2].color = { 1,0, 0,1 };
-	rect_vertices[3].color = { 0,1, 0,1 };
-
-	std::array<uint32_t,6> rect_indices;
-
-	rect_indices[0] = 0;
-	rect_indices[1] = 1;
-	rect_indices[2] = 2;
-
-	rect_indices[3] = 2;
-	rect_indices[4] = 1;
-	rect_indices[5] = 3;
-
-	//rectangle = VulkanMesh::UploadMesh(*this, m_allocator, rect_indices,rect_vertices);
-
-	//delete the rectangle data on engine shutdown
-	m_cleanupQueue.Push([&](){
-		rectangle.indexBuffer.reset();
-		rectangle.vertexBuffer.reset();
-	});
-}
-
-void gns::rendering::Device::DrawMesh(
-VkCommandBuffer cmd, DrawData draw_data) const
-{
-	VkPipeline pipeline = draw_data.vkShader.GetPipeline();
-	VkPipelineLayout layout = draw_data.vkShader.GetPipelineLayout();
+	VkPipeline pipeline = draw_data.vkShader->GetPipeline();
+	VkPipelineLayout layout = draw_data.vkShader->GetPipelineLayout();
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
+	vkCmdBindDescriptorSets(cmd, 
+		VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &_sceneDataDescriptors, 0, nullptr);
+	
 	GPUDrawPushConstants push_constants;
 	push_constants.worldMatrix = draw_data.transform;
 	push_constants.vertexBuffer = draw_data.vk_vertexBufferAddress;
@@ -632,6 +547,31 @@ VkCommandBuffer cmd, DrawData draw_data) const
 	vkCmdBindIndexBuffer(cmd, draw_data.vk_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(draw_data.Count), 1, draw_data.StartIndex, 0, 0);
+}
+
+void gns::rendering::Device::DestroyShader(VulkanShader& vk_shader) const
+{
+	if (vk_shader.m_pipelineLayout != VK_NULL_HANDLE)
+		vkDestroyPipelineLayout(m_device, vk_shader.m_pipelineLayout, nullptr);
+	if (vk_shader.m_pipeline != VK_NULL_HANDLE)
+		vkDestroyPipeline(m_device, vk_shader.m_pipeline, nullptr);
+	
+	vk_shader.m_pipelineLayout = VK_NULL_HANDLE;
+	vk_shader.m_pipeline = VK_NULL_HANDLE;
+	
+}
+
+void gns::rendering::Device::DestroyMesh(VulkanMesh& vk_mesh) const
+{
+	DestroyBuffer(vk_mesh.indexBuffer);
+	DestroyBuffer(vk_mesh.vertexBuffer);
+}
+
+void gns::rendering::Device::DestroyBuffer(VulkanBuffer& vk_buffer) const
+{
+	if (vk_buffer.buffer != VK_NULL_HANDLE)
+		vk_buffer.reset();
+	vk_buffer.buffer = VK_NULL_HANDLE;
 }
 
 void gns::rendering::Device::EndRendering(VkCommandBuffer cmd)
@@ -647,7 +587,8 @@ void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 	VkRenderingAttachmentInfo depthAttachment = utils::DepthAttachmentInfo(
 		m_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 	
-	VkRenderingInfo renderInfo = utils::RenderingInfo(m_swapchain.GetExtent(), &colorAttachment, &depthAttachment);
+	VkRenderingInfo renderInfo = utils::RenderingInfo(
+		{m_drawImage.imageExtent.width,m_drawImage.imageExtent.height }, &colorAttachment, &depthAttachment);
 	vkCmdBeginRendering(cmd, &renderInfo);
 
 	//set dynamic viewport and scissor

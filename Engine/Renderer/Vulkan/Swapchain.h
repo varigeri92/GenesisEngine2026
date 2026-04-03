@@ -1,4 +1,5 @@
 #pragma once
+#include <SDL2/SDL.h>
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -13,7 +14,7 @@ namespace gns::rendering
 		~Swapchain() = default;
 		void CreateSwapchain(Device* m_device, VkExtent2D extent);
 		void DestroySwapchain();
-		void ResizeSwapchain();
+		void ResizeSwapchain(bool& ref_resize, SDL_Window* sdl_window);
 		
 		VkSwapchainKHR GetSwapchain() const { return m_swapchain; }
 		VkSwapchainKHR* GetSwapchain_ptr() { return &m_swapchain; }

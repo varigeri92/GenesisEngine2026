@@ -3,6 +3,11 @@
 
 namespace gns
 {
+    namespace rendering
+    {
+        class Device;
+    }
+
     struct VulkanResource;
     template <typename Resource_T> 
     concept DerivedFromVulkanResource = std::derived_from<Resource_T, gns::VulkanResource>;
@@ -12,14 +17,17 @@ namespace gns
     private:
         static std::unordered_map<gns::Handle, VulkanResource*> resourceMap;
         Handle resourceHandle;
+    protected:
+        rendering::Device* m_device;
     public:
+        virtual ~VulkanResource() = default;
         Handle GetHandle() const {return resourceHandle;}
         
         template <DerivedFromVulkanResource Resource_T, typename... Args>
-        static Resource_T* Create(Args&& ... args)
+        static Resource_T* Create(rendering::Device* device, Args&& ... args)
         {
-
             Resource_T* res = new Resource_T(std::forward<Args>(args)...);
+            res->m_device = device;
             res->resourceHandle = Handle::New();
             LOG_INFO("[VulkanResource]: Created a new resource handle!");
             LOG_INFO(std::to_string(res->resourceHandle.Get()));
@@ -43,5 +51,8 @@ namespace gns
             LOG_WARNING(std::to_string(handle.Get()));
             return nullptr;
         }
+        
+        static void FreeAll();
+        virtual void Destroy() = 0;
     };
 }

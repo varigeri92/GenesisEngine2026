@@ -43,11 +43,11 @@ namespace gns::core
 		static void Run(float deltaTime);
 		static void Clear();
 		
-		static entt::registry& GetRegistry();
+		GNS_API static entt::registry& GetRegistry();
 	private:
 		GNS_API static std::vector<std::unique_ptr<System>> Systems;
 		GNS_API static std::vector<size_t> deletionQeue;
-		static entt::registry Registry;
+		GNS_API static entt::registry Registry;
 	};
 
 }

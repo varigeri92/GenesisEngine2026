@@ -4,13 +4,18 @@
 #include <span>
 #include "Device.h"
 
+VulkanMesh::~VulkanMesh()
+{
+    Destroy();
+}
+
 VulkanMesh& VulkanMesh::UploadMesh(gns::rendering::Device& device, VmaAllocator allocator, std::span<uint32_t> indices,
-    std::span<Vertex> vertices)
+                                   std::span<Vertex> vertices)
 {
     const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
 
-    VulkanMesh& newSurface = *VulkanResource::Create<VulkanMesh>();
+    VulkanMesh& newSurface = *VulkanResource::Create<VulkanMesh>(&device);
     newSurface.vertexBuffer.allocator = allocator;
     newSurface.vertexBuffer.CreateBuffer(
         vertexBufferSize, 
@@ -56,4 +61,9 @@ VulkanMesh& VulkanMesh::UploadMesh(gns::rendering::Device& device, VmaAllocator 
         });
     }
     return newSurface;
+}
+
+void VulkanMesh::Destroy()
+{
+    m_device->DestroyMesh(*this);
 }

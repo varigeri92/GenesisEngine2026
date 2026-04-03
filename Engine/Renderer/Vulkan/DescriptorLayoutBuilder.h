@@ -1,32 +1,67 @@
 ﻿#pragma once
+#include <deque>
 #include <span>
 #include <vulkan/vulkan.h>
 
 namespace gns::rendering
 {
-    
-class DescriptorLayoutBuilder
-{
-public:
-    std::vector<VkDescriptorSetLayoutBinding> bindings;
+    struct DescriptorAllocatorGrowable {
+    public:
+        struct PoolSizeRatio {
+            VkDescriptorType type;
+            float ratio;
+        };
 
-    void AddBinding(uint32_t binding, VkDescriptorType type);
-    void Clear();
-    VkDescriptorSetLayout Build(VkDevice device, VkShaderStageFlags shaderStages, void* pNext = nullptr, VkDescriptorSetLayoutCreateFlags flags = 0);
-};
+        void Init(VkDevice device, uint32_t initialSets, std::span<PoolSizeRatio> poolRatios);
+        void ClearPools(VkDevice device);
+        void DestroyPools(VkDevice device);
 
-struct DescriptorAllocator {
+        VkDescriptorSet Allocate(VkDevice device, VkDescriptorSetLayout layout, void* pNext = nullptr);
+    private:
+        VkDescriptorPool GetPool(VkDevice device);
+        VkDescriptorPool CreatePool(VkDevice device, uint32_t setCount, std::span<PoolSizeRatio> poolRatios);
 
-    struct PoolSizeRatio{
-        VkDescriptorType type;
-        float ratio;
+        std::vector<PoolSizeRatio> ratios;
+        std::vector<VkDescriptorPool> fullPools;
+        std::vector<VkDescriptorPool> readyPools;
+        uint32_t setsPerPool = 0;
+
     };
 
-    VkDescriptorPool pool;
+    struct DescriptorWriter {
+        std::deque<VkDescriptorImageInfo> imageInfos;
+        std::deque<VkDescriptorBufferInfo> bufferInfos;
+        std::vector<VkWriteDescriptorSet> writes;
 
-    void InitPool(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolRatios);
-    void ClearDescriptors(VkDevice device);
-    void DestroyPool(VkDevice device);
-    VkDescriptorSet Allocate(VkDevice device, VkDescriptorSetLayout layout);
-};
+        void WriteImage(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
+        void WriteBuffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type);
+
+        void Clear();
+        void UpdateSet(VkDevice device, VkDescriptorSet set);
+    };
+    
+    class DescriptorLayoutBuilder
+    {
+    public:
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+        void AddBinding(uint32_t binding, VkDescriptorType type);
+        void Clear();
+        VkDescriptorSetLayout Build(VkDevice device, VkShaderStageFlags shaderStages, void* pNext = nullptr, VkDescriptorSetLayoutCreateFlags flags = 0);
+    };
+
+    struct DescriptorAllocator {
+
+        struct PoolSizeRatio{
+            VkDescriptorType type;
+            float ratio;
+        };
+
+        VkDescriptorPool pool;
+
+        void InitPool(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolRatios);
+        void ClearDescriptors(VkDevice device);
+        void DestroyPool(VkDevice device);
+        VkDescriptorSet Allocate(VkDevice device, VkDescriptorSetLayout layout);
+    };
 }

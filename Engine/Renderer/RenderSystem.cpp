@@ -7,6 +7,7 @@
 #include "../Object/Mesh.h"
 #include "../Utils/Path.h"
 #include "../Core/ComponentLibrary.h"
+#include "../Scene/Scene.h"
 
 gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer(){}
 
@@ -18,15 +19,8 @@ void gns::RenderSystem::OnCreate()
 
 void gns::RenderSystem::OnStart()
 {
-	/* 
-	gns::Entity entity_1 = gns::Entity::CreateEntity("test_entity_1");
-	gns::Entity::CreateEntity("test_entity_2");
-	gns::Entity::CreateEntity("test_entity_3");
-	gns::Entity entity_4 = gns::Entity::CreateEntity("test_entity_4");
-
-	std::string file = R"(D:\__ProjectGenesis\GenesisEngine_TestProject\Assets\basicmesh.glb)";
-	test_assimp(file);
-	*/
+	gns::Entity sceneEntity = gns::Entity::CreateEntity("SceneDataEntity");
+	sceneEntity.AddComponent<SceneData>();
 	
 	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
 	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\mesh.vert)").string();
@@ -35,15 +29,12 @@ void gns::RenderSystem::OnStart()
 	
 	std::vector<gns::assets::LoadedObject> loaded 
 		= assets::AssetManager::LoadAsset(
-			R"(D:\__ProjectGenesis\GenesisEngine_TestProject\Assets\basicmesh.glb)");
+			R"(D:\ProjectGenesis\TestFiles\source\Sorcerrer_03.fbx)");
 	for (auto& loaded_object : loaded)
 	{
 		Mesh* mesh = loaded_object.As<Mesh>();
 		mesh->Apply();
 		std::string name = mesh->GetName();
-		if (name != "Suzanne")
-			continue;
-		
 		gns::Entity entity = gns::Entity::CreateEntity(name);
 		MeshComponent& mesh_comp = entity.AddComponent<MeshComponent>();
 		mesh_comp.mesh = mesh->Ref<Mesh>();

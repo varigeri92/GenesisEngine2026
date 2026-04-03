@@ -25,9 +25,10 @@ struct VulkanMesh : public gns::VulkanResource
     VkDeviceAddress vertexBufferAddress;
     uint32_t startIndex;
     uint32_t count;
-    
+    ~VulkanMesh() override;
     static VulkanMesh& UploadMesh(
         gns::rendering::Device& device, VmaAllocator allocator, std::span<uint32_t> indices, std::span<Vertex> vertices);
+    void Destroy() override;
 };
 
 struct GPUDrawPushConstants {

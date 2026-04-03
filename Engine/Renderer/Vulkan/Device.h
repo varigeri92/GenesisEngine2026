@@ -1,6 +1,5 @@
 #pragma once
 #include <functional>
-#include <queue>
 #include <vulkan/vulkan.h>
 #include <vma/vk_mem_alloc.h>
 #include <vector>
@@ -21,8 +20,6 @@ namespace gns::rendering
 	
 	struct CleanupQueue
 	{
-		CleanupQueue() = default;
-		~CleanupQueue() = default;
 	private:
 		std::deque<std::function<void()>> m_queue;
 	public:
@@ -41,6 +38,7 @@ namespace gns::rendering
 		
 		Swapchain* _swapchain;
 		uint32_t _swapchainImageIndex;
+		DescriptorAllocatorGrowable _frameDescriptors;
 	};
 	class Device
 	{
@@ -67,12 +65,12 @@ namespace gns::rendering
 		Swapchain GetSwapchain() { return m_swapchain; }
 		VmaAllocator GetAlocator(){return m_allocator;}
 
-		VkFence m_immediateFence;
-		VkCommandBuffer m_immediateCommandBuffer;
-		VkCommandPool m_immediateCommandPool;
+		VkFence m_immediateFence = VK_NULL_HANDLE;
+		VkCommandBuffer m_immediateCommandBuffer = VK_NULL_HANDLE;
+		VkCommandPool m_immediateCommandPool = VK_NULL_HANDLE;
 		
 		void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
-		void BeginFrame(
+		bool BeginFrame(
 			VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data);
 		void DrawFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent , FrameData& data);
 		void ExecuteRenderPasses(VkCommandBuffer& cmd, FrameData& frameData);
@@ -87,17 +85,25 @@ namespace gns::rendering
 		void EndRendering(VkCommandBuffer cmd);
 		void* GetMappedDataFromAllocation(VmaAllocation allocation);
 		void DrawMesh(VkCommandBuffer cmd, DrawData drawData) const;
+		
+		void DestroyShader(VulkanShader& vk_shader) const;
+		void DestroyMesh(VulkanMesh& vk_mesh) const;
+		void DestroyBuffer(VulkanBuffer& vk_buffer) const;
+		bool m_resizeRequest = false;
+		void ResizeSwapchain();
+		void UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
 	private:
 		CleanupQueue m_cleanupQueue;
-		VkInstance m_instance;
-		VkDebugUtilsMessengerEXT m_debugMessenger;
-		VkPhysicalDevice m_physDevice;
-		VkDevice m_device;
-		VkSurfaceKHR m_surface;
+		VkInstance m_instance = VK_NULL_HANDLE;
+		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
+		VkPhysicalDevice m_physDevice = VK_NULL_HANDLE;
+		VkDevice m_device = VK_NULL_HANDLE;
+		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 		Swapchain m_swapchain;
-		VmaAllocator m_allocator;
-		SDL_Window* m_sdl_window;
+		VmaAllocator m_allocator = VK_NULL_HANDLE;
+		SDL_Window* m_sdl_window = nullptr;
 
+		
 		void InitVulkan(SDL_Window* sdl_window);
 		void InitSwapchain();
 		void InitCommands();
@@ -108,47 +114,38 @@ namespace gns::rendering
 		void Cleanup();
 
 		
-		std::vector<FrameData> m_frames;
-		VulkanImage m_drawImage;
-		VulkanImage m_depthImage;
+		std::vector<FrameData> m_frames = {};
+		VulkanImage m_drawImage = {};
+		VulkanImage m_depthImage= {};
 		
-		VkQueue m_graphicsQueue;
+		VkQueue m_graphicsQueue = {};
 		uint32_t m_graphicsQueueFamily;
 
-		VkQueue m_computeQueue;
+		VkQueue m_computeQueue= {};
 		uint32_t m_computeQueueFamily;
 
-		VkQueue m_transferQueue;
+		VkQueue m_transferQueue = {};
 		uint32_t m_transferQueueFamily;
 
-		VkQueue m_presentQueue;
+		VkQueue m_presentQueue = {};
 		uint32_t m_presentQueueFamily;
 
-		size_t m_currentFrame;
+		size_t m_currentFrame = {};
 		
-		DescriptorAllocator m_descriptorAllocator;
-		VkDescriptorSet _drawImageDescriptors;
-		VkDescriptorSetLayout _drawImageDescriptorLayout;
+		DescriptorAllocator m_descriptorAllocator = {};
+		VkDescriptorSet _drawImageDescriptors = VK_NULL_HANDLE;
+		VkDescriptorSetLayout _drawImageDescriptorLayout = VK_NULL_HANDLE;
 		
+		VkDescriptorSet _sceneDataDescriptors = VK_NULL_HANDLE;
+		//VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
+		VulkanBuffer gpuSceneDataBuffer = {};
 		
 		//test stuff:
-		VkPipeline _gradientPipeline;
-		VkPipelineLayout _gradientPipelineLayout;
+		VkPipeline _gradientPipeline = VK_NULL_HANDLE;
+		VkPipelineLayout _gradientPipelineLayout = VK_NULL_HANDLE;
 		void init_pipelines();
 		void init_background_pipelines();
 		
-		VkPipelineLayout _trianglePipelineLayout;
-		VkPipeline _trianglePipeline;
-
-		void init_triangle_pipeline();
-		
-		//VkPipelineLayout _meshPipelineLayout;
-		//VkPipeline _meshPipeline;
-
-		VulkanMesh rectangle;
-
-		void init_mesh_pipeline();
-		void init_mesh_data();
 	};
 	struct RenderStepData
 	{
