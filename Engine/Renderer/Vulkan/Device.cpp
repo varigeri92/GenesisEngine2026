@@ -74,6 +74,7 @@ void gns::rendering::Device::Create(SDL_Window* sdl_window)
 	
 	//init pipeline for test:
 	init_pipelines();
+	init_default_texture_data();
 }
 
 void gns::rendering::Device::WaitForIdle()
@@ -223,6 +224,18 @@ void gns::rendering::Device::UpdateDescriptorSet(GpuDataDescriptor dataDescripto
 	writer.UpdateSet(m_device, _sceneDataDescriptors);
 }
 
+void gns::rendering::Device::UpdateBuffer(GpuDataDescriptor data_descriptor, VkDescriptorSetLayout set_layout,
+	VulkanBuffer& vulkan_buffer, VkDescriptorSet descriptor_set)
+{
+	void* mappedBufferData = vulkan_buffer.allocation->GetMappedData();
+	memcpy(mappedBufferData, data_descriptor.data, data_descriptor.size);
+	
+	//descriptor_set = GetCurrentFrame()._frameDescriptors.Allocate(m_device, set_layout);
+	DescriptorWriter writer;
+	writer.WriteBuffer(0, vulkan_buffer.buffer, data_descriptor.size, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	writer.UpdateSet(m_device, descriptor_set);
+}
+
 void gns::rendering::Device::InitCommands()
 {
 	//create a command pool for commands submitted to the graphics queue.
@@ -284,6 +297,7 @@ void gns::rendering::Device::InitDescriptors()
 		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
 		_drawImageDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_COMPUTE_BIT);
 	}
+	
 	//allocate a descriptor set for our draw image
 	_drawImageDescriptors = m_descriptorAllocator.Allocate(m_device,_drawImageDescriptorLayout);	
 	
@@ -530,12 +544,65 @@ void gns::rendering::Device::init_background_pipelines()
 		});
 }
 
+void gns::rendering::Device::init_default_texture_data()
+{
+	//3 default textures, white, grey, black. 1 pixel each
+	uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
+	_whiteImage = *VulkanResource::Create<VulkanImage>(this);
+	_whiteImage.CreateImage((void*)&white, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1));
+	_greyImage = *VulkanResource::Create<VulkanImage>(this);
+	_greyImage.CreateImage((void*)&grey, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
+	_blackImage = *VulkanResource::Create<VulkanImage>(this);
+	_blackImage.CreateImage((void*)&black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	//checkerboard image
+	uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
+	std::array<uint32_t, 16 *16 > pixels; //for 16x16 checkerboard texture
+	for (int x = 0; x < 16; x++) {
+		for (int y = 0; y < 16; y++) {
+			pixels[y*16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+		}
+	}
+	_errorCheckerboardImage = *VulkanResource::Create<VulkanImage>(this);
+	_errorCheckerboardImage.CreateImage(pixels.data(), VkExtent3D{16, 16, 1}, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	VkSamplerCreateInfo sampl = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+
+	sampl.magFilter = VK_FILTER_NEAREST;
+	sampl.minFilter = VK_FILTER_NEAREST;
+
+	vkCreateSampler(m_device, &sampl, nullptr, &_defaultSamplerNearest);
+
+	sampl.magFilter = VK_FILTER_LINEAR;
+	sampl.minFilter = VK_FILTER_LINEAR;
+	vkCreateSampler(m_device, &sampl, nullptr, &_defaultSamplerLinear);
+
+	m_cleanupQueue.Push([&](){
+		vkDestroySampler(m_device,_defaultSamplerNearest,nullptr);
+		vkDestroySampler(m_device,_defaultSamplerLinear,nullptr);
+
+		_whiteImage.Destroy();
+		_greyImage.Destroy();
+		_blackImage.Destroy();
+		_errorCheckerboardImage.Destroy();
+	});
+}
+
 void gns::rendering::Device::DrawMesh(VkCommandBuffer cmd, DrawData draw_data) const
 {
 	VkPipeline pipeline = draw_data.vkShader->GetPipeline();
 	VkPipelineLayout layout = draw_data.vkShader->GetPipelineLayout();
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
+	
+	
 	vkCmdBindDescriptorSets(cmd, 
 		VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &_sceneDataDescriptors, 0, nullptr);
 	

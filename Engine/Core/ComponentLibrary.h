@@ -6,6 +6,7 @@
 
 namespace gns
 {
+    struct Material;
     struct Mesh;
     struct Shader;
 }
@@ -27,5 +28,6 @@ struct Transform
 struct MeshComponent
 {
     gns::Reference<gns::Mesh> mesh;
+    gns::Reference<gns::Material> material;
     gns::Reference<gns::Shader> shader;
 };

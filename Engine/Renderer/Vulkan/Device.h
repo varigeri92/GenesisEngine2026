@@ -92,6 +92,8 @@ namespace gns::rendering
 		bool m_resizeRequest = false;
 		void ResizeSwapchain();
 		void UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
+		void UpdateBuffer(GpuDataDescriptor data_descriptor, VkDescriptorSetLayout set_layout, 
+			VulkanBuffer& vulkan_buffer, VkDescriptorSet descriptor_set);
 	private:
 		CleanupQueue m_cleanupQueue;
 		VkInstance m_instance = VK_NULL_HANDLE;
@@ -145,6 +147,15 @@ namespace gns::rendering
 		VkPipelineLayout _gradientPipelineLayout = VK_NULL_HANDLE;
 		void init_pipelines();
 		void init_background_pipelines();
+		void init_default_texture_data();
+		
+		VulkanImage _whiteImage;
+		VulkanImage _blackImage;
+		VulkanImage _greyImage;
+		VulkanImage _errorCheckerboardImage;
+
+		VkSampler _defaultSamplerLinear;
+		VkSampler _defaultSamplerNearest;
 		
 	};
 	struct RenderStepData

@@ -17,6 +17,7 @@ namespace gns::rendering {
 		std::vector<DrawData> m_drawData;
 		CameraBackend m_cameraBackend;
 		VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
+		VkDescriptorSetLayout _singleImageDescriptorLayout;
 	public:
 
 		Renderer() = default;

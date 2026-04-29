@@ -7,6 +7,7 @@
 #include "../Object/Mesh.h"
 #include "../Utils/Path.h"
 #include "../Core/ComponentLibrary.h"
+#include "../Object/Material.h"
 #include "../Scene/Scene.h"
 
 gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer(){}
@@ -26,6 +27,10 @@ void gns::RenderSystem::OnStart()
 	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\mesh.vert)").string();
 	Shader* _shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_mesh_shader");
 	_shader->CreateVulkanShader();
+	Material* material = Object::Create<Material>();
+	material->shader_ref = _shader->Ref<Shader>();
+	material->AddProperty<glm::vec4>("base_color", glm::vec4(0.5f, 1.0f, 0.0f, 1.0f));
+	Reference<Material> materialRef = material->Ref<Material>();
 	
 	std::vector<gns::assets::LoadedObject> loaded 
 		= assets::AssetManager::LoadAsset(
@@ -39,6 +44,7 @@ void gns::RenderSystem::OnStart()
 		MeshComponent& mesh_comp = entity.AddComponent<MeshComponent>();
 		mesh_comp.mesh = mesh->Ref<Mesh>();
 		mesh_comp.shader = _shader->Ref<Shader>();
+		mesh_comp.material = material->Ref<Material>();
 		LOG_INFO(name);
 	}
 }
