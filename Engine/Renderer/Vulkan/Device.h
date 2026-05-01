@@ -27,6 +27,34 @@ namespace gns::rendering
 		void Flush();	
 	};
 	struct FrameData {
+		FrameData() = default;
+		FrameData(const FrameData& other)
+			: _commandPool(other._commandPool),
+			  _mainCommandBuffer(other._mainCommandBuffer),
+			  _swapchainSemaphore(other._swapchainSemaphore),
+			  _renderSemaphore(other._renderSemaphore),
+			  _renderFence(other._renderFence),
+			  _swapchain(other._swapchain),
+			  _swapchainImageIndex(other._swapchainImageIndex),
+			  _sceneDataDescriptors(other._sceneDataDescriptors)
+		{}
+
+		FrameData& operator=(const FrameData& other)
+		{
+			if (this != &other)
+			{
+				_commandPool = other._commandPool;
+				_mainCommandBuffer = other._mainCommandBuffer;
+				_swapchainSemaphore = other._swapchainSemaphore;
+				_renderSemaphore = other._renderSemaphore;
+				_renderFence = other._renderFence;
+				_swapchain = other._swapchain;
+				_swapchainImageIndex = other._swapchainImageIndex;
+				_sceneDataDescriptors = other._sceneDataDescriptors;
+			}
+			return *this;
+		}
+
 		VkCommandPool _commandPool;
 		VkCommandBuffer _mainCommandBuffer;
 		
@@ -39,6 +67,8 @@ namespace gns::rendering
 		Swapchain* _swapchain;
 		uint32_t _swapchainImageIndex;
 		DescriptorAllocatorGrowable _frameDescriptors;
+		VulkanBuffer _gpuSceneDataBuffer;
+		VkDescriptorSet _sceneDataDescriptors = VK_NULL_HANDLE;
 	};
 	class Device
 	{
@@ -84,7 +114,7 @@ namespace gns::rendering
 		void DrawGeometry(VkCommandBuffer cmd);
 		void EndRendering(VkCommandBuffer cmd);
 		void* GetMappedDataFromAllocation(VmaAllocation allocation);
-		void DrawMesh(VkCommandBuffer cmd, DrawData drawData) const;
+		void DrawMesh(VkCommandBuffer cmd, DrawData drawData);
 		
 		void DestroyShader(VulkanShader& vk_shader) const;
 		void DestroyMesh(VulkanMesh& vk_mesh) const;
@@ -92,8 +122,6 @@ namespace gns::rendering
 		bool m_resizeRequest = false;
 		void ResizeSwapchain();
 		void UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
-		void UpdateBuffer(GpuDataDescriptor data_descriptor, VkDescriptorSetLayout set_layout, 
-			VulkanBuffer& vulkan_buffer, VkDescriptorSet descriptor_set);
 	private:
 		CleanupQueue m_cleanupQueue;
 		VkInstance m_instance = VK_NULL_HANDLE;
@@ -138,24 +166,11 @@ namespace gns::rendering
 		VkDescriptorSet _drawImageDescriptors = VK_NULL_HANDLE;
 		VkDescriptorSetLayout _drawImageDescriptorLayout = VK_NULL_HANDLE;
 		
-		VkDescriptorSet _sceneDataDescriptors = VK_NULL_HANDLE;
-		//VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
-		VulkanBuffer gpuSceneDataBuffer = {};
-		
 		//test stuff:
 		VkPipeline _gradientPipeline = VK_NULL_HANDLE;
 		VkPipelineLayout _gradientPipelineLayout = VK_NULL_HANDLE;
 		void init_pipelines();
 		void init_background_pipelines();
-		void init_default_texture_data();
-		
-		VulkanImage _whiteImage;
-		VulkanImage _blackImage;
-		VulkanImage _greyImage;
-		VulkanImage _errorCheckerboardImage;
-
-		VkSampler _defaultSamplerLinear;
-		VkSampler _defaultSamplerNearest;
 		
 	};
 	struct RenderStepData

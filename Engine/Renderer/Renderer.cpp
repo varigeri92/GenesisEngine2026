@@ -219,23 +219,16 @@ void gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	{
 		DescriptorLayoutBuilder builder;
 		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		_gpuSceneDataDescriptorLayout = builder.Build(m_device.GetDevice(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+		vkShader.m_descriptorSetLayout =
+			builder.Build(m_device.GetDevice(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+		_gpuSceneDataDescriptorLayout = vkShader.m_descriptorSetLayout;
 	}
 	
-	{
-		DescriptorLayoutBuilder builder;
-		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		_singleImageDescriptorLayout = builder.Build(m_device.GetDevice(), VK_SHADER_STAGE_FRAGMENT_BIT);
-	}
-	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = {
-		_gpuSceneDataDescriptorLayout, 
-		_singleImageDescriptorLayout
-	};
 	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
 	pipeline_layout_info.pPushConstantRanges = &bufferRange;
 	pipeline_layout_info.pushConstantRangeCount = 1;
-	pipeline_layout_info.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-	pipeline_layout_info.pSetLayouts = descriptorSetLayouts.data();
+	pipeline_layout_info.setLayoutCount = 1;
+	pipeline_layout_info.pSetLayouts = &vkShader.m_descriptorSetLayout;
 	VK_CHECK(vkCreatePipelineLayout(m_device.GetDevice(), &pipeline_layout_info, nullptr, &vkShader.m_pipelineLayout));
 	
 	
