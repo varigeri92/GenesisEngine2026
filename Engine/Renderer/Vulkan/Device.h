@@ -15,8 +15,6 @@
 #include "DrawData.h"
 namespace gns::rendering 
 {
-	struct RenderStepData;
-	struct RenderStep;
 	struct VulkanShader;
 	struct VulkanTexture;
 
@@ -89,7 +87,6 @@ namespace gns::rendering
 			glm::vec4 data4;
 		};
 		
-		std::vector<RenderStep> renderPasses;
 	public:
 		
 		Device();
@@ -125,10 +122,7 @@ namespace gns::rendering
 		bool BeginFrame(
 			VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data);
 		void DrawFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent , FrameData& data);
-		void ExecuteRenderPasses(VkCommandBuffer& cmd, FrameData& frameData);
 		void EndFrame(VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent , FrameData& data);
-		RenderStep& CreateRenderPass(std::string name, 
-			std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> renderPassFunction);
 		VulkanImage* GetRenderTarget() { return &m_drawImage; }
 		VulkanImage* GetDepthTarget() { return &m_depthImage; }
 
@@ -205,29 +199,5 @@ namespace gns::rendering
 		void init_background_pipelines();
 		
 	};
-	struct RenderStepData
-	{
-		VulkanShader* shaderOverride = nullptr;
-		VulkanImage* renderTarget = nullptr;
-		VulkanImage* depthTarget = nullptr;
-		bool randomBool = true;
-		VkImageLayout srcImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		VkImageLayout dstImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		
-		VkRenderingInfo renderingInfo = {};
-		VkRenderingAttachmentInfo colorAttachment = {};
-		VkRenderingAttachmentInfo depthAttachment = {};
-	};
-	struct RenderStep
-	{
-		RenderStepData data;
-		std::string m_name;
-		RenderStep() = default;
-		RenderStep(std::string name, std::function<bool(VkCommandBuffer, RenderStepData&, FrameData&)> renderPassFunction);
-		void ExecuteRenderPass(VkCommandBuffer cmd,  FrameData& frameData);
-	private:
-		std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> m_renderPassFunction;
-	};
-
 }
 

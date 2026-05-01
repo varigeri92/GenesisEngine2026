@@ -22,20 +22,6 @@ constexpr unsigned int FRAME_OVERLAP = 3;
 constexpr bool useValidationLayers = true;
 
 
-gns::rendering::RenderStep::RenderStep(std::string name, std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> renderPassFunction)
-{
-	m_name = std::move(name);
-	m_renderPassFunction = std::move(renderPassFunction);
-}
-
-void gns::rendering::RenderStep::ExecuteRenderPass(VkCommandBuffer cmd,  FrameData& frameData)
-{
-	if (!m_renderPassFunction(cmd, this->data, frameData))
-	{
-		LOG_ERROR("Error While Executing RenderPass - '" + m_name + "'");	
-	}
-}
-
 void gns::rendering::CleanupQueue::Push(std::function<void()>&& func)
 {
 	m_queue.push_back(func);
@@ -459,14 +445,6 @@ bool gns::rendering::Device::BeginFrame(
 	return true;
 }
 
-void gns::rendering::Device::ExecuteRenderPasses(VkCommandBuffer& cmd,  FrameData& frameData)
-{
-	for (auto& renderPass : renderPasses)
-	{
-		renderPass.ExecuteRenderPass(cmd, frameData);
-	}
-}
-
 void gns::rendering::Device::EndFrame(
 	VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data )
 {
@@ -498,13 +476,6 @@ void gns::rendering::Device::EndFrame(
 		m_resizeRequest = true;
 	}
 	m_currentFrame++;
-}
-
-gns::rendering::RenderStep& gns::rendering::Device::CreateRenderPass(std::string name,
-			std::function<bool(VkCommandBuffer, RenderStepData&,  FrameData&)> renderPassFunction)
-{
-	renderPasses.emplace_back(name, renderPassFunction);
-	return renderPasses[renderPasses.size()-1];
 }
 
 void gns::rendering::Device::Cleanup()

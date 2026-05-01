@@ -17,7 +17,9 @@ void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 
 void gns::rendering::Renderer::SetupRenderPasses()
 {
-	auto& transitionStep = m_device.CreateRenderPass("ImageTransition step",
+	m_renderGraph.Clear();
+
+	auto& transitionStep = m_renderGraph.AddPass("ImageTransition step",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
 		utils::TransitionImage(
@@ -28,7 +30,7 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	transitionStep.data.dstImageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	transitionStep.data.renderTarget = m_device.GetRenderTarget();
 	
-	auto& backgroundPass = m_device.CreateRenderPass("background pass", 
+	auto& backgroundPass = m_renderGraph.AddPass("background pass",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
 		m_device.DrawTest(cmd);
@@ -36,7 +38,7 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	});
 	backgroundPass.data.renderTarget = m_device.GetRenderTarget();
 	
-	auto& transitionToColorAttachment = m_device.CreateRenderPass("ImageTransition step",
+	auto& transitionToColorAttachment = m_renderGraph.AddPass("ImageTransition step",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
 		utils::TransitionImage(
@@ -49,7 +51,7 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	transitionToColorAttachment.data.renderTarget = m_device.GetRenderTarget();
 	transitionToColorAttachment.data.depthTarget = m_device.GetDepthTarget();
 	
-	auto& geometryPass = m_device.CreateRenderPass("geometry pass", 
+	auto& geometryPass = m_renderGraph.AddPass("geometry pass",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
 		m_device.DrawGeometry(cmd);
@@ -62,7 +64,7 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	});
 	geometryPass.data.renderTarget = m_device.GetRenderTarget();
 	
-	auto& copyToSwapchain = m_device.CreateRenderPass("ImageTransition step",
+	auto& copyToSwapchain = m_renderGraph.AddPass("ImageTransition step",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
 		utils::TransitionImage(
@@ -79,7 +81,7 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	copyToSwapchain.data.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 	copyToSwapchain.data.renderTarget = m_device.GetRenderTarget();
 	
-	auto& imguiPass = m_device.CreateRenderPass("test pass", 
+	auto& imguiPass = m_renderGraph.AddPass("test pass",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
 		utils::TransitionImage(cmd, frameData._swapchain->GetImage(frameData._swapchainImageIndex), rp_data.srcImageLayout, rp_data.dstImageLayout);
@@ -113,7 +115,7 @@ void gns::rendering::Renderer::DrawFrame(
 		{
 			m_device.UpdateDescriptorSet(*sceneDataDescriptor, _gpuSceneDataDescriptorLayout);
 		}
-    	m_device.ExecuteRenderPasses(cmd, frameData);
+		m_renderGraph.Execute(cmd, frameData);
 		//depth prepass
 		//Shadows prepass
 		//culling pass

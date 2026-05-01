@@ -1,6 +1,7 @@
 #pragma once
 #include "Shader.h"
 #include "Vulkan/Device.h"
+#include "RenderGraph.h"
 #include "Resources/VulkanShader.h"
 #include "../Core/Camera.h" 
 
@@ -17,6 +18,7 @@ namespace gns::rendering {
 	{
 	private:
 		Device m_device;
+		RenderGraph m_renderGraph;
 		std::vector<DrawData> m_drawData;
 		CameraBackend m_cameraBackend;
 		VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
