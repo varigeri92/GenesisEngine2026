@@ -33,6 +33,7 @@ void TestWindow::LoadCheckerboardTexture()
     GuiSystem* guiSystem = gns::core::SystemsManager::GetSystem<GuiSystem>();
     if (guiSystem == nullptr)
     {
+        LOG_WARNING("[TestWindow]: GuiSystem is missing. Cannot load checkerboard texture.");
         return;
     }
 

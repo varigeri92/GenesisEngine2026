@@ -71,13 +71,25 @@ void gns::gui::GuiBackend::OnCreate(SDL_Window* window, gns::RenderSystem& rende
 	pool_info.poolSizeCount = (uint32_t)std::size(pool_sizes);
 	pool_info.pPoolSizes = pool_sizes;
 
-	vkCreateDescriptorPool(m_device, &pool_info, nullptr, &m_imguiPool);
+	if (vkCreateDescriptorPool(m_device, &pool_info, nullptr, &m_imguiPool) != VK_SUCCESS)
+	{
+		LOG_ERROR("[GuiBackend]: Failed to create ImGui descriptor pool.");
+		return;
+	}
 	ImGui::CreateContext();
-	ImGui_ImplSDL2_InitForVulkan(window);
+	if (!ImGui_ImplSDL2_InitForVulkan(window))
+	{
+		LOG_ERROR("[GuiBackend]: Failed to initialize ImGui SDL Vulkan backend.");
+		return;
+	}
 	
 	init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 	init_info.DescriptorPool = m_imguiPool;
-	ImGui_ImplVulkan_Init(&init_info);
+	if (!ImGui_ImplVulkan_Init(&init_info))
+	{
+		LOG_ERROR("[GuiBackend]: Failed to initialize ImGui Vulkan backend.");
+		return;
+	}
 	auto& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
 }
@@ -94,6 +106,8 @@ uint64_t gns::gui::GuiBackend::RegisterTexture(gns::RenderSystem& renderSystem, 
 	const gns::RenderTextureBinding texture = renderSystem.GetTextureBinding(textureHandle);
 	if (!texture.IsValid())
 	{
+		LOG_WARNING("[GuiBackend]: Cannot register invalid GUI texture binding for texture handle.");
+		LOG_WARNING(std::to_string(textureHandle.Get()));
 		return 0;
 	}
 
@@ -114,5 +128,9 @@ void gns::gui::GuiBackend::OnEndGuiFrame()
 void gns::gui::GuiBackend::OnDestroy()
 {
 	ImGui_ImplVulkan_Shutdown();
-	vkDestroyDescriptorPool(m_device, m_imguiPool, nullptr);
+	if (m_imguiPool != VK_NULL_HANDLE)
+	{
+		vkDestroyDescriptorPool(m_device, m_imguiPool, nullptr);
+		m_imguiPool = VK_NULL_HANDLE;
+	}
 }

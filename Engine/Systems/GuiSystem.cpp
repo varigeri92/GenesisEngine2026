@@ -38,6 +38,7 @@ uint64_t GuiSystem::GetDefaultCheckerboardTexture()
     gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
     if (renderSystem == nullptr)
     {
+        LOG_WARNING("[GuiSystem]: Cannot get default checkerboard texture because RenderSystem is missing.");
         return 0;
     }
 
@@ -45,10 +46,15 @@ uint64_t GuiSystem::GetDefaultCheckerboardTexture()
         renderSystem->GetDefaultTextureHandle(gns::DefaultTexture::ErrorCheckerboard);
     if (!checkerboardHandle.IsValid())
     {
+        LOG_WARNING("[GuiSystem]: Default checkerboard texture handle is invalid.");
         return 0;
     }
 
     m_defaultCheckerboardTexture = gui_backend.RegisterTexture(*renderSystem, checkerboardHandle);
+    if (m_defaultCheckerboardTexture == 0)
+    {
+        LOG_WARNING("[GuiSystem]: Failed to register default checkerboard texture for GUI.");
+    }
     return m_defaultCheckerboardTexture;
 }
 
@@ -56,8 +62,23 @@ void GuiSystem::OnCreate()
 {
     gns::window::WindowSystem* ws = 
            gns::core::SystemsManager::GetSystem<gns::window::WindowSystem>();
+    if (ws == nullptr)
+    {
+        LOG_ERROR("[GuiSystem]: WindowSystem is missing. Cannot create GUI backend.");
+        return;
+    }
     SDL_Window* sdl_window = ws->GetSDLWindow();
+    if (sdl_window == nullptr)
+    {
+        LOG_ERROR("[GuiSystem]: SDL window is missing. Cannot create GUI backend.");
+        return;
+    }
     gns::RenderSystem* render_system = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    if (render_system == nullptr)
+    {
+        LOG_ERROR("[GuiSystem]: RenderSystem is missing. Cannot create GUI backend.");
+        return;
+    }
     gui_backend.OnCreate(sdl_window, *render_system);
     LOG_INFO("Gui System Created!");
 }
@@ -95,6 +116,12 @@ void GuiSystem::OnDisable()
 void GuiSystem::OnDestroy()
 {
     gns::RenderSystem* render_system = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    if (render_system == nullptr)
+    {
+        LOG_WARNING("[GuiSystem]: RenderSystem is missing during GUI shutdown.");
+        gui_backend.OnDestroy();
+        return;
+    }
     render_system->WaitForIdle();
     gui_backend.OnDestroy();
 }

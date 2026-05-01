@@ -369,6 +369,7 @@ gns::Handle gns::rendering::Device::CreateDefaultTexture(
 	VulkanTexture* texture = CreateResource<VulkanTexture>();
 	if (texture == nullptr)
 	{
+		LOG_ERROR("[Device]: Failed to create default texture resource.");
 		return {};
 	}
 
@@ -382,6 +383,12 @@ gns::Handle gns::rendering::Device::CreateDefaultTexture(
 		VK_IMAGE_USAGE_SAMPLED_BIT,
 		false);
 	CreateTextureDescriptor(*texture);
+	if (texture->descriptorSet == VK_NULL_HANDLE)
+	{
+		LOG_ERROR("[Device]: Failed to create descriptor for default texture.");
+		LOG_ERROR(std::to_string(texture->GetHandle().Get()));
+		return {};
+	}
 
 	return texture->GetHandle();
 }
@@ -659,6 +666,8 @@ void gns::rendering::Device::CreateTextureDescriptor(VulkanTexture& texture)
 		texture.sampler == VK_NULL_HANDLE ||
 		texture.image.imageView == VK_NULL_HANDLE)
 	{
+		LOG_ERROR("[Device]: Cannot create texture descriptor because texture resources are incomplete.");
+		LOG_ERROR(std::to_string(texture.GetHandle().Get()));
 		return;
 	}
 

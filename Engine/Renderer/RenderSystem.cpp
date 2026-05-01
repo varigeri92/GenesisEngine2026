@@ -163,15 +163,31 @@ gns::Handle gns::RenderSystem::GetDefaultTextureHandle(DefaultTexture texture) c
 	case DefaultTexture::ErrorCheckerboard:
 		return defaultTextures.errorCheckerboard;
 	default:
+		LOG_WARNING("[RenderSystem]: Unknown default texture requested.");
 		return {};
 	}
 }
 
 gns::RenderTextureBinding gns::RenderSystem::GetTextureBinding(Handle textureHandle)
 {
-	rendering::VulkanTexture* texture = m_renderer.GetVulkanTexture(textureHandle);
-	if (texture == nullptr || texture->descriptorSet == VK_NULL_HANDLE)
+	if (!textureHandle.IsValid())
 	{
+		LOG_WARNING("[RenderSystem]: Cannot get texture binding for invalid texture handle.");
+		return {};
+	}
+
+	rendering::VulkanTexture* texture = m_renderer.GetVulkanTexture(textureHandle);
+	if (texture == nullptr)
+	{
+		LOG_WARNING("[RenderSystem]: Missing Vulkan texture resource for texture handle.");
+		LOG_WARNING(std::to_string(textureHandle.Get()));
+		return {};
+	}
+
+	if (texture->descriptorSet == VK_NULL_HANDLE)
+	{
+		LOG_WARNING("[RenderSystem]: Vulkan texture has no descriptor set.");
+		LOG_WARNING(std::to_string(textureHandle.Get()));
 		return {};
 	}
 
