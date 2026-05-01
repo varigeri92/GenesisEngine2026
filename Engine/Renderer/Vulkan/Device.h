@@ -7,6 +7,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 #include "DescriptorLayoutBuilder.h"
+#include "../Resources/VulkanResource.h"
 #include "VulkanImage.h"
 #include "../Gui/GuiBackend.h"
 #include "VulkanMesh.h"
@@ -94,6 +95,17 @@ namespace gns::rendering
 		VkQueue GetGraphicsQueue() { return m_graphicsQueue; }
 		Swapchain GetSwapchain() { return m_swapchain; }
 		VmaAllocator GetAlocator(){return m_allocator;}
+		template <DerivedFromVulkanResource Resource_T, typename... Args>
+		Resource_T* CreateResource(Args&& ... args)
+		{
+			return m_resourceRegistry.Create<Resource_T>(this, std::forward<Args>(args)...);
+		}
+
+		template <DerivedFromVulkanResource Resource_T>
+		Resource_T* GetResource(const Handle handle) const
+		{
+			return m_resourceRegistry.Get<Resource_T>(handle);
+		}
 
 		VkFence m_immediateFence = VK_NULL_HANDLE;
 		VkCommandBuffer m_immediateCommandBuffer = VK_NULL_HANDLE;
@@ -123,6 +135,7 @@ namespace gns::rendering
 		void ResizeSwapchain();
 		void UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
 	private:
+		gns::VulkanResourceRegistry m_resourceRegistry;
 		CleanupQueue m_cleanupQueue;
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

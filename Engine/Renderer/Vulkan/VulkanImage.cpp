@@ -95,10 +95,25 @@ void gns::rendering::VulkanImage::CreateImage(void* data, VkExtent3D size, VkFor
     uploadBuffer.reset();
 }
 
-void gns::rendering::VulkanImage::DestroyImage() const
+void gns::rendering::VulkanImage::DestroyImage()
 {
-    vkDestroyImage(m_device->GetDevice(), image, nullptr);
-    vkDestroyImageView(m_device->GetDevice(), imageView, nullptr);
+    if (m_device == nullptr)
+    {
+        return;
+    }
+
+    if (imageView != VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(m_device->GetDevice(), imageView, nullptr);
+        imageView = VK_NULL_HANDLE;
+    }
+
+    if (image != VK_NULL_HANDLE && allocation != VK_NULL_HANDLE)
+    {
+        vmaDestroyImage(m_device->GetAlocator(), image, allocation);
+        image = VK_NULL_HANDLE;
+        allocation = VK_NULL_HANDLE;
+    }
 }
 
 void gns::rendering::VulkanImage::Destroy()

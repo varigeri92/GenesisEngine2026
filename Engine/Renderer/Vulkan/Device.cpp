@@ -165,7 +165,8 @@ void gns::rendering::Device::InitSwapchain()
 	VkExtent3D drawImageExtent = {
 	static_cast<uint32_t>(w),static_cast<uint32_t>(h), 1
 	};
-	m_drawImage = *VulkanResource::Create<VulkanImage>(this, drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT);
+	m_drawImage = VulkanImage(drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT);
+	m_drawImage.m_device = this;
 	VkImageUsageFlags drawImageUsages{};
 	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -173,7 +174,8 @@ void gns::rendering::Device::InitSwapchain()
 	drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	m_drawImage.CreateImage(drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT, drawImageUsages, false);
 	
-	m_depthImage = *VulkanResource::Create<VulkanImage>(this, drawImageExtent, VK_FORMAT_D32_SFLOAT);
+	m_depthImage = VulkanImage(drawImageExtent, VK_FORMAT_D32_SFLOAT);
+	m_depthImage.m_device = this;
 	VkImageUsageFlags depthImageUsages{};
 	depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	m_depthImage.CreateImage(drawImageExtent, VK_FORMAT_D32_SFLOAT, depthImageUsages, false);
@@ -434,7 +436,7 @@ void gns::rendering::Device::Cleanup()
 {
 	vkDeviceWaitIdle(m_device);
 	
-	VulkanResource::FreeAll();
+	m_resourceRegistry.DestroyAll();
 	
 	for (size_t i = 0; i < FRAME_OVERLAP; i++) 
 	{

@@ -126,8 +126,8 @@ void gns::rendering::Renderer::BuildDrawData()
 			return;
 		}
 
-		auto* vulkan_shader = VulkanResource::Get<VulkanShader>(vulkanShaderHandle);
-		auto* vulkan_mesh = VulkanResource::Get<VulkanMesh>(vulkanMeshHandle);
+		auto* vulkan_shader = m_device.GetResource<VulkanShader>(vulkanShaderHandle);
+		auto* vulkan_mesh = m_device.GetResource<VulkanMesh>(vulkanMeshHandle);
 		if (vulkan_shader == nullptr || vulkan_mesh == nullptr)
 		{
 			return;
@@ -230,7 +230,7 @@ gns::Handle gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
 
 gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 {
-	VulkanShader& vkShader = *VulkanResource::Create<VulkanShader>(&m_device);
+	VulkanShader& vkShader = *m_device.CreateResource<VulkanShader>();
 	
 	VkPushConstantRange bufferRange{};
 	bufferRange.offset = 0;

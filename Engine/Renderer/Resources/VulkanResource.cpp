@@ -1,11 +1,9 @@
 ﻿#include "gnspch.h"
 #include "VulkanResource.h"
 
-std::unordered_map<gns::Handle, gns::VulkanResource*> gns::VulkanResource::resourceMap = {};
-
-void gns::VulkanResource::FreeAll()
+void gns::VulkanResourceRegistry::DestroyAll()
 {
-    for (const auto& [handle, resource] : gns::VulkanResource::resourceMap)
+    for (const auto& [handle, resource] : resourceMap)
     {
         resource->Destroy();
     }

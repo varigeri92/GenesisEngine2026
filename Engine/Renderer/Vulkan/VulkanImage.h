@@ -25,6 +25,6 @@ namespace gns::rendering
         void CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
         void Destroy() override;
         private:
-        void DestroyImage() const;
+        void DestroyImage();
     };
 }
