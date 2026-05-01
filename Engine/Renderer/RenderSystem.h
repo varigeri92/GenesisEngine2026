@@ -3,8 +3,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <glm/glm.hpp>
-
 #include "../Core/Handles.h"
 #include "../Systems/System.h"
 #include "Renderer.h"
@@ -53,19 +51,6 @@ namespace gns {
 		Handle errorCheckerboard;
 	};
 
-	struct RenderItem
-	{
-		Handle mesh;
-		Handle material;
-		Handle shader;
-		glm::mat4 worldTransform = glm::mat4(1.0f);
-
-		bool IsValid() const
-		{
-			return mesh.IsValid() && material.IsValid() && shader.IsValid();
-		}
-	};
-
 	class RenderSystem : public gns::core::System
 	{
 
@@ -93,17 +78,19 @@ namespace gns {
 		GNS_API Handle GetDefaultTextureHandle(DefaultTexture texture) const;
 		GNS_API RenderTextureBinding GetTextureBinding(Handle textureHandle);
 		GNS_API uint64_t GetTextureDescriptor(Handle textureHandle);
-		GNS_API const std::vector<RenderItem>& GetRenderItems() const;
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;
 		rendering::Renderer m_renderer;
 		RenderResourceCache m_resourceCache;
 		EngineDefaultTextureHandles m_defaultTextures;
-		std::vector<RenderItem> m_renderItems;
+		std::vector<DrawData> m_drawData;
+		GpuDataDescriptor m_sceneDataDescriptor = {};
+		bool m_hasSceneDataDescriptor = false;
 
 		void CreateDefaultTextureObjects();
 		Handle RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle);
-		void BuildRenderItems();
+		void BuildDrawData();
+		void BuildSceneDataDescriptor();
 	};
 }

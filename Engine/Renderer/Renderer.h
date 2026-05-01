@@ -11,6 +11,7 @@ namespace gns
 }
 namespace gns::rendering {
 	struct VulkanTexture;
+	struct VulkanShader;
 
 	class Renderer
 	{
@@ -27,8 +28,7 @@ namespace gns::rendering {
 		~Renderer() = default;
 		void CreateDevice(SDL_Window* sdl_window);
 		void SetupRenderPasses();
-		void BuildDrawData();
-		void DrawFrame();
+		void DrawFrame(const std::vector<DrawData>& drawData, const GpuDataDescriptor* sceneDataDescriptor);
 		
 		GNS_API VkDevice GetDevice();
 		GNS_API VkPhysicalDevice GetPhysicalDevice();
@@ -37,6 +37,8 @@ namespace gns::rendering {
 		GNS_API VkFormat* GetSwapChainFormat();
 		const VulkanDefaultTextureHandles& GetDefaultTextures() const;
 		VulkanTexture* GetVulkanTexture(Handle textureHandle);
+		VulkanShader* GetVulkanShader(Handle shaderHandle);
+		VulkanMesh* GetVulkanMesh(Handle meshHandle);
 		void WaitForIdle();
 		
 		void SetRenderSystem(gns::RenderSystem* renderSystem);

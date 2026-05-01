@@ -11,7 +11,9 @@
 #include "../Object/Material.h"
 #include "../Scene/Scene.h"
 #include "../Systems/SystemsManager.h"
+#include "Resources/VulkanShader.h"
 #include "Resources/VulkanTexture.h"
+#include "Vulkan/VulkanMesh.h"
 
 gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer()
 {
@@ -66,8 +68,9 @@ void gns::RenderSystem::OnUpdate(float deltaTime)
 
 void gns::RenderSystem::OnLateUpdate(float deltaTime)
 {
-	BuildRenderItems();
-	m_renderer.DrawFrame();
+	BuildDrawData();
+	BuildSceneDataDescriptor();
+	m_renderer.DrawFrame(m_drawData, m_hasSceneDataDescriptor ? &m_sceneDataDescriptor : nullptr);
 }
 
 void gns::RenderSystem::OnFixedUpdate()
@@ -213,11 +216,6 @@ uint64_t gns::RenderSystem::GetTextureDescriptor(Handle textureHandle)
 	return GetTextureBinding(textureHandle).descriptor;
 }
 
-const std::vector<gns::RenderItem>& gns::RenderSystem::GetRenderItems() const
-{
-	return m_renderItems;
-}
-
 void gns::RenderSystem::CreateDefaultTextureObjects()
 {
 	const rendering::VulkanDefaultTextureHandles& vulkanDefaults = m_renderer.GetDefaultTextures();
@@ -252,11 +250,11 @@ gns::Handle gns::RenderSystem::RegisterDefaultTexture(const char* name, Handle v
 	return textureHandle;
 }
 
-void gns::RenderSystem::BuildRenderItems()
+void gns::RenderSystem::BuildDrawData()
 {
-	const size_t previousItemCount = m_renderItems.size();
-	m_renderItems.clear();
-	m_renderItems.reserve(previousItemCount);
+	const size_t previousDrawCount = m_drawData.size();
+	m_drawData.clear();
+	m_drawData.reserve(previousDrawCount);
 
 	auto view = core::SystemsManager::GetRegistry().view<EntityComponent, Transform, MeshComponent>();
 	view.each([&](
@@ -264,19 +262,49 @@ void gns::RenderSystem::BuildRenderItems()
 		Transform& transform,
 		MeshComponent& meshComp)
 	{
-		RenderItem item =
-		{
-			.mesh = meshComp.mesh.m_handle,
-			.material = meshComp.material.m_handle,
-			.shader = meshComp.shader.m_handle,
-			.worldTransform = transform.matrix
-		};
-
-		if (!item.IsValid())
+		if (!meshComp.mesh.m_handle.IsValid() ||
+			!meshComp.material.m_handle.IsValid() ||
+			!meshComp.shader.m_handle.IsValid())
 		{
 			return;
 		}
 
-		m_renderItems.emplace_back(item);
+		const Handle vulkanShaderHandle = GetVulkanShaderHandle(meshComp.shader.m_handle);
+		const Handle vulkanMeshHandle = GetVulkanMeshHandle(meshComp.mesh.m_handle);
+		if (!vulkanShaderHandle.IsValid() || !vulkanMeshHandle.IsValid())
+		{
+			return;
+		}
+
+		rendering::VulkanShader* vulkanShader = m_renderer.GetVulkanShader(vulkanShaderHandle);
+		VulkanMesh* vulkanMesh = m_renderer.GetVulkanMesh(vulkanMeshHandle);
+		if (vulkanShader == nullptr || vulkanMesh == nullptr)
+		{
+			return;
+		}
+
+		DrawData drawData;
+		drawData.transform = m_renderer.m_cameraBackend.viewProjection;
+		drawData.vkShader = vulkanShader;
+		drawData.vk_indexBuffer = vulkanMesh->indexBuffer.buffer;
+		drawData.vk_vertexBufferAddress = vulkanMesh->vertexBufferAddress;
+		drawData.StartIndex = vulkanMesh->startIndex;
+		drawData.Count = vulkanMesh->count;
+		m_drawData.emplace_back(drawData);
+	});
+}
+
+void gns::RenderSystem::BuildSceneDataDescriptor()
+{
+	m_hasSceneDataDescriptor = false;
+	auto sceneDataView = core::SystemsManager::GetRegistry()
+		.view<EntityComponent, Transform, gns::SceneData>();
+	sceneDataView.each([&](
+		EntityComponent& entityComp,
+		Transform& transform,
+		gns::SceneData& sceneData)
+	{
+		m_sceneDataDescriptor = GpuDataDescriptor::GetFromType<gns::SceneData>(&sceneData);
+		m_hasSceneDataDescriptor = true;
 	});
 }

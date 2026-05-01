@@ -7,13 +7,7 @@
 #include "Vulkan/vulkan_log.h"
 #include "Resources/VulkanShader.h"
 #include "Resources/VulkanTexture.h"
-#include "../Systems/SystemsManager.h"
-#include "../Core/ComponentLibrary.h"
 #include "RenderSystem.h"
-#include "../Scene/Scene.h"
-#include "../Scene/SceneSystem.h"
-
-struct EntityComponent;
 
 void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 {
@@ -102,58 +96,9 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	imguiPass.data.dstImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 }
 
-void gns::rendering::Renderer::BuildDrawData()
-{
-	if (m_renderSystem == nullptr)
-	{
-		LOG_ERROR("[Renderer]: RenderSystem is not set. Cannot build draw data.");
-		return;
-	}
-
-	size_t drawSize = m_drawData.size();
-	m_drawData.clear();
-	m_drawData.reserve(drawSize);
-	auto view = gns::core::SystemsManager::GetRegistry().view<EntityComponent, Transform, MeshComponent>();
-	view.each([&](
-		EntityComponent& entityComp, 
-		Transform& transform, 
-		MeshComponent& meshComp)
-	{
-		
-		const Handle vulkanShaderHandle = m_renderSystem->GetVulkanShaderHandle(meshComp.shader.m_handle);
-		const Handle vulkanMeshHandle = m_renderSystem->GetVulkanMeshHandle(meshComp.mesh.m_handle);
-		if (!vulkanShaderHandle.IsValid() || !vulkanMeshHandle.IsValid())
-		{
-			return;
-		}
-
-		auto* vulkan_shader = m_device.GetResource<VulkanShader>(vulkanShaderHandle);
-		auto* vulkan_mesh = m_device.GetResource<VulkanMesh>(vulkanMeshHandle);
-		if (vulkan_shader == nullptr || vulkan_mesh == nullptr)
-		{
-			return;
-		}
-
-		DrawData drawData;
-		drawData.transform = m_cameraBackend.viewProjection;
-		drawData.vkShader = vulkan_shader;
-		drawData.vk_indexBuffer = vulkan_mesh->indexBuffer.buffer;
-		drawData.vk_vertexBufferAddress = vulkan_mesh->vertexBufferAddress;
-		drawData.StartIndex = vulkan_mesh->startIndex;
-		drawData.Count = vulkan_mesh->count;
-		m_drawData.emplace_back(drawData);
-	});
-	
-	auto SceneData = gns::core::SystemsManager::GetRegistry()
-		.view<EntityComponent, Transform, gns::SceneData>();
-	SceneData.each([&](EntityComponent& entityComp, Transform& transform, gns::SceneData& scene_data)
-	{
-		GpuDataDescriptor descriptor = GpuDataDescriptor::GetFromType<gns::SceneData>(&scene_data);
-		m_device.UpdateDescriptorSet(descriptor, _gpuSceneDataDescriptorLayout);
-	});
-}
-
-void gns::rendering::Renderer::DrawFrame()
+void gns::rendering::Renderer::DrawFrame(
+	const std::vector<DrawData>& drawData,
+	const GpuDataDescriptor* sceneDataDescriptor)
 {
 	if (m_device.m_resizeRequest)
 		m_device.ResizeSwapchain();
@@ -164,8 +109,11 @@ void gns::rendering::Renderer::DrawFrame()
 	FrameData frameData;
     if (m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData))
     {
-		//CreateDrawData
-		BuildDrawData();
+		m_drawData = drawData;
+		if (sceneDataDescriptor != nullptr)
+		{
+			m_device.UpdateDescriptorSet(*sceneDataDescriptor, _gpuSceneDataDescriptorLayout);
+		}
     	m_device.ExecuteRenderPasses(cmd, frameData);
 		//depth prepass
 		//Shadows prepass
@@ -213,6 +161,16 @@ const gns::rendering::VulkanDefaultTextureHandles& gns::rendering::Renderer::Get
 gns::rendering::VulkanTexture* gns::rendering::Renderer::GetVulkanTexture(Handle textureHandle)
 {
 	return m_device.GetResource<VulkanTexture>(textureHandle);
+}
+
+gns::rendering::VulkanShader* gns::rendering::Renderer::GetVulkanShader(Handle shaderHandle)
+{
+	return m_device.GetResource<VulkanShader>(shaderHandle);
+}
+
+VulkanMesh* gns::rendering::Renderer::GetVulkanMesh(Handle meshHandle)
+{
+	return m_device.GetResource<VulkanMesh>(meshHandle);
 }
 
 void gns::rendering::Renderer::WaitForIdle()
