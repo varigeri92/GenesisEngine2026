@@ -74,6 +74,7 @@ namespace gns {
 		GNS_API void SetCamera(const CameraBackend& camera_backend);
 		GNS_API Handle ApplyMesh(Mesh& mesh);
 		GNS_API Handle ApplyShader(Shader& shader);
+		GNS_API Handle ApplyTexture(Texture& texture);
 		GNS_API Handle ApplyMaterial(Material& material);
 		GNS_API Handle GetRenderMeshHandle(Handle meshHandle) const;
 		GNS_API Handle GetRenderShaderHandle(Handle shaderHandle) const;

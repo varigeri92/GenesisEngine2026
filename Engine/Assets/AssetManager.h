@@ -18,6 +18,7 @@ namespace gns::assets
     {
         Handle objectHandle;
         Object* object;
+        Handle materialHandle;
         
         template <DerivedFromObject Object_T>
         Object_T* As()

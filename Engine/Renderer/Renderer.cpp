@@ -2,6 +2,7 @@
 #include "Renderer.h"
 #include "../Log/Logger.h"
 #include "../Object/Mesh.h"
+#include "../Object/Texture.h"
 #include "Vulkan/PipelineBuilder.h"
 #include "Vulkan/vkutils.h"
 #include "Vulkan/vulkan_log.h"
@@ -208,6 +209,50 @@ gns::Handle gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
 	vulkan_mesh.startIndex = mesh.bufferRange.startIndex;
 	vulkan_mesh.count = mesh.bufferRange.count;
 	return vulkan_mesh.GetHandle();
+}
+
+gns::Handle gns::rendering::Renderer::ApplyTexture(Texture& texture)
+{
+	if (!texture.HasPixels() || texture.width == 0 || texture.height == 0)
+	{
+		LOG_ERROR("[Renderer]: Cannot apply texture without pixel data.");
+		LOG_ERROR(texture.GetName());
+		return {};
+	}
+
+	if (texture.format != TextureFormat::R8G8B8A8_UNorm)
+	{
+		LOG_ERROR("[Renderer]: Unsupported texture format.");
+		LOG_ERROR(texture.GetName());
+		return {};
+	}
+
+	VulkanTexture* vulkanTexture = m_device.CreateResource<VulkanTexture>();
+	if (vulkanTexture == nullptr)
+	{
+		LOG_ERROR("[Renderer]: Failed to create Vulkan texture resource.");
+		LOG_ERROR(texture.GetName());
+		return {};
+	}
+
+	const VkSamplerCreateInfo samplerInfo = utils::SamplerCreateInfo(VK_FILTER_LINEAR);
+	VK_CHECK(vkCreateSampler(m_device.GetDevice(), &samplerInfo, nullptr, &vulkanTexture->sampler));
+
+	vulkanTexture->CreateTexture(
+		texture.pixels.data(),
+		VkExtent3D{ texture.width, texture.height, 1 },
+		VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT,
+		false);
+	m_device.CreateTextureDescriptor(*vulkanTexture);
+	if (vulkanTexture->descriptorSet == VK_NULL_HANDLE)
+	{
+		LOG_ERROR("[Renderer]: Failed to create texture descriptor.");
+		LOG_ERROR(texture.GetName());
+		return {};
+	}
+
+	return vulkanTexture->GetHandle();
 }
 
 gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)

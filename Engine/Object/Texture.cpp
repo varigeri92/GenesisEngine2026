@@ -1,6 +1,9 @@
 #include "gnspch.h"
 #include "Texture.h"
 
+#include "../Renderer/RenderSystem.h"
+#include "../Systems/SystemsManager.h"
+
 #include <utility>
 
 gns::Texture::Texture(std::string name)
@@ -12,6 +15,12 @@ gns::Texture::Texture(std::string name, std::string path)
     : Object(std::move(name)),
       assetPath(std::move(path))
 {
+}
+
+gns::Handle gns::Texture::Apply()
+{
+    gns::RenderSystem* renderSystem = core::SystemsManager::GetSystem<RenderSystem>();
+    return renderSystem->ApplyTexture(*this);
 }
 
 bool gns::Texture::HasPixels() const

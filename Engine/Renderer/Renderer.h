@@ -9,6 +9,7 @@ namespace gns
 {
 	class RenderSystem;
 	struct Mesh;
+	struct Texture;
 }
 namespace gns::rendering {
 	struct VulkanTexture;
@@ -43,6 +44,7 @@ namespace gns::rendering {
 		void WaitForIdle();
 		
 		Handle ApplyMesh(Mesh& mesh);
+		Handle ApplyTexture(Texture& texture);
 		Handle CreateVulkanShader(Shader& shader);
 		friend class gns::RenderSystem;
 

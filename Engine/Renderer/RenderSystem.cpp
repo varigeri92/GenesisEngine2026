@@ -49,12 +49,24 @@ void gns::RenderSystem::OnStart()
 	{
 		Mesh* mesh = loaded_object.As<Mesh>();
 		mesh->Apply();
+		Reference<Material> meshMaterial = materialRef;
+		if (loaded_object.materialHandle.IsValid())
+		{
+			Material* loadedMaterial = Object::Get<Material>(loaded_object.materialHandle);
+			if (loadedMaterial != nullptr)
+			{
+				loadedMaterial->shader_ref = _shader->Ref<Shader>();
+				ApplyMaterial(*loadedMaterial);
+				meshMaterial = loadedMaterial->Ref<Material>();
+			}
+		}
+
 		std::string name = mesh->GetName();
 		gns::Entity entity = gns::Entity::CreateEntity(name);
 		MeshComponent& mesh_comp = entity.AddComponent<MeshComponent>();
 		mesh_comp.mesh = mesh->Ref<Mesh>();
 		mesh_comp.shader = _shader->Ref<Shader>();
-		mesh_comp.material = material->Ref<Material>();
+		mesh_comp.material = meshMaterial;
 		LOG_INFO(name);
 	}
 }
@@ -133,9 +145,36 @@ gns::Handle gns::RenderSystem::ApplyShader(Shader& shader)
 	return renderShaderHandle;
 }
 
+gns::Handle gns::RenderSystem::ApplyTexture(Texture& texture)
+{
+	const Handle textureHandle = texture.GetHandle();
+	if (const auto it = m_resourceCache.textures.find(textureHandle); it != m_resourceCache.textures.end())
+	{
+		return it->second;
+	}
+
+	const Handle renderTextureHandle = m_renderer.ApplyTexture(texture);
+	if (renderTextureHandle.IsValid())
+	{
+		m_resourceCache.textures[textureHandle] = renderTextureHandle;
+		texture.FreeCPUSide();
+	}
+	return renderTextureHandle;
+}
+
 gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 {
 	const Handle materialHandle = material.GetHandle();
+	if (material.albedo_texture.m_handle.IsValid() &&
+		!m_resourceCache.textures.contains(material.albedo_texture.m_handle))
+	{
+		Texture* albedoTexture = Object::Get<Texture>(material.albedo_texture.m_handle);
+		if (albedoTexture != nullptr)
+		{
+			ApplyTexture(*albedoTexture);
+		}
+	}
+
 	if (const auto it = m_resourceCache.materials.find(materialHandle); it != m_resourceCache.materials.end())
 	{
 		return it->second;
