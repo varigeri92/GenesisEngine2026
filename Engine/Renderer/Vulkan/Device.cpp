@@ -592,6 +592,13 @@ void gns::rendering::Device::DrawMesh(VkCommandBuffer cmd, DrawData draw_data)
 
 	vkCmdBindDescriptorSets(cmd, 
 		VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &GetCurrentFrame()._sceneDataDescriptors, 0, nullptr);
+
+	if (draw_data.albedoTextureDescriptor != 0)
+	{
+		const VkDescriptorSet albedoTextureDescriptor = (VkDescriptorSet)draw_data.albedoTextureDescriptor;
+		vkCmdBindDescriptorSets(
+			cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 1, 1, &albedoTextureDescriptor, 0, nullptr);
+	}
 	
 	GPUDrawPushConstants push_constants;
 	push_constants.worldMatrix = draw_data.transform;

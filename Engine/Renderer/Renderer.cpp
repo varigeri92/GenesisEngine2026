@@ -8,6 +8,8 @@
 #include "Resources/VulkanShader.h"
 #include "Resources/VulkanTexture.h"
 
+#include <array>
+
 void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 {
 	m_drawData = {};
@@ -225,10 +227,15 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	}
 	
 	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
+	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts =
+	{
+		vkShader.m_descriptorSetLayout,
+		m_device.GetTextureDescriptorLayout()
+	};
 	pipeline_layout_info.pPushConstantRanges = &bufferRange;
 	pipeline_layout_info.pushConstantRangeCount = 1;
-	pipeline_layout_info.setLayoutCount = 1;
-	pipeline_layout_info.pSetLayouts = &vkShader.m_descriptorSetLayout;
+	pipeline_layout_info.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+	pipeline_layout_info.pSetLayouts = descriptorSetLayouts.data();
 	VK_CHECK(vkCreatePipelineLayout(m_device.GetDevice(), &pipeline_layout_info, nullptr, &vkShader.m_pipelineLayout));
 	
 	

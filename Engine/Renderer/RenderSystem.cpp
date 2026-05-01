@@ -38,6 +38,7 @@ void gns::RenderSystem::OnStart()
 	Material* material = Object::Create<Material>();
 	material->shader_ref = _shader->Ref<Shader>();
 	material->albedo_color = glm::vec4(0.5f, 1.0f, 0.0f, 1.0f);
+	material->albedo_texture = Reference<Texture>(GetDefaultTextureHandle(DefaultTexture::ErrorCheckerboard));
 	ApplyMaterial(*material);
 	Reference<Material> materialRef = material->Ref<Material>();
 	
@@ -307,10 +308,29 @@ void gns::RenderSystem::BuildDrawData()
 			return;
 		}
 
+		Material* material = Object::Get<Material>(meshComp.material.m_handle);
+		if (material == nullptr)
+		{
+			return;
+		}
+
+		Handle albedoTextureHandle = material->albedo_texture.m_handle;
+		if (!albedoTextureHandle.IsValid())
+		{
+			albedoTextureHandle = GetDefaultTextureHandle(DefaultTexture::White);
+		}
+
+		const RenderTextureBinding albedoTextureBinding = GetTextureBinding(albedoTextureHandle);
+		if (!albedoTextureBinding.IsValid())
+		{
+			return;
+		}
+
 		DrawData drawData;
 		drawData.transform = m_renderer.m_cameraBackend.viewProjection;
 		drawData.vkShader = vulkanShader;
 		drawData.vk_indexBuffer = vulkanMesh->indexBuffer.buffer;
+		drawData.albedoTextureDescriptor = albedoTextureBinding.descriptor;
 		drawData.vk_vertexBufferAddress = vulkanMesh->vertexBufferAddress;
 		drawData.StartIndex = vulkanMesh->startIndex;
 		drawData.Count = vulkanMesh->count;

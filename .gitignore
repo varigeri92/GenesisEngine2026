@@ -7,3 +7,4 @@
 *.vcxproj
 *.user
 *.filters
+/.dotnet-home

@@ -102,6 +102,7 @@ namespace gns::rendering
 		Swapchain GetSwapchain() { return m_swapchain; }
 		VmaAllocator GetAlocator(){return m_allocator;}
 		const VulkanDefaultTextureHandles& GetDefaultTextures() const { return m_defaultTextures; }
+		VkDescriptorSetLayout GetTextureDescriptorLayout() const { return _textureDescriptorLayout; }
 		template <DerivedFromVulkanResource Resource_T, typename... Args>
 		Resource_T* CreateResource(Args&& ... args)
 		{
