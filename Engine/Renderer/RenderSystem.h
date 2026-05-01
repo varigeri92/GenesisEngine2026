@@ -13,6 +13,7 @@ namespace gns::window {
 	class WindowSystem;
 }
 namespace gns {
+	struct Material;
 	struct Mesh;
 	struct Shader;
 	struct Texture;
@@ -72,9 +73,11 @@ namespace gns {
 		void WaitForIdle();
 		GNS_API void SetCamera(const CameraBackend& camera_backend);
 		GNS_API Handle ApplyMesh(Mesh& mesh);
-		GNS_API Handle CreateVulkanShader(Shader& shader);
-		GNS_API Handle GetVulkanMeshHandle(Handle meshHandle) const;
-		GNS_API Handle GetVulkanShaderHandle(Handle shaderHandle) const;
+		GNS_API Handle ApplyShader(Shader& shader);
+		GNS_API Handle ApplyMaterial(Material& material);
+		GNS_API Handle GetRenderMeshHandle(Handle meshHandle) const;
+		GNS_API Handle GetRenderShaderHandle(Handle shaderHandle) const;
+		GNS_API Handle GetRenderMaterialHandle(Handle materialHandle) const;
 		GNS_API Handle GetDefaultTextureHandle(DefaultTexture texture) const;
 		GNS_API RenderTextureBinding GetTextureBinding(Handle textureHandle);
 		GNS_API uint64_t GetTextureDescriptor(Handle textureHandle);

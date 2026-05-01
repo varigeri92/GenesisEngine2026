@@ -21,7 +21,6 @@ namespace gns::rendering {
 		CameraBackend m_cameraBackend;
 		VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
 		VkDescriptorSetLayout _singleImageDescriptorLayout;
-		gns::RenderSystem* m_renderSystem = nullptr;
 	public:
 
 		Renderer() = default;
@@ -41,7 +40,6 @@ namespace gns::rendering {
 		VulkanMesh* GetVulkanMesh(Handle meshHandle);
 		void WaitForIdle();
 		
-		void SetRenderSystem(gns::RenderSystem* renderSystem);
 		Handle ApplyMesh(Mesh& mesh);
 		Handle CreateVulkanShader(Shader& shader);
 		friend class gns::RenderSystem;

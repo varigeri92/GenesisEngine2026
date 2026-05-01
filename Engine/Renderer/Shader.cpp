@@ -20,9 +20,9 @@ gns::Shader::~Shader()
 {
 }
 
-gns::Handle gns::Shader::CreateVulkanShader()
+gns::Handle gns::Shader::Apply()
 {
     gns::RenderSystem* render_system = core::SystemsManager::GetSystem<RenderSystem>();
-    return render_system->CreateVulkanShader(*this);
+    return render_system->ApplyShader(*this);
     
 }

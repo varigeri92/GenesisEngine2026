@@ -17,7 +17,6 @@
 
 gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer()
 {
-	m_renderer.SetRenderSystem(this);
 }
 
 void gns::RenderSystem::OnCreate()
@@ -35,10 +34,11 @@ void gns::RenderSystem::OnStart()
 	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
 	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\mesh.vert)").string();
 	Shader* _shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_mesh_shader");
-	_shader->CreateVulkanShader();
+	_shader->Apply();
 	Material* material = Object::Create<Material>();
 	material->shader_ref = _shader->Ref<Shader>();
 	material->albedo_color = glm::vec4(0.5f, 1.0f, 0.0f, 1.0f);
+	ApplyMaterial(*material);
 	Reference<Material> materialRef = material->Ref<Material>();
 	
 	std::vector<gns::assets::LoadedObject> loaded 
@@ -108,15 +108,15 @@ gns::Handle gns::RenderSystem::ApplyMesh(Mesh& mesh)
 		return it->second;
 	}
 
-	const Handle vulkanMeshHandle = m_renderer.ApplyMesh(mesh);
-	if (vulkanMeshHandle.IsValid())
+	const Handle renderMeshHandle = m_renderer.ApplyMesh(mesh);
+	if (renderMeshHandle.IsValid())
 	{
-		m_resourceCache.meshes[meshHandle] = vulkanMeshHandle;
+		m_resourceCache.meshes[meshHandle] = renderMeshHandle;
 	}
-	return vulkanMeshHandle;
+	return renderMeshHandle;
 }
 
-gns::Handle gns::RenderSystem::CreateVulkanShader(Shader& shader)
+gns::Handle gns::RenderSystem::ApplyShader(Shader& shader)
 {
 	const Handle shaderHandle = shader.GetHandle();
 	if (const auto it = m_resourceCache.shaders.find(shaderHandle); it != m_resourceCache.shaders.end())
@@ -124,15 +124,27 @@ gns::Handle gns::RenderSystem::CreateVulkanShader(Shader& shader)
 		return it->second;
 	}
 
-	const Handle vulkanShaderHandle = m_renderer.CreateVulkanShader(shader);
-	if (vulkanShaderHandle.IsValid())
+	const Handle renderShaderHandle = m_renderer.CreateVulkanShader(shader);
+	if (renderShaderHandle.IsValid())
 	{
-		m_resourceCache.shaders[shaderHandle] = vulkanShaderHandle;
+		m_resourceCache.shaders[shaderHandle] = renderShaderHandle;
 	}
-	return vulkanShaderHandle;
+	return renderShaderHandle;
 }
 
-gns::Handle gns::RenderSystem::GetVulkanMeshHandle(Handle meshHandle) const
+gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
+{
+	const Handle materialHandle = material.GetHandle();
+	if (const auto it = m_resourceCache.materials.find(materialHandle); it != m_resourceCache.materials.end())
+	{
+		return it->second;
+	}
+
+	m_resourceCache.materials[materialHandle] = materialHandle;
+	return materialHandle;
+}
+
+gns::Handle gns::RenderSystem::GetRenderMeshHandle(Handle meshHandle) const
 {
 	if (const auto it = m_resourceCache.meshes.find(meshHandle); it != m_resourceCache.meshes.end())
 	{
@@ -144,7 +156,7 @@ gns::Handle gns::RenderSystem::GetVulkanMeshHandle(Handle meshHandle) const
 	return {};
 }
 
-gns::Handle gns::RenderSystem::GetVulkanShaderHandle(Handle shaderHandle) const
+gns::Handle gns::RenderSystem::GetRenderShaderHandle(Handle shaderHandle) const
 {
 	if (const auto it = m_resourceCache.shaders.find(shaderHandle); it != m_resourceCache.shaders.end())
 	{
@@ -153,6 +165,18 @@ gns::Handle gns::RenderSystem::GetVulkanShaderHandle(Handle shaderHandle) const
 
 	LOG_WARNING("[RenderSystem]: Missing Vulkan shader resource for engine shader handle.");
 	LOG_WARNING(std::to_string(shaderHandle.Get()));
+	return {};
+}
+
+gns::Handle gns::RenderSystem::GetRenderMaterialHandle(Handle materialHandle) const
+{
+	if (const auto it = m_resourceCache.materials.find(materialHandle); it != m_resourceCache.materials.end())
+	{
+		return it->second;
+	}
+
+	LOG_WARNING("[RenderSystem]: Missing render material resource for engine material handle.");
+	LOG_WARNING(std::to_string(materialHandle.Get()));
 	return {};
 }
 
@@ -269,15 +293,15 @@ void gns::RenderSystem::BuildDrawData()
 			return;
 		}
 
-		const Handle vulkanShaderHandle = GetVulkanShaderHandle(meshComp.shader.m_handle);
-		const Handle vulkanMeshHandle = GetVulkanMeshHandle(meshComp.mesh.m_handle);
-		if (!vulkanShaderHandle.IsValid() || !vulkanMeshHandle.IsValid())
+		const Handle renderShaderHandle = GetRenderShaderHandle(meshComp.shader.m_handle);
+		const Handle renderMeshHandle = GetRenderMeshHandle(meshComp.mesh.m_handle);
+		if (!renderShaderHandle.IsValid() || !renderMeshHandle.IsValid())
 		{
 			return;
 		}
 
-		rendering::VulkanShader* vulkanShader = m_renderer.GetVulkanShader(vulkanShaderHandle);
-		VulkanMesh* vulkanMesh = m_renderer.GetVulkanMesh(vulkanMeshHandle);
+		rendering::VulkanShader* vulkanShader = m_renderer.GetVulkanShader(renderShaderHandle);
+		VulkanMesh* vulkanMesh = m_renderer.GetVulkanMesh(renderMeshHandle);
 		if (vulkanShader == nullptr || vulkanMesh == nullptr)
 		{
 			return;

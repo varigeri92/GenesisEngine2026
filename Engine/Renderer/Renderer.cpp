@@ -7,7 +7,6 @@
 #include "Vulkan/vulkan_log.h"
 #include "Resources/VulkanShader.h"
 #include "Resources/VulkanTexture.h"
-#include "RenderSystem.h"
 
 void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 {
@@ -176,11 +175,6 @@ VulkanMesh* gns::rendering::Renderer::GetVulkanMesh(Handle meshHandle)
 void gns::rendering::Renderer::WaitForIdle()
 {
 	m_device.WaitForIdle();
-}
-
-void gns::rendering::Renderer::SetRenderSystem(gns::RenderSystem* renderSystem)
-{
-	m_renderSystem = renderSystem;
 }
 
 gns::Handle gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
