@@ -7,13 +7,16 @@
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
+#include <array>
 #include <utility>
+#include <glm/gtc/packing.hpp>
 
 #include "PipelineBuilder.h"
 #include "../Shader.h"
 #include "../../Scene/Scene.h"
 #include "../../Utils/Path.h"
 #include "../Resources/VulkanShader.h"
+#include "../Resources/VulkanTexture.h"
 
 constexpr unsigned int FRAME_OVERLAP = 3;
 constexpr bool useValidationLayers = true;
@@ -71,6 +74,7 @@ void gns::rendering::Device::Create(SDL_Window* sdl_window)
 	InitCommands();
 	InitSyncStructs();
 	InitDescriptors();
+	InitDefaultTextures();
 	
 	//init pipeline for test:
 	init_pipelines();
@@ -316,6 +320,58 @@ void gns::rendering::Device::InitDescriptors()
 		}
 	});
 	
+}
+
+void gns::rendering::Device::InitDefaultTextures()
+{
+	const uint32_t white = glm::packUnorm4x8(glm::vec4(1.f, 1.f, 1.f, 1.f));
+	const uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1.f));
+	const uint32_t black = glm::packUnorm4x8(glm::vec4(0.f, 0.f, 0.f, 1.f));
+	const uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.f, 0.f, 1.f, 1.f));
+
+	m_defaultTextures.white = CreateDefaultTexture(
+		&white, VkExtent3D{1, 1, 1}, VK_FILTER_LINEAR);
+	m_defaultTextures.grey = CreateDefaultTexture(
+		&grey, VkExtent3D{1, 1, 1}, VK_FILTER_LINEAR);
+	m_defaultTextures.black = CreateDefaultTexture(
+		&black, VkExtent3D{1, 1, 1}, VK_FILTER_LINEAR);
+
+	std::array<uint32_t, 16 * 16> pixels = {};
+	for (uint32_t y = 0; y < 16; ++y)
+	{
+		for (uint32_t x = 0; x < 16; ++x)
+		{
+			pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+		}
+	}
+
+	m_defaultTextures.errorCheckerboard = CreateDefaultTexture(
+		pixels.data(), VkExtent3D{16, 16, 1}, VK_FILTER_NEAREST);
+}
+
+gns::Handle gns::rendering::Device::CreateDefaultTexture(
+	const void* data,
+	VkExtent3D size,
+	VkFilter samplerFilter,
+	VkSamplerAddressMode samplerAddressMode)
+{
+	VulkanTexture* texture = CreateResource<VulkanTexture>();
+	if (texture == nullptr)
+	{
+		return {};
+	}
+
+	VkSamplerCreateInfo samplerInfo = utils::SamplerCreateInfo(samplerFilter, samplerAddressMode);
+	VK_CHECK(vkCreateSampler(m_device, &samplerInfo, nullptr, &texture->sampler));
+
+	texture->CreateTexture(
+		data,
+		size,
+		VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT,
+		false);
+
+	return texture->GetHandle();
 }
 
 gns::rendering::FrameData& gns::rendering::Device::GetCurrentFrame()

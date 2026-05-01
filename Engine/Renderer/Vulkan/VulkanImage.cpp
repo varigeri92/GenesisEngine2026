@@ -58,7 +58,7 @@ void gns::rendering::VulkanImage::CreateImage(VkExtent3D size, VkFormat format,
     VK_CHECK(vkCreateImageView(device, &view_info, nullptr, &imageView));
 }
 
-void gns::rendering::VulkanImage::CreateImage(void* data, VkExtent3D size, VkFormat format,
+void gns::rendering::VulkanImage::CreateImage(const void* data, VkExtent3D size, VkFormat format,
     VkImageUsageFlags usage, bool mipmapped)
 {
     size_t data_size = 

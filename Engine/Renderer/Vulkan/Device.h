@@ -18,6 +18,14 @@ namespace gns::rendering
 	struct RenderStepData;
 	struct RenderStep;
 	struct VulkanShader;
+
+	struct VulkanDefaultTextureHandles
+	{
+		Handle white;
+		Handle grey;
+		Handle black;
+		Handle errorCheckerboard;
+	};
 	
 	struct CleanupQueue
 	{
@@ -95,6 +103,7 @@ namespace gns::rendering
 		VkQueue GetGraphicsQueue() { return m_graphicsQueue; }
 		Swapchain GetSwapchain() { return m_swapchain; }
 		VmaAllocator GetAlocator(){return m_allocator;}
+		const VulkanDefaultTextureHandles& GetDefaultTextures() const { return m_defaultTextures; }
 		template <DerivedFromVulkanResource Resource_T, typename... Args>
 		Resource_T* CreateResource(Args&& ... args)
 		{
@@ -152,6 +161,12 @@ namespace gns::rendering
 		void InitCommands();
 		void InitSyncStructs();
 		void InitDescriptors();
+		void InitDefaultTextures();
+		Handle CreateDefaultTexture(
+			const void* data,
+			VkExtent3D size,
+			VkFilter samplerFilter,
+			VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT);
 		FrameData& GetCurrentFrame();
 		FrameData& GetFrameByIndex(size_t index);
 		void Cleanup();
@@ -178,6 +193,7 @@ namespace gns::rendering
 		DescriptorAllocator m_descriptorAllocator = {};
 		VkDescriptorSet _drawImageDescriptors = VK_NULL_HANDLE;
 		VkDescriptorSetLayout _drawImageDescriptorLayout = VK_NULL_HANDLE;
+		VulkanDefaultTextureHandles m_defaultTextures = {};
 		
 		//test stuff:
 		VkPipeline _gradientPipeline = VK_NULL_HANDLE;

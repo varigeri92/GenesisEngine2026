@@ -18,6 +18,8 @@ namespace gns {
 	{
 		std::unordered_map<Handle, Handle> meshes;
 		std::unordered_map<Handle, Handle> shaders;
+		std::unordered_map<Handle, Handle> textures;
+		std::unordered_map<Handle, Handle> materials;
 	};
 
 	class RenderSystem : public gns::core::System

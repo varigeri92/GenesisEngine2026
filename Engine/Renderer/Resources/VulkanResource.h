@@ -11,6 +11,7 @@ namespace gns
     namespace rendering
     {
         class Device;
+        struct VulkanTexture;
     }
 
     struct VulkanResource;
@@ -20,6 +21,7 @@ namespace gns
     struct VulkanResource
     {
         friend class rendering::Device;
+        friend struct rendering::VulkanTexture;
         friend struct VulkanResourceRegistry;
     private:
         Handle resourceHandle;

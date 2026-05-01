@@ -1,0 +1,39 @@
+#pragma once
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "IObject.h"
+
+namespace gns
+{
+    enum class TextureFormat
+    {
+        Unknown,
+        R8G8B8A8_UNorm,
+        R8G8B8_UNorm
+    };
+
+    struct Texture : public Object
+    {
+        std::string assetPath;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t channels = 0;
+        TextureFormat format = TextureFormat::Unknown;
+        std::vector<uint8_t> pixels;
+
+        Texture() = default;
+        explicit Texture(std::string name);
+        Texture(std::string name, std::string path);
+
+        bool HasPixels() const;
+        void SetPixels(
+            std::vector<uint8_t> pixelData,
+            uint32_t textureWidth,
+            uint32_t textureHeight,
+            uint32_t textureChannels,
+            TextureFormat textureFormat);
+        void FreeCPUSide();
+    };
+}

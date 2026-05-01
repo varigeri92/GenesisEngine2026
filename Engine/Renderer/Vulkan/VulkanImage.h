@@ -22,7 +22,7 @@ namespace gns::rendering
         VulkanImage(VkExtent3D imageExtent, VkFormat imageFormat = VK_FORMAT_R8G8B8_UNORM);
         
         void CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-        void CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+        void CreateImage(const void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
         void Destroy() override;
         private:
         void DestroyImage();
