@@ -27,10 +27,19 @@ public:
 
 	bool ShouldClose();
 	GNS_API SDL_Window* GetSDLWindow();
+	void MinimizeWindow();
+	void ToggleMaximizeWindow();
+	bool IsMaximized() const;
+	void RequestClose();
 	void OnLateUpdate(float deltaTime) override;
 
 private:
-	gns::core::Engine* m_engine;
+	gns::core::Engine* m_engine = nullptr;
 	std::unique_ptr<Window> m_window;
+	bool m_manuallyMaximized = false;
+	int m_restoreX = 0;
+	int m_restoreY = 0;
+	int m_restoreWidth = 0;
+	int m_restoreHeight = 0;
 };
 }

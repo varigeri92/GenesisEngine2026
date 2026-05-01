@@ -26,15 +26,15 @@ void gns::core::Engine::Initialize(std::function<void()> callback)
 		gui_system = gns::core::SystemsManager::RegisterSystem<GuiSystem>();
 	}
 	
+	
+	if(m_engineConfig.InitTetsSystem)
+		SystemsManager::RegisterSystem<TestSystem>();
+	callback();
+	
 	if (gui_system!=nullptr)
 	{
 		gui_system->RegisterWindow<TestWindow>("TestWindow");
 	}
-	
-	if(m_engineConfig.InitTetsSystem)
-		SystemsManager::RegisterSystem<TestSystem>();
-	
-	callback();
 }
 
 void gns::core::Engine::Run()

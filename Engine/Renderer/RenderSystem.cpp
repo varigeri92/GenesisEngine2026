@@ -44,7 +44,7 @@ void gns::RenderSystem::OnStart()
 	
 	std::vector<gns::assets::LoadedObject> loaded 
 		= assets::AssetManager::LoadAsset(
-			R"(D:\ProjectGenesis\TestFiles\source\Sorcerrer_03.fbx)");
+			R"(D:\ProjectGenesis\TestFiles\lucilla_-_vampiric_drake\scene.gltf)");
 	for (auto& loaded_object : loaded)
 	{
 		Mesh* mesh = loaded_object.As<Mesh>();

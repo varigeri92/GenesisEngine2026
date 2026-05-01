@@ -19,6 +19,13 @@ std::unordered_map<gns::Handle, gns::assets::Asset> gns::assets::AssetManager::A
 
 namespace
 {
+    struct TextureLoadResult
+    {
+        gns::Texture* texture = nullptr;
+        bool textureSlotExists = false;
+        bool failed = false;
+    };
+
     const char* GetStbiFailureReason()
     {
         const char* reason = stbi_failure_reason();
@@ -48,8 +55,8 @@ namespace
     {
         if (pixels.empty() || width == 0 || height == 0)
         {
-            LOG_WARNING("[AssetManager]: Cannot create texture from empty pixel data.");
-            LOG_WARNING(name);
+            LOG_ERROR("[AssetManager]: Cannot create texture from empty pixel data.");
+            LOG_ERROR(name);
             return nullptr;
         }
 
@@ -61,8 +68,8 @@ namespace
         gns::Texture* texture = gns::Object::Create<gns::Texture>(name, assetPath);
         if (texture == nullptr)
         {
-            LOG_WARNING("[AssetManager]: Failed to create texture object.");
-            LOG_WARNING(name);
+            LOG_ERROR("[AssetManager]: Failed to create texture object.");
+            LOG_ERROR(name);
             return nullptr;
         }
 
@@ -83,8 +90,8 @@ namespace
 
         if (!std::filesystem::exists(texturePath))
         {
-            LOG_WARNING("[AssetManager]: Texture file does not exist.");
-            LOG_WARNING(normalizedPath);
+            LOG_ERROR("[AssetManager]: Texture file does not exist.");
+            LOG_ERROR(normalizedPath);
             return nullptr;
         }
 
@@ -94,9 +101,9 @@ namespace
         stbi_uc* loadedPixels = stbi_load(normalizedPath.c_str(), &width, &height, &sourceChannels, 4);
         if (loadedPixels == nullptr)
         {
-            LOG_WARNING("[AssetManager]: Failed to load texture file.");
-            LOG_WARNING(normalizedPath);
-            LOG_WARNING(GetStbiFailureReason());
+            LOG_ERROR("[AssetManager]: Failed to load texture file.");
+            LOG_ERROR(normalizedPath);
+            LOG_ERROR(GetStbiFailureReason());
             return nullptr;
         }
 
@@ -128,8 +135,8 @@ namespace
         const int textureIndex = std::atoi(textureName + 1);
         if (textureIndex < 0 || static_cast<uint32_t>(textureIndex) >= scene->mNumTextures)
         {
-            LOG_WARNING("[AssetManager]: Embedded texture index is invalid.");
-            LOG_WARNING(textureName);
+            LOG_ERROR("[AssetManager]: Embedded texture index is invalid.");
+            LOG_ERROR(textureName);
             return nullptr;
         }
 
@@ -143,8 +150,8 @@ namespace
         const aiTexture* embeddedTexture = scene->mTextures[textureIndex];
         if (embeddedTexture == nullptr)
         {
-            LOG_WARNING("[AssetManager]: Embedded texture is missing.");
-            LOG_WARNING(textureName);
+            LOG_ERROR("[AssetManager]: Embedded texture is missing.");
+            LOG_ERROR(textureName);
             return nullptr;
         }
 
@@ -163,9 +170,9 @@ namespace
 
             if (loadedPixels == nullptr)
             {
-                LOG_WARNING("[AssetManager]: Failed to load compressed embedded texture.");
-                LOG_WARNING(textureObjectName);
-                LOG_WARNING(GetStbiFailureReason());
+                LOG_ERROR("[AssetManager]: Failed to load compressed embedded texture.");
+                LOG_ERROR(textureObjectName);
+                LOG_ERROR(GetStbiFailureReason());
                 return nullptr;
             }
 
@@ -203,7 +210,7 @@ namespace
             textureCache);
     }
 
-    gns::Texture* LoadMaterialTexture(
+    TextureLoadResult LoadMaterialTexture(
         const aiScene* scene,
         const aiMaterial* material,
         aiTextureType textureType,
@@ -213,26 +220,31 @@ namespace
     {
         if (material->GetTextureCount(textureType) == 0)
         {
-            return nullptr;
+            return {};
         }
 
         aiString texturePath;
         if (material->GetTexture(textureType, 0, &texturePath) != AI_SUCCESS)
         {
-            return nullptr;
+            return { nullptr, true, true };
         }
 
         if (texturePath.length == 0)
         {
-            return nullptr;
+            return { nullptr, true, true };
         }
 
+        gns::Texture* texture = nullptr;
         if (texturePath.C_Str()[0] == '*')
         {
-            return LoadEmbeddedTexture(scene, texturePath, assetPath, textureCache);
+            texture = LoadEmbeddedTexture(scene, texturePath, assetPath, textureCache);
+        }
+        else
+        {
+            texture = LoadTextureFromFile(ResolveTexturePath(assetDirectory, texturePath), textureCache);
         }
 
-        return LoadTextureFromFile(ResolveTexturePath(assetDirectory, texturePath), textureCache);
+        return { texture, true, texture == nullptr };
     }
 
     gns::Material* CreateMaterial(
@@ -260,14 +272,14 @@ namespace
             material->albedo_color = glm::vec4(baseColor.r, baseColor.g, baseColor.b, baseColor.a);
         }
 
-        gns::Texture* albedoTexture = LoadMaterialTexture(
+        TextureLoadResult albedoTexture = LoadMaterialTexture(
             scene,
             assimpMaterial,
             aiTextureType_BASE_COLOR,
             assetDirectory,
             assetPath,
             textureCache);
-        if (albedoTexture == nullptr)
+        if (!albedoTexture.textureSlotExists)
         {
             albedoTexture = LoadMaterialTexture(
                 scene,
@@ -278,9 +290,14 @@ namespace
                 textureCache);
         }
 
-        if (albedoTexture != nullptr)
+        if (albedoTexture.texture != nullptr)
         {
-            material->albedo_texture = albedoTexture->Ref<gns::Texture>();
+            material->albedo_texture = albedoTexture.texture->Ref<gns::Texture>();
+        }
+        else if (albedoTexture.failed)
+        {
+            material->albedo_texture = gns::Reference<gns::Texture>(
+                gns::Handle::CreateFromString(gns::DefaultResourceNames::ErrorCheckerboardTexture));
         }
 
         return material;

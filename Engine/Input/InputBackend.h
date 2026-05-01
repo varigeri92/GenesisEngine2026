@@ -4,6 +4,7 @@
 #include "glm/glm.hpp"
 
 union SDL_Event;
+struct SDL_Window;
 
 namespace gns::core
 {
@@ -25,7 +26,7 @@ namespace gns::core
 		static GNS_API bool GetKey(int keyCode);
 		static GNS_API bool GetKeyUp(int keyCode);
 		static GNS_API bool GetKeyDown(int keyCode);
-		static GNS_API bool ProcessInput(SDL_Event& event);
+		static GNS_API bool ProcessInput(SDL_Event& event, SDL_Window* window);
 		static GNS_API bool GetMouseButtonDown(int mouseButton);
 		static GNS_API bool GetMouseButton(int mouseButton);
 		static GNS_API bool GetMouseButtonUp(int mouseButton);
