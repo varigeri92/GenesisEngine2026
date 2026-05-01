@@ -1,6 +1,5 @@
 ﻿#include "gnspch.h"
 #include "GuiSystem.h"
-#include "../Renderer/Renderer.h"
 #include "../Renderer/RenderSystem.h"
 #include "../Window/WindowSystem.h"
 
@@ -29,28 +28,37 @@ void GuiSystem::DrawWindows() const
     }
 }
 
+uint64_t GuiSystem::GetDefaultCheckerboardTexture()
+{
+    if (m_defaultCheckerboardTexture != 0)
+    {
+        return m_defaultCheckerboardTexture;
+    }
+
+    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    if (renderSystem == nullptr)
+    {
+        return 0;
+    }
+
+    const gns::Handle checkerboardHandle =
+        renderSystem->GetDefaultTextureHandle(gns::DefaultTexture::ErrorCheckerboard);
+    if (!checkerboardHandle.IsValid())
+    {
+        return 0;
+    }
+
+    m_defaultCheckerboardTexture = gui_backend.RegisterTexture(*renderSystem, checkerboardHandle);
+    return m_defaultCheckerboardTexture;
+}
+
 void GuiSystem::OnCreate()
 {
     gns::window::WindowSystem* ws = 
            gns::core::SystemsManager::GetSystem<gns::window::WindowSystem>();
     SDL_Window* sdl_window = ws->GetSDLWindow();
     gns::RenderSystem* render_system = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
-    gns::rendering::Renderer& renderer = render_system->GetRenderer();
-            
-    ImGui_ImplVulkan_InitInfo init_info = {};
-    init_info.Instance = renderer.GetInstance();
-    init_info.PhysicalDevice = renderer.GetPhysicalDevice();
-    init_info.Device = renderer.GetDevice();
-    init_info.Queue = renderer.GetGraphicsQueue();
-    init_info.MinImageCount = 3;
-    init_info.ImageCount = 3;
-    init_info.UseDynamicRendering = true;
-    
-    init_info.PipelineInfoMain.PipelineRenderingCreateInfo = {.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
-	init_info.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-	init_info.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = renderer.GetSwapChainFormat();
-    
-    gui_backend.OnCreate(sdl_window, init_info);
+    gui_backend.OnCreate(sdl_window, *render_system);
     LOG_INFO("Gui System Created!");
 }
 

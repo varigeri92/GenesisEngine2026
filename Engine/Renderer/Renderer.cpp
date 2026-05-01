@@ -6,6 +6,7 @@
 #include "Vulkan/vkutils.h"
 #include "Vulkan/vulkan_log.h"
 #include "Resources/VulkanShader.h"
+#include "Resources/VulkanTexture.h"
 #include "../Systems/SystemsManager.h"
 #include "../Core/ComponentLibrary.h"
 #include "RenderSystem.h"
@@ -202,6 +203,16 @@ VkQueue gns::rendering::Renderer::GetGraphicsQueue()
 VkFormat* gns::rendering::Renderer::GetSwapChainFormat()
 {
 	return m_device.GetSwapchain().GetFormat_ptr();
+}
+
+const gns::rendering::VulkanDefaultTextureHandles& gns::rendering::Renderer::GetDefaultTextures() const
+{
+	return m_device.GetDefaultTextures();
+}
+
+gns::rendering::VulkanTexture* gns::rendering::Renderer::GetVulkanTexture(Handle textureHandle)
+{
+	return m_device.GetResource<VulkanTexture>(textureHandle);
 }
 
 void gns::rendering::Renderer::WaitForIdle()

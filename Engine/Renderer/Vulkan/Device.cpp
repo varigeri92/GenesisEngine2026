@@ -280,16 +280,22 @@ void gns::rendering::Device::InitDescriptors()
 	//create a descriptor pool that will hold 10 sets with 1 image each
 	std::vector<DescriptorAllocator::PoolSizeRatio> sizes =
 	{
-		{.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .ratio = 1 }
+		{.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .ratio = 1 },
+		{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .ratio = 8 }
 	};
 
-	m_descriptorAllocator.InitPool(m_device, 10, sizes);
+	m_descriptorAllocator.InitPool(m_device, 32, sizes);
 
 	//make the descriptor set layout for our compute draw
 	{
 		DescriptorLayoutBuilder builder;
 		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
 		_drawImageDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_COMPUTE_BIT);
+	}
+	{
+		DescriptorLayoutBuilder builder;
+		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		_textureDescriptorLayout = builder.Build(m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
 	}
 	//allocate a descriptor set for our draw image
 	_drawImageDescriptors = m_descriptorAllocator.Allocate(m_device,_drawImageDescriptorLayout);	
@@ -317,6 +323,11 @@ void gns::rendering::Device::InitDescriptors()
 		{
 			vkDestroyDescriptorSetLayout(m_device, _drawImageDescriptorLayout, nullptr);
 			_drawImageDescriptorLayout = VK_NULL_HANDLE;
+		}
+		if (_textureDescriptorLayout != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorSetLayout(m_device, _textureDescriptorLayout, nullptr);
+			_textureDescriptorLayout = VK_NULL_HANDLE;
 		}
 	});
 	
@@ -370,6 +381,7 @@ gns::Handle gns::rendering::Device::CreateDefaultTexture(
 		VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_USAGE_SAMPLED_BIT,
 		false);
+	CreateTextureDescriptor(*texture);
 
 	return texture->GetHandle();
 }
@@ -639,6 +651,26 @@ void gns::rendering::Device::DestroyBuffer(VulkanBuffer& vk_buffer) const
 	if (vk_buffer.buffer != VK_NULL_HANDLE)
 		vk_buffer.reset();
 	vk_buffer.buffer = VK_NULL_HANDLE;
+}
+
+void gns::rendering::Device::CreateTextureDescriptor(VulkanTexture& texture)
+{
+	if (_textureDescriptorLayout == VK_NULL_HANDLE ||
+		texture.sampler == VK_NULL_HANDLE ||
+		texture.image.imageView == VK_NULL_HANDLE)
+	{
+		return;
+	}
+
+	texture.descriptorSet = m_descriptorAllocator.Allocate(m_device, _textureDescriptorLayout);
+	DescriptorWriter writer;
+	writer.WriteImage(
+		0,
+		texture.image.imageView,
+		texture.sampler,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	writer.UpdateSet(m_device, texture.descriptorSet);
 }
 
 void gns::rendering::Device::EndRendering(VkCommandBuffer cmd)

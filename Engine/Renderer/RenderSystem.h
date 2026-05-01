@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <unordered_map>
 
 #include "../Core/Handles.h"
@@ -13,6 +14,24 @@ namespace gns::window {
 namespace gns {
 	struct Mesh;
 	struct Shader;
+
+	enum class DefaultTexture
+	{
+		White,
+		Grey,
+		Black,
+		ErrorCheckerboard
+	};
+
+	struct RenderTextureBinding
+	{
+		uint64_t descriptor = 0;
+
+		bool IsValid() const
+		{
+			return descriptor != 0;
+		}
+	};
 
 	struct RenderResourceCache
 	{
@@ -46,6 +65,8 @@ namespace gns {
 		GNS_API Handle CreateVulkanShader(Shader& shader);
 		GNS_API Handle GetVulkanMeshHandle(Handle meshHandle) const;
 		GNS_API Handle GetVulkanShaderHandle(Handle shaderHandle) const;
+		GNS_API Handle GetDefaultTextureHandle(DefaultTexture texture) const;
+		GNS_API RenderTextureBinding GetTextureBinding(Handle textureHandle);
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;

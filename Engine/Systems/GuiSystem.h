@@ -1,4 +1,6 @@
-﻿#pragma once
+#pragma once
+#include <cstdint>
+
 #include "Genesis.h"
 #include "../Gui/GuiBackend.h"
 #include "../Gui/GuiWindow.h"
@@ -7,6 +9,7 @@ class GuiSystem : public gns::core::System
 {
     gns::gui::GuiBackend gui_backend = {};
     std::vector<std::unique_ptr<GuiWindow>> Windows = {};
+    uint64_t m_defaultCheckerboardTexture = 0;
 public:
     template 
     <typename window_T, typename = std::enable_if<std::is_base_of<GuiWindow, window_T>::value>::type, typename... Args>
@@ -31,6 +34,7 @@ public:
     }
 
     void DrawWindows() const;
+    uint64_t GetDefaultCheckerboardTexture();
     
     GuiSystem();
     void OnCreate() override;

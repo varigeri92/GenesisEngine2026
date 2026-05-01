@@ -1,10 +1,12 @@
-﻿#pragma once
+#pragma once
+#include <cstdint>
 #include <functional>
 #include <vulkan/vulkan_core.h>
 
 #include "imgui.h"
-#include "backends/imgui_impl_vulkan.h"
-#include "backends/imgui_impl_sdl2.h"
+#include "../Core/Handles.h"
+
+union SDL_Event;
 
 namespace gns
 {
@@ -29,10 +31,11 @@ namespace gns::gui
         GuiBackend();
         ~GuiBackend();
         
-        static void DrawImGui(VkCommandBuffer cmd, const VkRenderingInfo& renderInfo );
+        static void DrawImGui(VkCommandBuffer cmd, const VkRenderingInfo& renderInfo);
         static void HandleEvents(SDL_Event& event);
-        void OnCreate(SDL_Window* window, ImGui_ImplVulkan_InitInfo& init_info);
+        void OnCreate(SDL_Window* window, gns::RenderSystem& renderSystem);
         void BeginGuiFrame();
+        uint64_t RegisterTexture(gns::RenderSystem& renderSystem, gns::Handle textureHandle);
         void OnUpdate();
         void OnEndGuiFrame();
         void OnDestroy();

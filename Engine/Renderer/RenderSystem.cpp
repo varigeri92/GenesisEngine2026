@@ -9,6 +9,7 @@
 #include "../Core/ComponentLibrary.h"
 #include "../Object/Material.h"
 #include "../Scene/Scene.h"
+#include "Resources/VulkanTexture.h"
 
 gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer()
 {
@@ -146,4 +147,36 @@ gns::Handle gns::RenderSystem::GetVulkanShaderHandle(Handle shaderHandle) const
 	LOG_WARNING("[RenderSystem]: Missing Vulkan shader resource for engine shader handle.");
 	LOG_WARNING(std::to_string(shaderHandle.Get()));
 	return {};
+}
+
+gns::Handle gns::RenderSystem::GetDefaultTextureHandle(DefaultTexture texture) const
+{
+	const rendering::VulkanDefaultTextureHandles& defaultTextures = m_renderer.GetDefaultTextures();
+	switch (texture)
+	{
+	case DefaultTexture::White:
+		return defaultTextures.white;
+	case DefaultTexture::Grey:
+		return defaultTextures.grey;
+	case DefaultTexture::Black:
+		return defaultTextures.black;
+	case DefaultTexture::ErrorCheckerboard:
+		return defaultTextures.errorCheckerboard;
+	default:
+		return {};
+	}
+}
+
+gns::RenderTextureBinding gns::RenderSystem::GetTextureBinding(Handle textureHandle)
+{
+	rendering::VulkanTexture* texture = m_renderer.GetVulkanTexture(textureHandle);
+	if (texture == nullptr || texture->descriptorSet == VK_NULL_HANDLE)
+	{
+		return {};
+	}
+
+	return RenderTextureBinding
+	{
+		.descriptor = (uint64_t)texture->descriptorSet
+	};
 }

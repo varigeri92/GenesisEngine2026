@@ -67,8 +67,8 @@ namespace gns::core
 			case SDL_MOUSEMOTION:
 				mousePos.x = static_cast<float>(event.motion.x);
 				mousePos.y = static_cast<float>(event.motion.y);
-				mouseVelocity.x = event.motion.xrel;
-				mouseVelocity.y = event.motion.yrel;
+				mouseVelocity.x = static_cast<float>(event.motion.xrel);
+				mouseVelocity.y = static_cast<float>(event.motion.yrel);
 				break;
 			default:
 				break;

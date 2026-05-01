@@ -18,6 +18,7 @@ namespace gns::rendering
 	struct RenderStepData;
 	struct RenderStep;
 	struct VulkanShader;
+	struct VulkanTexture;
 
 	struct VulkanDefaultTextureHandles
 	{
@@ -140,6 +141,7 @@ namespace gns::rendering
 		void DestroyShader(VulkanShader& vk_shader) const;
 		void DestroyMesh(VulkanMesh& vk_mesh) const;
 		void DestroyBuffer(VulkanBuffer& vk_buffer) const;
+		void CreateTextureDescriptor(VulkanTexture& texture);
 		bool m_resizeRequest = false;
 		void ResizeSwapchain();
 		void UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
@@ -193,6 +195,7 @@ namespace gns::rendering
 		DescriptorAllocator m_descriptorAllocator = {};
 		VkDescriptorSet _drawImageDescriptors = VK_NULL_HANDLE;
 		VkDescriptorSetLayout _drawImageDescriptorLayout = VK_NULL_HANDLE;
+		VkDescriptorSetLayout _textureDescriptorLayout = VK_NULL_HANDLE;
 		VulkanDefaultTextureHandles m_defaultTextures = {};
 		
 		//test stuff:

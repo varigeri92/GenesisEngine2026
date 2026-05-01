@@ -10,6 +10,8 @@ namespace gns
 	struct Mesh;
 }
 namespace gns::rendering {
+	struct VulkanTexture;
+
 	class Renderer
 	{
 	private:
@@ -33,6 +35,8 @@ namespace gns::rendering {
 		GNS_API VkInstance GetInstance();
 		GNS_API VkQueue GetGraphicsQueue();
 		GNS_API VkFormat* GetSwapChainFormat();
+		const VulkanDefaultTextureHandles& GetDefaultTextures() const;
+		VulkanTexture* GetVulkanTexture(Handle textureHandle);
 		void WaitForIdle();
 		
 		void SetRenderSystem(gns::RenderSystem* renderSystem);

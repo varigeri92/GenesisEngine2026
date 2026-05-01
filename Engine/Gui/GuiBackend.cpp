@@ -4,6 +4,8 @@
 #include "imgui.h"
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "../Renderer/RenderSystem.h"
+#include "../Renderer/Renderer.h"
 
 
 gns::gui::GuiBackend::GuiBackend()
@@ -32,8 +34,22 @@ void gns::gui::GuiBackend::HandleEvents(SDL_Event& event)
 	ImGui_ImplSDL2_ProcessEvent(&event);
 }
 
-void gns::gui::GuiBackend::OnCreate(SDL_Window* window, ImGui_ImplVulkan_InitInfo& init_info)
+void gns::gui::GuiBackend::OnCreate(SDL_Window* window, gns::RenderSystem& renderSystem)
 {
+	gns::rendering::Renderer& renderer = renderSystem.GetRenderer();
+
+	ImGui_ImplVulkan_InitInfo init_info = {};
+	init_info.Instance = renderer.GetInstance();
+	init_info.PhysicalDevice = renderer.GetPhysicalDevice();
+	init_info.Device = renderer.GetDevice();
+	init_info.Queue = renderer.GetGraphicsQueue();
+	init_info.MinImageCount = 3;
+	init_info.ImageCount = 3;
+	init_info.UseDynamicRendering = true;
+	init_info.PipelineInfoMain.PipelineRenderingCreateInfo = {.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+	init_info.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	init_info.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = renderer.GetSwapChainFormat();
+
 	m_device = init_info.Device;
 	VkDescriptorPoolSize pool_sizes[] = { 
 		{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
@@ -71,6 +87,17 @@ void gns::gui::GuiBackend::BeginGuiFrame()
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
+}
+
+uint64_t gns::gui::GuiBackend::RegisterTexture(gns::RenderSystem& renderSystem, gns::Handle textureHandle)
+{
+	const gns::RenderTextureBinding texture = renderSystem.GetTextureBinding(textureHandle);
+	if (!texture.IsValid())
+	{
+		return 0;
+	}
+
+	return texture.descriptor;
 }
 
 void gns::gui::GuiBackend::OnUpdate()
