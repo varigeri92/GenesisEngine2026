@@ -10,6 +10,7 @@
 #include "../Core/ComponentLibrary.h"
 #include "../Object/Material.h"
 #include "../Scene/Scene.h"
+#include "../Systems/SystemsManager.h"
 #include "Resources/VulkanTexture.h"
 
 gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer()
@@ -65,6 +66,7 @@ void gns::RenderSystem::OnUpdate(float deltaTime)
 
 void gns::RenderSystem::OnLateUpdate(float deltaTime)
 {
+	BuildRenderItems();
 	m_renderer.DrawFrame();
 }
 
@@ -211,6 +213,11 @@ uint64_t gns::RenderSystem::GetTextureDescriptor(Handle textureHandle)
 	return GetTextureBinding(textureHandle).descriptor;
 }
 
+const std::vector<gns::RenderItem>& gns::RenderSystem::GetRenderItems() const
+{
+	return m_renderItems;
+}
+
 void gns::RenderSystem::CreateDefaultTextureObjects()
 {
 	const rendering::VulkanDefaultTextureHandles& vulkanDefaults = m_renderer.GetDefaultTextures();
@@ -243,4 +250,33 @@ gns::Handle gns::RenderSystem::RegisterDefaultTexture(const char* name, Handle v
 	const Handle textureHandle = texture->GetHandle();
 	m_resourceCache.textures[textureHandle] = vulkanTextureHandle;
 	return textureHandle;
+}
+
+void gns::RenderSystem::BuildRenderItems()
+{
+	const size_t previousItemCount = m_renderItems.size();
+	m_renderItems.clear();
+	m_renderItems.reserve(previousItemCount);
+
+	auto view = core::SystemsManager::GetRegistry().view<EntityComponent, Transform, MeshComponent>();
+	view.each([&](
+		EntityComponent& entityComp,
+		Transform& transform,
+		MeshComponent& meshComp)
+	{
+		RenderItem item =
+		{
+			.mesh = meshComp.mesh.m_handle,
+			.material = meshComp.material.m_handle,
+			.shader = meshComp.shader.m_handle,
+			.worldTransform = transform.matrix
+		};
+
+		if (!item.IsValid())
+		{
+			return;
+		}
+
+		m_renderItems.emplace_back(item);
+	});
 }
