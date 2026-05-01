@@ -7,6 +7,14 @@
 
 namespace gns
 {
+    namespace DefaultResourceNames
+    {
+        inline constexpr const char* WhiteTexture = "__Genesis_Default_Texture_White";
+        inline constexpr const char* GreyTexture = "__Genesis_Default_Texture_Grey";
+        inline constexpr const char* BlackTexture = "__Genesis_Default_Texture_Black";
+        inline constexpr const char* ErrorCheckerboardTexture = "__Genesis_Default_Texture_ErrorCheckerboard";
+    }
+
     enum class TextureFormat
     {
         Unknown,

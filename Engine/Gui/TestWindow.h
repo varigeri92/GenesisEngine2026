@@ -1,12 +1,12 @@
 #pragma once
-#include <cstdint>
-
 #include "GuiWindow.h"
 #include "imgui.h"
+#include "../Core/Handles.h"
+#include "../Object/Texture.h"
 
 class TestWindow : public GuiWindow
 {
-    uint64_t m_checkerboardTexture = 0;
+    gns::Reference<gns::Texture> m_checkerboardTexture;
     bool m_checkerboardTextureLoadAttempted = false;
 public:
     TestWindow(std::string title): GuiWindow(title){}

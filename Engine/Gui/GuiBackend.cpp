@@ -101,19 +101,6 @@ void gns::gui::GuiBackend::BeginGuiFrame()
 	ImGui::NewFrame();
 }
 
-uint64_t gns::gui::GuiBackend::RegisterTexture(gns::RenderSystem& renderSystem, gns::Handle textureHandle)
-{
-	const gns::RenderTextureBinding texture = renderSystem.GetTextureBinding(textureHandle);
-	if (!texture.IsValid())
-	{
-		LOG_WARNING("[GuiBackend]: Cannot register invalid GUI texture binding for texture handle.");
-		LOG_WARNING(std::to_string(textureHandle.Get()));
-		return 0;
-	}
-
-	return texture.descriptor;
-}
-
 void gns::gui::GuiBackend::OnUpdate()
 {
 	ImGui::ShowDemoWindow();

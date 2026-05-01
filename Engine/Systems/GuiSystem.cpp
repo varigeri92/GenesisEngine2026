@@ -28,9 +28,9 @@ void GuiSystem::DrawWindows() const
     }
 }
 
-uint64_t GuiSystem::GetDefaultCheckerboardTexture()
+gns::Reference<gns::Texture> GuiSystem::GetDefaultCheckerboardTexture()
 {
-    if (m_defaultCheckerboardTexture != 0)
+    if (m_defaultCheckerboardTexture.m_handle.IsValid())
     {
         return m_defaultCheckerboardTexture;
     }
@@ -39,7 +39,7 @@ uint64_t GuiSystem::GetDefaultCheckerboardTexture()
     if (renderSystem == nullptr)
     {
         LOG_WARNING("[GuiSystem]: Cannot get default checkerboard texture because RenderSystem is missing.");
-        return 0;
+        return {};
     }
 
     const gns::Handle checkerboardHandle =
@@ -47,15 +47,29 @@ uint64_t GuiSystem::GetDefaultCheckerboardTexture()
     if (!checkerboardHandle.IsValid())
     {
         LOG_WARNING("[GuiSystem]: Default checkerboard texture handle is invalid.");
+        return {};
+    }
+
+    m_defaultCheckerboardTexture = gns::Reference<gns::Texture>(checkerboardHandle);
+    return m_defaultCheckerboardTexture;
+}
+
+uint64_t GuiSystem::GetTextureDescriptor(gns::Reference<gns::Texture> texture) const
+{
+    if (!texture.m_handle.IsValid())
+    {
+        LOG_WARNING("[GuiSystem]: Cannot get GUI texture descriptor for invalid texture reference.");
         return 0;
     }
 
-    m_defaultCheckerboardTexture = gui_backend.RegisterTexture(*renderSystem, checkerboardHandle);
-    if (m_defaultCheckerboardTexture == 0)
+    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    if (renderSystem == nullptr)
     {
-        LOG_WARNING("[GuiSystem]: Failed to register default checkerboard texture for GUI.");
+        LOG_WARNING("[GuiSystem]: Cannot get GUI texture descriptor because RenderSystem is missing.");
+        return 0;
     }
-    return m_defaultCheckerboardTexture;
+
+    return renderSystem->GetTextureDescriptor(texture.m_handle);
 }
 
 void GuiSystem::OnCreate()

@@ -4,12 +4,13 @@
 #include "Genesis.h"
 #include "../Gui/GuiBackend.h"
 #include "../Gui/GuiWindow.h"
+#include "../Object/Texture.h"
 
 class GuiSystem : public gns::core::System
 {
     gns::gui::GuiBackend gui_backend = {};
     std::vector<std::unique_ptr<GuiWindow>> Windows = {};
-    uint64_t m_defaultCheckerboardTexture = 0;
+    gns::Reference<gns::Texture> m_defaultCheckerboardTexture;
 public:
     template 
     <typename window_T, typename = std::enable_if<std::is_base_of<GuiWindow, window_T>::value>::type, typename... Args>
@@ -34,7 +35,8 @@ public:
     }
 
     void DrawWindows() const;
-    uint64_t GetDefaultCheckerboardTexture();
+    gns::Reference<gns::Texture> GetDefaultCheckerboardTexture();
+    uint64_t GetTextureDescriptor(gns::Reference<gns::Texture> texture) const;
     
     GuiSystem();
     void OnCreate() override;

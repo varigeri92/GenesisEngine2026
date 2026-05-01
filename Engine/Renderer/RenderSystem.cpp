@@ -5,6 +5,7 @@
 #include "../Window/WindowSystem.h"
 #include "../Core/Entity.h"
 #include "../Object/Mesh.h"
+#include "../Object/Texture.h"
 #include "../Utils/Path.h"
 #include "../Core/ComponentLibrary.h"
 #include "../Object/Material.h"
@@ -19,6 +20,7 @@ gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(
 void gns::RenderSystem::OnCreate()
 {
 	m_renderer.CreateDevice(m_windowSystem->GetSDLWindow());
+	CreateDefaultTextureObjects();
 	LOG_INFO("Render System created!");
 }
 
@@ -33,7 +35,7 @@ void gns::RenderSystem::OnStart()
 	_shader->CreateVulkanShader();
 	Material* material = Object::Create<Material>();
 	material->shader_ref = _shader->Ref<Shader>();
-	material->AddProperty<glm::vec4>("base_color", glm::vec4(0.5f, 1.0f, 0.0f, 1.0f));
+	material->albedo_color = glm::vec4(0.5f, 1.0f, 0.0f, 1.0f);
 	Reference<Material> materialRef = material->Ref<Material>();
 	
 	std::vector<gns::assets::LoadedObject> loaded 
@@ -151,17 +153,16 @@ gns::Handle gns::RenderSystem::GetVulkanShaderHandle(Handle shaderHandle) const
 
 gns::Handle gns::RenderSystem::GetDefaultTextureHandle(DefaultTexture texture) const
 {
-	const rendering::VulkanDefaultTextureHandles& defaultTextures = m_renderer.GetDefaultTextures();
 	switch (texture)
 	{
 	case DefaultTexture::White:
-		return defaultTextures.white;
+		return m_defaultTextures.white;
 	case DefaultTexture::Grey:
-		return defaultTextures.grey;
+		return m_defaultTextures.grey;
 	case DefaultTexture::Black:
-		return defaultTextures.black;
+		return m_defaultTextures.black;
 	case DefaultTexture::ErrorCheckerboard:
-		return defaultTextures.errorCheckerboard;
+		return m_defaultTextures.errorCheckerboard;
 	default:
 		LOG_WARNING("[RenderSystem]: Unknown default texture requested.");
 		return {};
@@ -176,18 +177,26 @@ gns::RenderTextureBinding gns::RenderSystem::GetTextureBinding(Handle textureHan
 		return {};
 	}
 
-	rendering::VulkanTexture* texture = m_renderer.GetVulkanTexture(textureHandle);
+	const auto textureResource = m_resourceCache.textures.find(textureHandle);
+	if (textureResource == m_resourceCache.textures.end())
+	{
+		LOG_WARNING("[RenderSystem]: Missing Vulkan texture resource for engine texture handle.");
+		LOG_WARNING(std::to_string(textureHandle.Get()));
+		return {};
+	}
+
+	rendering::VulkanTexture* texture = m_renderer.GetVulkanTexture(textureResource->second);
 	if (texture == nullptr)
 	{
 		LOG_WARNING("[RenderSystem]: Missing Vulkan texture resource for texture handle.");
-		LOG_WARNING(std::to_string(textureHandle.Get()));
+		LOG_WARNING(std::to_string(textureResource->second.Get()));
 		return {};
 	}
 
 	if (texture->descriptorSet == VK_NULL_HANDLE)
 	{
 		LOG_WARNING("[RenderSystem]: Vulkan texture has no descriptor set.");
-		LOG_WARNING(std::to_string(textureHandle.Get()));
+		LOG_WARNING(std::to_string(textureResource->second.Get()));
 		return {};
 	}
 
@@ -195,4 +204,43 @@ gns::RenderTextureBinding gns::RenderSystem::GetTextureBinding(Handle textureHan
 	{
 		.descriptor = (uint64_t)texture->descriptorSet
 	};
+}
+
+uint64_t gns::RenderSystem::GetTextureDescriptor(Handle textureHandle)
+{
+	return GetTextureBinding(textureHandle).descriptor;
+}
+
+void gns::RenderSystem::CreateDefaultTextureObjects()
+{
+	const rendering::VulkanDefaultTextureHandles& vulkanDefaults = m_renderer.GetDefaultTextures();
+
+	m_defaultTextures.white = RegisterDefaultTexture(DefaultResourceNames::WhiteTexture, vulkanDefaults.white);
+	m_defaultTextures.grey = RegisterDefaultTexture(DefaultResourceNames::GreyTexture, vulkanDefaults.grey);
+	m_defaultTextures.black = RegisterDefaultTexture(DefaultResourceNames::BlackTexture, vulkanDefaults.black);
+	m_defaultTextures.errorCheckerboard = RegisterDefaultTexture(
+		DefaultResourceNames::ErrorCheckerboardTexture,
+		vulkanDefaults.errorCheckerboard);
+}
+
+gns::Handle gns::RenderSystem::RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle)
+{
+	if (!vulkanTextureHandle.IsValid())
+	{
+		LOG_ERROR("[RenderSystem]: Cannot register default texture because Vulkan texture handle is invalid.");
+		LOG_ERROR(name);
+		return {};
+	}
+
+	Texture* texture = Object::Create<Texture>(name);
+	if (texture == nullptr)
+	{
+		LOG_ERROR("[RenderSystem]: Cannot create engine default texture object.");
+		LOG_ERROR(name);
+		return {};
+	}
+
+	const Handle textureHandle = texture->GetHandle();
+	m_resourceCache.textures[textureHandle] = vulkanTextureHandle;
+	return textureHandle;
 }

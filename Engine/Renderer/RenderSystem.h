@@ -14,6 +14,7 @@ namespace gns::window {
 namespace gns {
 	struct Mesh;
 	struct Shader;
+	struct Texture;
 
 	enum class DefaultTexture
 	{
@@ -39,6 +40,14 @@ namespace gns {
 		std::unordered_map<Handle, Handle> shaders;
 		std::unordered_map<Handle, Handle> textures;
 		std::unordered_map<Handle, Handle> materials;
+	};
+
+	struct EngineDefaultTextureHandles
+	{
+		Handle white;
+		Handle grey;
+		Handle black;
+		Handle errorCheckerboard;
 	};
 
 	class RenderSystem : public gns::core::System
@@ -67,10 +76,15 @@ namespace gns {
 		GNS_API Handle GetVulkanShaderHandle(Handle shaderHandle) const;
 		GNS_API Handle GetDefaultTextureHandle(DefaultTexture texture) const;
 		GNS_API RenderTextureBinding GetTextureBinding(Handle textureHandle);
+		GNS_API uint64_t GetTextureDescriptor(Handle textureHandle);
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;
 		rendering::Renderer m_renderer;
 		RenderResourceCache m_resourceCache;
+		EngineDefaultTextureHandles m_defaultTextures;
+
+		void CreateDefaultTextureObjects();
+		Handle RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle);
 	};
 }

@@ -15,10 +15,21 @@ void TestWindow::OnDraw()
         LoadCheckerboardTexture();
     }
 
-    if (m_checkerboardTexture != 0)
+    if (m_checkerboardTexture.m_handle.IsValid())
     {
-        ImGui::Text("Default checkerboard");
-        ImGui::Image(ImTextureRef(static_cast<ImTextureID>(m_checkerboardTexture)), ImVec2(256.0f, 256.0f));
+        GuiSystem* guiSystem = gns::core::SystemsManager::GetSystem<GuiSystem>();
+        const uint64_t textureDescriptor =
+            guiSystem != nullptr ? guiSystem->GetTextureDescriptor(m_checkerboardTexture) : 0;
+
+        if (textureDescriptor != 0)
+        {
+            ImGui::Text("Default checkerboard");
+            ImGui::Image(ImTextureRef(static_cast<ImTextureID>(textureDescriptor)), ImVec2(256.0f, 256.0f));
+        }
+        else
+        {
+            ImGui::Text("Checkerboard texture unavailable");
+        }
     }
     else
     {

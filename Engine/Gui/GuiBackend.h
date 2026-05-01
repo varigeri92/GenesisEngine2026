@@ -4,7 +4,6 @@
 #include <vulkan/vulkan_core.h>
 
 #include "imgui.h"
-#include "../Core/Handles.h"
 
 union SDL_Event;
 
@@ -35,7 +34,6 @@ namespace gns::gui
         static void HandleEvents(SDL_Event& event);
         void OnCreate(SDL_Window* window, gns::RenderSystem& renderSystem);
         void BeginGuiFrame();
-        uint64_t RegisterTexture(gns::RenderSystem& renderSystem, gns::Handle textureHandle);
         void OnUpdate();
         void OnEndGuiFrame();
         void OnDestroy();
