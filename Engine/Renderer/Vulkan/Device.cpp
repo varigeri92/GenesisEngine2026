@@ -552,7 +552,7 @@ void gns::rendering::Device::DrawMesh(VkCommandBuffer cmd, DrawData draw_data)
 	vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
 	vkCmdBindIndexBuffer(cmd, draw_data.vk_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(draw_data.Count), 1, draw_data.StartIndex, 0, 0);
+	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(draw_data.Count), 1, static_cast<uint32_t>(draw_data.StartIndex), 0, 0);
 }
 
 void gns::rendering::Device::DestroyShader(VulkanShader& vk_shader) const

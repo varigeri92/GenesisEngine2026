@@ -2,13 +2,12 @@
 #include "Mesh.h"
 
 #include "../Renderer/RenderSystem.h"
-#include "../Renderer/Vulkan/VulkanMesh.h"
 #include "../Systems/SystemsManager.h"
 
 void gns::Mesh::Apply(bool cpuReadWrite /*=false */)
 {
     RenderSystem* render_system = core::SystemsManager::GetSystem<RenderSystem>();
-    render_system->GetRenderer().ApplyMesh(*this);
+    render_system->ApplyMesh(*this);
     if (!cpuReadWrite)
         FreeCPUSide();
 }

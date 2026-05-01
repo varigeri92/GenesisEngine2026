@@ -12,7 +12,6 @@ namespace gns
     
     struct Mesh : public gns::Object
     {
-        gns::Handle vulkanMeshHandle;
         BufferRange bufferRange;           
         std::vector<uint32_t> indices;
         std::vector<glm::vec3> positions;

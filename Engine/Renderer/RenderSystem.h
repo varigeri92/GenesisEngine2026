@@ -1,4 +1,7 @@
 #pragma once
+#include <unordered_map>
+
+#include "../Core/Handles.h"
 #include "../Systems/System.h"
 #include "Renderer.h"
 
@@ -9,6 +12,13 @@ namespace gns::window {
 }
 namespace gns {
 	struct Mesh;
+	struct Shader;
+
+	struct RenderResourceCache
+	{
+		std::unordered_map<Handle, Handle> meshes;
+		std::unordered_map<Handle, Handle> shaders;
+	};
 
 	class RenderSystem : public gns::core::System
 	{
@@ -30,9 +40,14 @@ namespace gns {
 		GNS_API rendering::Renderer& GetRenderer();
 		void WaitForIdle();
 		GNS_API void SetCamera(const CameraBackend& camera_backend);
+		GNS_API Handle ApplyMesh(Mesh& mesh);
+		GNS_API Handle CreateVulkanShader(Shader& shader);
+		GNS_API Handle GetVulkanMeshHandle(Handle meshHandle) const;
+		GNS_API Handle GetVulkanShaderHandle(Handle shaderHandle) const;
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;
 		rendering::Renderer m_renderer;
+		RenderResourceCache m_resourceCache;
 	};
 }

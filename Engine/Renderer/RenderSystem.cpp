@@ -10,7 +10,10 @@
 #include "../Object/Material.h"
 #include "../Scene/Scene.h"
 
-gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer(){}
+gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer()
+{
+	m_renderer.SetRenderSystem(this);
+}
 
 void gns::RenderSystem::OnCreate()
 {
@@ -87,4 +90,60 @@ void gns::RenderSystem::WaitForIdle()
 void gns::RenderSystem::SetCamera(const CameraBackend& camera_backend)
 {
 	m_renderer.m_cameraBackend = camera_backend;
+}
+
+gns::Handle gns::RenderSystem::ApplyMesh(Mesh& mesh)
+{
+	const Handle meshHandle = mesh.GetHandle();
+	if (const auto it = m_resourceCache.meshes.find(meshHandle); it != m_resourceCache.meshes.end())
+	{
+		return it->second;
+	}
+
+	const Handle vulkanMeshHandle = m_renderer.ApplyMesh(mesh);
+	if (vulkanMeshHandle.IsValid())
+	{
+		m_resourceCache.meshes[meshHandle] = vulkanMeshHandle;
+	}
+	return vulkanMeshHandle;
+}
+
+gns::Handle gns::RenderSystem::CreateVulkanShader(Shader& shader)
+{
+	const Handle shaderHandle = shader.GetHandle();
+	if (const auto it = m_resourceCache.shaders.find(shaderHandle); it != m_resourceCache.shaders.end())
+	{
+		return it->second;
+	}
+
+	const Handle vulkanShaderHandle = m_renderer.CreateVulkanShader(shader);
+	if (vulkanShaderHandle.IsValid())
+	{
+		m_resourceCache.shaders[shaderHandle] = vulkanShaderHandle;
+	}
+	return vulkanShaderHandle;
+}
+
+gns::Handle gns::RenderSystem::GetVulkanMeshHandle(Handle meshHandle) const
+{
+	if (const auto it = m_resourceCache.meshes.find(meshHandle); it != m_resourceCache.meshes.end())
+	{
+		return it->second;
+	}
+
+	LOG_WARNING("[RenderSystem]: Missing Vulkan mesh resource for engine mesh handle.");
+	LOG_WARNING(std::to_string(meshHandle.Get()));
+	return {};
+}
+
+gns::Handle gns::RenderSystem::GetVulkanShaderHandle(Handle shaderHandle) const
+{
+	if (const auto it = m_resourceCache.shaders.find(shaderHandle); it != m_resourceCache.shaders.end())
+	{
+		return it->second;
+	}
+
+	LOG_WARNING("[RenderSystem]: Missing Vulkan shader resource for engine shader handle.");
+	LOG_WARNING(std::to_string(shaderHandle.Get()));
+	return {};
 }

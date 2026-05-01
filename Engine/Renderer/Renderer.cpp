@@ -8,6 +8,7 @@
 #include "Resources/VulkanShader.h"
 #include "../Systems/SystemsManager.h"
 #include "../Core/ComponentLibrary.h"
+#include "RenderSystem.h"
 #include "../Scene/Scene.h"
 #include "../Scene/SceneSystem.h"
 
@@ -102,6 +103,12 @@ void gns::rendering::Renderer::SetupRenderPasses()
 
 void gns::rendering::Renderer::BuildDrawData()
 {
+	if (m_renderSystem == nullptr)
+	{
+		LOG_ERROR("[Renderer]: RenderSystem is not set. Cannot build draw data.");
+		return;
+	}
+
 	size_t drawSize = m_drawData.size();
 	m_drawData.clear();
 	m_drawData.reserve(drawSize);
@@ -112,11 +119,20 @@ void gns::rendering::Renderer::BuildDrawData()
 		MeshComponent& meshComp)
 	{
 		
-		auto* shader = Object::Get<Shader>(meshComp.shader.m_handle);
-		auto* vulkan_shader = VulkanResource::Get<VulkanShader>(shader->m_vulkanShaderHandle);
+		const Handle vulkanShaderHandle = m_renderSystem->GetVulkanShaderHandle(meshComp.shader.m_handle);
+		const Handle vulkanMeshHandle = m_renderSystem->GetVulkanMeshHandle(meshComp.mesh.m_handle);
+		if (!vulkanShaderHandle.IsValid() || !vulkanMeshHandle.IsValid())
+		{
+			return;
+		}
 
-		auto* mesh = Object::Get<Mesh>(meshComp.mesh.m_handle);
-		auto* vulkan_mesh = VulkanResource::Get<VulkanMesh>(mesh->vulkanMeshHandle);
+		auto* vulkan_shader = VulkanResource::Get<VulkanShader>(vulkanShaderHandle);
+		auto* vulkan_mesh = VulkanResource::Get<VulkanMesh>(vulkanMeshHandle);
+		if (vulkan_shader == nullptr || vulkan_mesh == nullptr)
+		{
+			return;
+		}
+
 		DrawData drawData;
 		drawData.transform = m_cameraBackend.viewProjection;
 		drawData.vkShader = vulkan_shader;
@@ -193,7 +209,12 @@ void gns::rendering::Renderer::WaitForIdle()
 	m_device.WaitForIdle();
 }
 
-void gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
+void gns::rendering::Renderer::SetRenderSystem(gns::RenderSystem* renderSystem)
+{
+	m_renderSystem = renderSystem;
+}
+
+gns::Handle gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
 {
 	std::vector<Vertex> vertices = {};
 	vertices.reserve(mesh.positions.size());
@@ -202,15 +223,14 @@ void gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
 		vertices.emplace_back(mesh.positions[i], mesh.uvs[i].x, mesh.normals[i],mesh.uvs[i].y, mesh.colors[i]);
 	}
 	VulkanMesh& vulkan_mesh = VulkanMesh::UploadMesh(m_device, m_device.GetAlocator(), mesh.indices, vertices);
-	mesh.vulkanMeshHandle = vulkan_mesh.GetHandle();
 	vulkan_mesh.startIndex = mesh.bufferRange.startIndex;
 	vulkan_mesh.count = mesh.bufferRange.count;
+	return vulkan_mesh.GetHandle();
 }
 
-void gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
+gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 {
 	VulkanShader& vkShader = *VulkanResource::Create<VulkanShader>(&m_device);
-	shader.m_vulkanShaderHandle = vkShader.GetHandle();
 	
 	VkPushConstantRange bufferRange{};
 	bufferRange.offset = 0;
@@ -250,4 +270,5 @@ void gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	builder.SetDepthFormat(m_device.GetDepthTarget()->imageFormat);
 	
 	vkShader.m_pipeline = builder.BuildPipeline(m_device.GetDevice());
+	return vkShader.GetHandle();
 }
