@@ -16,7 +16,6 @@ namespace gns::rendering
         VulkanShader* shaderOverride = nullptr;
         VulkanImage* renderTarget = nullptr;
         VulkanImage* depthTarget = nullptr;
-        bool randomBool = true;
         VkImageLayout srcImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         VkImageLayout dstImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -43,6 +42,11 @@ namespace gns::rendering
     {
     public:
         RenderStep& AddPass(std::string name, RenderStepFunction renderPassFunction);
+        RenderStep& AddImageTransitionPass(
+            std::string name,
+            VulkanImage* image,
+            VkImageLayout srcLayout,
+            VkImageLayout dstLayout);
         void Execute(VkCommandBuffer cmd, FrameData& frameData);
         void Clear();
     private:

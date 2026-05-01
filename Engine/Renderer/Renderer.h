@@ -45,6 +45,13 @@ namespace gns::rendering {
 		Handle ApplyMesh(Mesh& mesh);
 		Handle CreateVulkanShader(Shader& shader);
 		friend class gns::RenderSystem;
+
+	private:
+		void AddBackgroundPass();
+		void AddDrawImageToColorAttachmentPass();
+		void AddGeometryPass();
+		void AddCopyDrawImageToSwapchainPass();
+		void AddImGuiPass();
 	};
 }
 

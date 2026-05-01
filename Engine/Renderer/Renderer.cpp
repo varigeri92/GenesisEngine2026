@@ -19,26 +19,32 @@ void gns::rendering::Renderer::SetupRenderPasses()
 {
 	m_renderGraph.Clear();
 
-	auto& transitionStep = m_renderGraph.AddPass("ImageTransition step",
-		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
-	{
-		utils::TransitionImage(
-			cmd, rp_data.renderTarget->image, rp_data.srcImageLayout, rp_data.dstImageLayout);
-		return true;
-	});
-	transitionStep.data.srcImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	transitionStep.data.dstImageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	transitionStep.data.renderTarget = m_device.GetRenderTarget();
-	
-	auto& backgroundPass = m_renderGraph.AddPass("background pass",
+	m_renderGraph.AddImageTransitionPass(
+		"DrawImageToGeneral",
+		m_device.GetRenderTarget(),
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_GENERAL);
+	AddBackgroundPass();
+	AddDrawImageToColorAttachmentPass();
+	AddGeometryPass();
+	AddCopyDrawImageToSwapchainPass();
+	AddImGuiPass();
+}
+
+void gns::rendering::Renderer::AddBackgroundPass()
+{
+	auto& backgroundPass = m_renderGraph.AddPass("Background",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
 		m_device.DrawTest(cmd);
-		return rp_data.randomBool;
+		return true;
 	});
 	backgroundPass.data.renderTarget = m_device.GetRenderTarget();
-	
-	auto& transitionToColorAttachment = m_renderGraph.AddPass("ImageTransition step",
+}
+
+void gns::rendering::Renderer::AddDrawImageToColorAttachmentPass()
+{
+	auto& transitionToColorAttachment = m_renderGraph.AddPass("DrawImageToColorAttachment",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
 		utils::TransitionImage(
@@ -50,8 +56,11 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	transitionToColorAttachment.data.dstImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	transitionToColorAttachment.data.renderTarget = m_device.GetRenderTarget();
 	transitionToColorAttachment.data.depthTarget = m_device.GetDepthTarget();
-	
-	auto& geometryPass = m_renderGraph.AddPass("geometry pass",
+}
+
+void gns::rendering::Renderer::AddGeometryPass()
+{
+	auto& geometryPass = m_renderGraph.AddPass("Geometry",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
 		m_device.DrawGeometry(cmd);
@@ -60,11 +69,14 @@ void gns::rendering::Renderer::SetupRenderPasses()
 			m_device.DrawMesh(cmd, drawData);
 		}
 		m_device.EndRendering(cmd);
-		return rp_data.randomBool;
+		return true;
 	});
 	geometryPass.data.renderTarget = m_device.GetRenderTarget();
-	
-	auto& copyToSwapchain = m_renderGraph.AddPass("ImageTransition step",
+}
+
+void gns::rendering::Renderer::AddCopyDrawImageToSwapchainPass()
+{
+	auto& copyToSwapchain = m_renderGraph.AddPass("CopyDrawImageToSwapchain",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
 		utils::TransitionImage(
@@ -80,8 +92,11 @@ void gns::rendering::Renderer::SetupRenderPasses()
 	copyToSwapchain.data.srcImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	copyToSwapchain.data.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 	copyToSwapchain.data.renderTarget = m_device.GetRenderTarget();
-	
-	auto& imguiPass = m_renderGraph.AddPass("test pass",
+}
+
+void gns::rendering::Renderer::AddImGuiPass()
+{
+	auto& imguiPass = m_renderGraph.AddPass("ImGui",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
 		utils::TransitionImage(cmd, frameData._swapchain->GetImage(frameData._swapchainImageIndex), rp_data.srcImageLayout, rp_data.dstImageLayout);
@@ -90,7 +105,7 @@ void gns::rendering::Renderer::SetupRenderPasses()
 		const VkRenderingInfo renderInfo = utils::RenderingInfo(frameData._swapchain->GetExtent(), &colorAttachment, nullptr);
 		gns::gui::GuiBackend::DrawImGui(cmd, renderInfo);
 		utils::TransitionImage(cmd, frameData._swapchain->GetImage(frameData._swapchainImageIndex), rp_data.dstImageLayout, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-		return rp_data.randomBool;
+		return true;
 	});
 	imguiPass.data.renderTarget = m_device.GetRenderTarget();
 	imguiPass.data.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
