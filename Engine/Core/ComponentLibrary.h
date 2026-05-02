@@ -4,6 +4,7 @@
 
 #include <glm/glm.hpp>
 
+#include "ComponentReflection.h"
 #include "Entity.h"
 #include "Handles.h"
 
@@ -14,50 +15,73 @@ namespace gns
     struct Shader;
 }
 
-struct EntityComponent
+struct GNS_CMP(EntityComponent)
 {
-    gns::entityHandle entity_handle;
-    std::string name;
+    GNS_FIELD(gns::entityHandle, entity_handle, GNS_EDITOR_READONLY);
+    GNS_FIELD(std::string, name);
+
+    EntityComponent() : entity_handle(entt::null), name() {}
 };
 
-struct SceneRootComponent
+struct GNS_CMP(SceneRootComponent)
 {
-    gns::Handle scene_handle;
+    GNS_FIELD(gns::Handle, scene_handle, GNS_HIDDEN | GNS_EDITOR_READONLY);
 };
 
-struct SceneMemberComponent
+struct GNS_CMP(SceneMemberComponent)
 {
-    gns::Handle scene_handle;
+    GNS_FIELD(gns::Handle, scene_handle, GNS_HIDDEN | GNS_EDITOR_READONLY);
 };
 
-struct HierarchyComponent
+struct GNS_CMP(HierarchyComponent)
 {
-    gns::entityHandle parent = entt::null;
+    GNS_FIELD(gns::entityHandle, parent, GNS_HIDDEN | GNS_EDITOR_READONLY);
     std::vector<gns::entityHandle> children;
+
+    HierarchyComponent() : parent(entt::null), children() {}
 };
 
-struct Transform
+struct GNS_CMP(Transform)
 {
-    glm::mat4 matrix = glm::mat4(1.0f);
-    glm::vec3 position = {0.0f, 0.0f, 0.0f};
-    glm::vec3 rotation = {0.0f, 0.0f, 0.0f};
-    glm::vec3 scale = {1.0f, 1.0f, 1.0f};
+    glm::mat4 matrix;
+    GNS_FIELD(glm::vec3, position);
+    GNS_FIELD(glm::vec3, rotation);
+    GNS_FIELD(glm::vec3, scale);
+
+    Transform() :
+        matrix(glm::mat4(1.0f)),
+        position{0.0f, 0.0f, 0.0f},
+        rotation{0.0f, 0.0f, 0.0f},
+        scale{1.0f, 1.0f, 1.0f}
+    {}
 };
 
-struct MeshComponent
+struct GNS_CMP(MeshComponent)
 {
-    gns::Reference<gns::Mesh> mesh;
-    gns::Reference<gns::Material> material;
-    gns::Reference<gns::Shader> shader;
+    GNS_FIELD(gns::Reference<gns::Mesh>, mesh);
+    GNS_FIELD(gns::Reference<gns::Material>, material, GNS_EDITOR_READONLY);
+    GNS_FIELD(gns::Reference<gns::Shader>, shader, GNS_HIDDEN);
 };
 
-struct AmbientLightComponent
+struct GNS_CMP(AmbientLightComponent)
 {
-    glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f};
+    GNS_FIELD(glm::vec4, color);
+
+    AmbientLightComponent() : color{1.0f, 1.0f, 1.0f, 1.0f} {}
 };
 
-struct DirectionalLightComponent
+struct GNS_CMP(DirectionalLightComponent)
 {
-    glm::vec4 direction = {1.0f, 1.0f, 1.0f, 1.0f};
-    glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f};
+    GNS_FIELD(glm::vec4, direction);
+    GNS_FIELD(glm::vec4, color);
+
+    DirectionalLightComponent() :
+        direction{1.0f, 1.0f, 1.0f, 1.0f},
+        color{1.0f, 1.0f, 1.0f, 1.0f}
+    {}
 };
+
+namespace gns
+{
+    GNS_API void RegisterCoreComponentReflection();
+}

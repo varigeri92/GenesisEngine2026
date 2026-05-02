@@ -1,6 +1,7 @@
 #include "gnspch.h"
 #include "Engine.h"
 
+#include "Core/ComponentLibrary.h"
 #include "Core/Entity.h"
 #include "Gui/TestWindow.h"
 #include "Log/Logger.h"
@@ -11,6 +12,7 @@
 #include "Renderer/RenderSystem.h"
 #include "Scene/SceneSystem.h"
 #include "Systems/GuiSystem.h"
+#include "Systems/TransformSystem.h"
 #include "Utils/Path.h"
 
 gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{cfg.headless, cfg.InitTetsSystem} {}
@@ -19,7 +21,9 @@ gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{cfg.h
 void gns::core::Engine::Initialize(std::function<void()> callback)
 {
 	gns::path::SetResourcesDirectory();
+	gns::RegisterCoreComponentReflection();
 	SystemsManager::RegisterSystem<gns::SceneSystem>();
+	SystemsManager::RegisterSystem<TransformSystem>();
 	gns::window::WindowSystem* ws = nullptr;
 	GuiSystem* gui_system = nullptr;
 	if (!m_engineConfig.headless) {

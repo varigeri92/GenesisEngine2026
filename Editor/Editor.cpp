@@ -8,6 +8,7 @@
 #include "TestEditorWindow.h"
 #include "EditorGUI/Windows/DockingRoot.h"
 #include "EditorGUI/Windows/IconBrowserWindow.h"
+#include "EditorGUI/Windows/InspectorWindow.h"
 #include "EditorGUI/Windows/SceneHierarchyWindow.h"
 #include "EditorGUI/Windows/SceneViewWindow.h"
 #include "../Engine/Systems/GuiSystem.h"
@@ -26,6 +27,7 @@ int main()
             GuiSystem* gui = gns::core::SystemsManager::GetSystem<GuiSystem>();
             gui->RegisterWindow<DockingRoot>("DockingRoot");
             gui->RegisterWindow<SceneHierarchyWindow>("Scene Hierarchy");
+            gui->RegisterWindow<InspectorWindow>("Inspector");
             gui->RegisterWindow<SceneViewWindow>("Scene View");
             gui->RegisterWindow<IconBrowserWindow>("Material Icons");
             gui->RegisterWindow<TestEditorWindow>("testEditorWindow");

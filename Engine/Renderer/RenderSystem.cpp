@@ -386,8 +386,7 @@ void gns::RenderSystem::BuildDrawData()
 		}
 
 		DrawData drawData;
-		// NOTE: Draw transform currently uses camera view-projection directly; entity/world transform composition is not explicit here yet.
-		drawData.transform = m_renderer.m_cameraBackend.viewProjection;
+		drawData.transform = m_renderer.m_cameraBackend.viewProjection * transform.matrix;
 		drawData.vkShader = vulkanShader;
 		drawData.vk_indexBuffer = vulkanMesh->indexBuffer.buffer;
 		drawData.albedoTextureDescriptor = albedoTextureBinding.descriptor;
