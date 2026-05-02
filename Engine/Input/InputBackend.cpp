@@ -180,6 +180,7 @@ namespace
 		g_resizeState.active = false;
 		SDL_CaptureMouse(SDL_FALSE);
 	}
+
 }
 
 namespace gns::core
@@ -207,6 +208,8 @@ namespace gns::core
 
 	bool InputBackend::ProcessInput(SDL_Event& event, SDL_Window* window)
 	{
+		const Uint32 mainWindowId = window != nullptr ? SDL_GetWindowID(window) : 0;
+
 		frameInput.keysDown.clear();
 		frameInput.keysUp.clear();
 
@@ -237,7 +240,10 @@ namespace gns::core
 			case SDL_MOUSEBUTTONDOWN:
 				frameInput.mouseDown[event.button.button] = true;
 				frameInput.mouseHeld[event.button.button] = true;
-				BeginWindowResize(window, event.button);
+				if (event.button.windowID == mainWindowId)
+				{
+					BeginWindowResize(window, event.button);
+				}
 				break;
 			case SDL_MOUSEBUTTONUP:
 				frameInput.mouseUp[event.button.button] = true;
@@ -256,7 +262,7 @@ namespace gns::core
 				{
 					UpdateWindowResize(window);
 				}
-				else
+				else if (event.motion.windowID == mainWindowId)
 				{
 					UpdateResizeCursor(window, event.motion.x, event.motion.y);
 				}
