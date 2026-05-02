@@ -37,7 +37,8 @@ namespace
     }
 }
 
-gns::window::Window::Window(uint32_t width, uint32_t height, std::string title) : m_width(width), m_height(height), m_title(title)
+gns::window::Window::Window(uint32_t width, uint32_t height, std::string title)
+    : m_width(width), m_height(height), m_title(title), m_screen(width, height)
 {
 }
 
@@ -68,16 +69,36 @@ void gns::window::Window::Create()
     }
 
     close = false;
+    RefreshScreen();
 }
 
 void gns::window::Window::PollWindowEvents()
 {
     SDL_Event e;
     close = gns::core::InputBackend::ProcessInput(e, sdl_window);
+    RefreshScreen();
 }
 
 void gns::window::Window::CloseWindow()
 {
     SDL_DestroyWindow(sdl_window);
     SDL_Quit();
+}
+
+const gns::Screen& gns::window::Window::GetScreen() const
+{
+    return m_screen;
+}
+
+void gns::window::Window::RefreshScreen()
+{
+    if (sdl_window == nullptr)
+    {
+        return;
+    }
+
+    int width = 0;
+    int height = 0;
+    SDL_GetWindowSize(sdl_window, &width, &height);
+    m_screen.SetSize(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 }

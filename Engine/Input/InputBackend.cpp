@@ -188,7 +188,7 @@ namespace gns::core
 	FrameInput InputBackend::previousFrameInput = {};
 	glm::vec2 InputBackend::mousePos = {};
 	glm::vec2 InputBackend::p_mousePos = {};
-	glm::vec2 InputBackend::mouseVelocity = {};
+	glm::vec2 InputBackend::mouseDelta = {};
 
 
 	bool InputBackend::GetKey(int keyCode)
@@ -215,7 +215,7 @@ namespace gns::core
 
 		p_mousePos.x = mousePos.x;
 		p_mousePos.y = mousePos.y;
-		mouseVelocity = { 0,0 };
+		mouseDelta = { 0,0 };
 
 		while (SDL_PollEvent(&event) != 0)
 		{
@@ -250,8 +250,8 @@ namespace gns::core
 			case SDL_MOUSEMOTION:
 				mousePos.x = static_cast<float>(event.motion.x);
 				mousePos.y = static_cast<float>(event.motion.y);
-				mouseVelocity.x = static_cast<float>(event.motion.xrel);
-				mouseVelocity.y = static_cast<float>(event.motion.yrel);
+				mouseDelta.x += static_cast<float>(event.motion.xrel);
+				mouseDelta.y += static_cast<float>(event.motion.yrel);
 				if (g_resizeState.active)
 				{
 					UpdateWindowResize(window);
@@ -277,9 +277,14 @@ namespace gns::core
 		return frameInput.mouseUp[mouseButton];
 	}
 
+	glm::vec2 InputBackend::GetMouseDelta()
+	{
+		return mouseDelta;
+	}
+
 	glm::vec2 InputBackend::GetMouseVelocity()
 	{
-		return mouseVelocity;
+		return GetMouseDelta();
 	}
 
 	bool InputBackend::GetMouseButton(int mouseButton)

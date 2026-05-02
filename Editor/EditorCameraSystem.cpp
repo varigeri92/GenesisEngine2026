@@ -3,6 +3,7 @@
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 #include "GenesisRendering.h"
+#include "../Engine/Window/WindowSystem.h"
 
 void EditorCameraSystem::OnCreate()
 {
@@ -20,6 +21,8 @@ void EditorCameraSystem::InitCamera()
     m_position = { 0,0,-8 };
     m_cameraSpeed = 5;
     m_renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    m_windowSystem = gns::core::SystemsManager::GetSystem<gns::window::WindowSystem>();
+    UpdateCameraAspect();
     
     m_rotation = { pitch, yaw, 0.0f };
     glm::vec3 forward = {
@@ -50,15 +53,16 @@ void EditorCameraSystem::InitCamera()
 
 void EditorCameraSystem::UpdateCamera(float deltaTime)
 {
+    UpdateCameraAspect();
 
     if (gns::core::InputBackend::GetMouseButton(3))
     {
         const float speed = m_cameraSpeed * deltaTime;
-        const float mouseSensitivity = 5.f * deltaTime;
+        const glm::vec2 mouseDelta = gns::core::InputBackend::GetMouseDelta();
 
         // --- ROTATION ---
-        yaw += -gns::core::InputBackend::GetMouseVelocity().x * mouseSensitivity;
-        pitch += -gns::core::InputBackend::GetMouseVelocity().y * mouseSensitivity;
+        yaw += -mouseDelta.x * m_mouseSensitivity;
+        pitch += -mouseDelta.y * m_mouseSensitivity;
 
         // Clamp pitch (avoid flipping upside-down)
         pitch = glm::clamp(pitch, -1.5f, 1.5f);
@@ -100,6 +104,16 @@ void EditorCameraSystem::UpdateCamera(float deltaTime)
     
     m_cameraBackend.projection[1][1] *= -1;
     m_cameraBackend.viewProjection = m_cameraBackend.projection * m_cameraBackend.view;
+}
+
+void EditorCameraSystem::UpdateCameraAspect()
+{
+    if (m_windowSystem == nullptr)
+    {
+        return;
+    }
+
+    m_camera.aspect = m_windowSystem->GetScreen().GetAspectRatio(m_camera.aspect);
 }
 
 void EditorCameraSystem::SetViewYXZ(glm::vec3 position, glm::vec3 rotation)

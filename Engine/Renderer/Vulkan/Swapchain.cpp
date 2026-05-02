@@ -50,18 +50,35 @@ void gns::rendering::Swapchain::CreateSwapchain(Device* device, VkExtent2D exten
 
 void gns::rendering::Swapchain::DestroySwapchain()
 {
-	vkDestroySwapchainKHR(m_device->GetDevice(), m_swapchain, nullptr);
+	if (m_device == nullptr)
+	{
+		return;
+	}
+
 	for (size_t i = 0; i < m_swapchainImageViews.size(); i++) {
 
 		vkDestroyImageView(m_device->GetDevice(), m_swapchainImageViews[i], nullptr);
+	}
+	m_swapchainImageViews.clear();
+	m_swapchainImages.clear();
+
+	if (m_swapchain != VK_NULL_HANDLE)
+	{
+		vkDestroySwapchainKHR(m_device->GetDevice(), m_swapchain, nullptr);
+		m_swapchain = VK_NULL_HANDLE;
 	}
 }
 
 void gns::rendering::Swapchain::ResizeSwapchain(bool& ref_resize, SDL_Window* sdl_window)
 {
-	DestroySwapchain();
 	int w, h;
 	SDL_GetWindowSize(sdl_window, &w, &h);
+	if (w <= 0 || h <= 0)
+	{
+		return;
+	}
+
+	DestroySwapchain();
 	m_swapchainExtent.width = w;
 	m_swapchainExtent.height = h;
 	CreateSwapchain(m_device, m_swapchainExtent);

@@ -30,6 +30,7 @@ namespace gns::core
 		static GNS_API bool GetMouseButtonDown(int mouseButton);
 		static GNS_API bool GetMouseButton(int mouseButton);
 		static GNS_API bool GetMouseButtonUp(int mouseButton);
+		static GNS_API glm::vec2 GetMouseDelta();
 		static GNS_API glm::vec2 GetMouseVelocity();
 	private:
 		void ProcessKeyboard();
@@ -37,6 +38,6 @@ namespace gns::core
 		static FrameInput previousFrameInput;
 		static glm::vec2 mousePos;
 		static glm::vec2 p_mousePos;
-		static glm::vec2 mouseVelocity;
+		static glm::vec2 mouseDelta;
 	};
 }

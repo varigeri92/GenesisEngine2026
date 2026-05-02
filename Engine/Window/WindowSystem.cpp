@@ -52,6 +52,11 @@ SDL_Window* gns::window::WindowSystem::GetSDLWindow()
 	return m_window->sdl_window;
 }
 
+const gns::Screen& gns::window::WindowSystem::GetScreen() const
+{
+	return m_window->GetScreen();
+}
+
 void gns::window::WindowSystem::MinimizeWindow()
 {
 	if (m_window != nullptr && m_window->sdl_window != nullptr)

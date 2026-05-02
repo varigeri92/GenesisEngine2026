@@ -152,23 +152,7 @@ void gns::rendering::Device::InitSwapchain()
 	VkExtent2D _extent{ static_cast<uint32_t>(w),static_cast<uint32_t>(h) };
 	m_swapchain.CreateSwapchain(this, _extent);
 	
-	VkExtent3D drawImageExtent = {
-	static_cast<uint32_t>(w),static_cast<uint32_t>(h), 1
-	};
-	m_drawImage = VulkanImage(drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT);
-	m_drawImage.m_device = this;
-	VkImageUsageFlags drawImageUsages{};
-	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-	drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	m_drawImage.CreateImage(drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT, drawImageUsages, false);
-	
-	m_depthImage = VulkanImage(drawImageExtent, VK_FORMAT_D32_SFLOAT);
-	m_depthImage.m_device = this;
-	VkImageUsageFlags depthImageUsages{};
-	depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	m_depthImage.CreateImage(drawImageExtent, VK_FORMAT_D32_SFLOAT, depthImageUsages, false);
+	CreateDrawTargets(m_swapchain.GetExtent());
 	
 	for (size_t i = 0; i < FRAME_OVERLAP; i++) {
 		std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> frame_sizes = { 
@@ -189,19 +173,56 @@ void gns::rendering::Device::InitSwapchain()
 	
 	//add to deletion queues
 	m_cleanupQueue.Push([this]() {
-		vkDestroyImageView(m_device, m_drawImage.imageView, nullptr);
-		vmaDestroyImage(m_allocator, m_drawImage.image, m_drawImage.allocation);
-		
-		vkDestroyImageView(m_device, m_depthImage.imageView, nullptr);
-		vmaDestroyImage(m_allocator, m_depthImage.image, m_depthImage.allocation);
+		m_drawImage.Destroy();
+		m_depthImage.Destroy();
 	});
 	
+}
+
+void gns::rendering::Device::CreateDrawTargets(VkExtent2D extent)
+{
+	VkExtent3D drawImageExtent = { extent.width, extent.height, 1 };
+
+	m_drawImage = VulkanImage(drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT);
+	m_drawImage.m_device = this;
+	VkImageUsageFlags drawImageUsages{};
+	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	m_drawImage.CreateImage(drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT, drawImageUsages, false);
+	
+	m_depthImage = VulkanImage(drawImageExtent, VK_FORMAT_D32_SFLOAT);
+	m_depthImage.m_device = this;
+	VkImageUsageFlags depthImageUsages{};
+	depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	m_depthImage.CreateImage(drawImageExtent, VK_FORMAT_D32_SFLOAT, depthImageUsages, false);
+}
+
+void gns::rendering::Device::ResizeDrawTargets(VkExtent2D extent)
+{
+	if (extent.width == 0 || extent.height == 0)
+	{
+		return;
+	}
+
+	if (m_drawImage.imageExtent.width == extent.width &&
+		m_drawImage.imageExtent.height == extent.height)
+	{
+		return;
+	}
+
+	m_drawImage.Destroy();
+	m_depthImage.Destroy();
+	CreateDrawTargets(extent);
+	UpdateDrawImageDescriptor();
 }
 
 void gns::rendering::Device::ResizeSwapchain()
 {
 	vkDeviceWaitIdle(m_device);
 	m_swapchain.ResizeSwapchain(m_resizeRequest, m_sdl_window);
+	ResizeDrawTargets(m_swapchain.GetExtent());
 }
 
 void gns::rendering::Device::UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout)
@@ -286,21 +307,7 @@ void gns::rendering::Device::InitDescriptors()
 	//allocate a descriptor set for our draw image
 	_drawImageDescriptors = m_descriptorAllocator.Allocate(m_device,_drawImageDescriptorLayout);	
 	
-	VkDescriptorImageInfo imgInfo{};
-	imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	imgInfo.imageView = m_drawImage.imageView;
-	
-	VkWriteDescriptorSet drawImageWrite = {};
-	drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	drawImageWrite.pNext = nullptr;
-	
-	drawImageWrite.dstBinding = 0;
-	drawImageWrite.dstSet = _drawImageDescriptors;
-	drawImageWrite.descriptorCount = 1;
-	drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	drawImageWrite.pImageInfo = &imgInfo;
-
-	vkUpdateDescriptorSets(m_device, 1, &drawImageWrite, 0, nullptr);
+	UpdateDrawImageDescriptor();
 
 	//make sure both the descriptor allocator and the new layout get cleaned up properly
 	m_cleanupQueue.Push([&]() {
@@ -317,6 +324,30 @@ void gns::rendering::Device::InitDescriptors()
 		}
 	});
 	
+}
+
+void gns::rendering::Device::UpdateDrawImageDescriptor()
+{
+	if (_drawImageDescriptors == VK_NULL_HANDLE || m_drawImage.imageView == VK_NULL_HANDLE)
+	{
+		return;
+	}
+
+	VkDescriptorImageInfo imgInfo{};
+	imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	imgInfo.imageView = m_drawImage.imageView;
+	
+	VkWriteDescriptorSet drawImageWrite = {};
+	drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	drawImageWrite.pNext = nullptr;
+	
+	drawImageWrite.dstBinding = 0;
+	drawImageWrite.dstSet = _drawImageDescriptors;
+	drawImageWrite.descriptorCount = 1;
+	drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	drawImageWrite.pImageInfo = &imgInfo;
+
+	vkUpdateDescriptorSets(m_device, 1, &drawImageWrite, 0, nullptr);
 }
 
 void gns::rendering::Device::InitDefaultTextures()
@@ -429,6 +460,14 @@ bool gns::rendering::Device::BeginFrame(
 		m_resizeRequest = true;
 		return false;
 	}
+	if (e == VK_SUBOPTIMAL_KHR)
+	{
+		m_resizeRequest = true;
+	}
+	else
+	{
+		VK_CHECK(e);
+	}
 	extent = {.width = m_drawImage.imageExtent.width, .height = m_drawImage.imageExtent.height};
 	data = GetCurrentFrame();
 	cmd = data._mainCommandBuffer;
@@ -472,8 +511,12 @@ void gns::rendering::Device::EndFrame(
 	presentInfo.pImageIndices = &swapchainImageIndex;
 
 	VkResult presentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
-	if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
+	if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
 		m_resizeRequest = true;
+	}
+	else
+	{
+		VK_CHECK(presentResult);
 	}
 	m_currentFrame++;
 }
@@ -526,8 +569,8 @@ void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
 
 	
 	vkCmdDispatch(cmd, 
-		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().width / 16.0)), 
-		static_cast<uint32_t>(std::ceil(m_swapchain.GetExtent().height / 16.0)), 
+		static_cast<uint32_t>(std::ceil(m_drawImage.imageExtent.width / 16.0)), 
+		static_cast<uint32_t>(std::ceil(m_drawImage.imageExtent.height / 16.0)), 
 		1);
 }
 
@@ -678,19 +721,23 @@ void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 	vkCmdBeginRendering(cmd, &renderInfo);
 
 	//set dynamic viewport and scissor
+	VkExtent2D renderExtent = {
+		m_drawImage.imageExtent.width,
+		m_drawImage.imageExtent.height
+	};
+
 	VkViewport viewport = {};
 	viewport.x = 0;
 	viewport.y = 0;
-	viewport.width = static_cast<float>(m_swapchain.GetExtent().width);
-	viewport.height = static_cast<float>(m_swapchain.GetExtent().height);
+	viewport.width = static_cast<float>(renderExtent.width);
+	viewport.height = static_cast<float>(renderExtent.height);
 	viewport.minDepth = 0.f;
 	viewport.maxDepth = 1.f;
 	
 	VkRect2D scissor = {};
 	scissor.offset.x = 0;
 	scissor.offset.y = 0;
-	scissor.extent.width = m_swapchain.GetExtent().width;
-	scissor.extent.height = m_swapchain.GetExtent().height;
+	scissor.extent = renderExtent;
 
 	vkCmdSetViewport(cmd, 0, 1, &viewport);
 	vkCmdSetScissor(cmd, 0, 1, &scissor);

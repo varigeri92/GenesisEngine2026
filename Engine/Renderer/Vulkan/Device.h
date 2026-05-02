@@ -159,6 +159,9 @@ namespace gns::rendering
 		void InitSyncStructs();
 		void InitDescriptors();
 		void InitDefaultTextures();
+		void CreateDrawTargets(VkExtent2D extent);
+		void ResizeDrawTargets(VkExtent2D extent);
+		void UpdateDrawImageDescriptor();
 		Handle CreateDefaultTexture(
 			const void* data,
 			VkExtent3D size,

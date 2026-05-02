@@ -5,5 +5,6 @@
 #include "../Systems/System.h"
 #include "../Systems/SystemsManager.h"
 #include "../Core/Camera.h"
+#include "../Core/Screen.h"
 #include "../Core/ComponentLibrary.h"
 #include "../Scene/Scene.h"

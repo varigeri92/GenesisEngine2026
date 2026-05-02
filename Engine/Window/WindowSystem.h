@@ -27,6 +27,7 @@ public:
 
 	bool ShouldClose();
 	GNS_API SDL_Window* GetSDLWindow();
+	GNS_API const gns::Screen& GetScreen() const;
 	void MinimizeWindow();
 	void ToggleMaximizeWindow();
 	bool IsMaximized() const;
