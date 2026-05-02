@@ -20,6 +20,7 @@ std::filesystem::path gns::path::InResourcesDirectory(std::string relativePath)
 
 void gns::path::SetResourcesDirectory()
 {
+    // NOTE: This assumes the process current directory is one level below the repository/resource root.
     resourcesPath = std::filesystem::current_path();
     LOG_INFO(resourcesPath.string());
     resourcesPath = resourcesPath.parent_path().append("Resources");

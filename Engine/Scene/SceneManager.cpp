@@ -15,6 +15,7 @@ gns::Scene& gns::SceneManager::GetActiveScene()
 
 gns::Scene& gns::SceneManager::CreateScene(const std::string& name)
 {
+    // NOTE: Scene ownership/allocation is not wired yet; this appends an empty pointer slot before using it.
     ScenesList.emplace_back();
     Scene* scene = ScenesList[ScenesList.size() - 1];
     scene->name = name;

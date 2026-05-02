@@ -42,6 +42,7 @@ void gns::RenderSystem::OnStart()
 	ApplyMaterial(*material);
 	Reference<Material> materialRef = material->Ref<Material>();
 	
+	// NOTE: Startup currently loads a local sample asset directly; project/scene bootstrapping is not defined yet.
 	std::vector<gns::assets::LoadedObject> loaded 
 		= assets::AssetManager::LoadAsset(
 			R"(D:\ProjectGenesis\TestFiles\lucilla_-_vampiric_drake\scene.gltf)");
@@ -381,6 +382,7 @@ void gns::RenderSystem::BuildDrawData()
 		}
 
 		DrawData drawData;
+		// NOTE: Draw transform currently uses camera view-projection directly; entity/world transform composition is not explicit here yet.
 		drawData.transform = m_renderer.m_cameraBackend.viewProjection;
 		drawData.vkShader = vulkanShader;
 		drawData.vk_indexBuffer = vulkanMesh->indexBuffer.buffer;
