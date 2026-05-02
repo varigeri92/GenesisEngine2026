@@ -10,6 +10,7 @@
 #include "../Core/ComponentLibrary.h"
 #include "../Object/Material.h"
 #include "../Scene/Scene.h"
+#include "../Scene/SceneManager.h"
 #include "../Systems/SystemsManager.h"
 #include "Resources/VulkanShader.h"
 #include "Resources/VulkanTexture.h"
@@ -28,9 +29,6 @@ void gns::RenderSystem::OnCreate()
 
 void gns::RenderSystem::OnStart()
 {
-	gns::Entity sceneEntity = gns::Entity::CreateEntity("SceneDataEntity");
-	sceneEntity.AddComponent<SceneData>();
-	
 	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
 	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\mesh.vert)").string();
 	Shader* _shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_mesh_shader");
@@ -336,12 +334,18 @@ void gns::RenderSystem::BuildDrawData()
 	m_drawData.clear();
 	m_drawData.reserve(previousDrawCount);
 
-	auto view = core::SystemsManager::GetRegistry().view<EntityComponent, Transform, MeshComponent>();
+	auto view = core::SystemsManager::GetRegistry().view<EntityComponent, SceneMemberComponent, Transform, MeshComponent>();
 	view.each([&](
 		EntityComponent& entityComp,
+		SceneMemberComponent& sceneMember,
 		Transform& transform,
 		MeshComponent& meshComp)
 	{
+		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
+		{
+			return;
+		}
+
 		if (!meshComp.mesh.m_handle.IsValid() ||
 			!meshComp.material.m_handle.IsValid() ||
 			!meshComp.shader.m_handle.IsValid())
@@ -396,15 +400,41 @@ void gns::RenderSystem::BuildDrawData()
 
 void gns::RenderSystem::BuildSceneDataDescriptor()
 {
-	m_hasSceneDataDescriptor = false;
-	auto sceneDataView = core::SystemsManager::GetRegistry()
-		.view<EntityComponent, Transform, gns::SceneData>();
-	sceneDataView.each([&](
-		EntityComponent& entityComp,
-		Transform& transform,
-		gns::SceneData& sceneData)
+	m_sceneData = SceneData();
+
+	bool hasAmbientLight = false;
+	auto ambientLightView = core::SystemsManager::GetRegistry()
+		.view<SceneMemberComponent, AmbientLightComponent>();
+	ambientLightView.each([&](
+		SceneMemberComponent& sceneMember,
+		AmbientLightComponent& ambientLight)
 	{
-		m_sceneDataDescriptor = GpuDataDescriptor::GetFromType<gns::SceneData>(&sceneData);
-		m_hasSceneDataDescriptor = true;
+		if (hasAmbientLight || !SceneManager::IsSceneLoaded(sceneMember.scene_handle))
+		{
+			return;
+		}
+
+		m_sceneData.ambientColor = ambientLight.color;
+		hasAmbientLight = true;
 	});
+
+	bool hasDirectionalLight = false;
+	auto directionalLightView = core::SystemsManager::GetRegistry()
+		.view<SceneMemberComponent, DirectionalLightComponent>();
+	directionalLightView.each([&](
+		SceneMemberComponent& sceneMember,
+		DirectionalLightComponent& directionalLight)
+	{
+		if (hasDirectionalLight || !SceneManager::IsSceneLoaded(sceneMember.scene_handle))
+		{
+			return;
+		}
+
+		m_sceneData.sunlightDirection = directionalLight.direction;
+		m_sceneData.sunlightColor = directionalLight.color;
+		hasDirectionalLight = true;
+	});
+
+	m_sceneDataDescriptor = GpuDataDescriptor::GetFromType<gns::SceneData>(&m_sceneData);
+	m_hasSceneDataDescriptor = true;
 }

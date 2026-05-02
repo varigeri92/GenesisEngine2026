@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "../Core/Handles.h"
+#include "../Scene/Scene.h"
 #include "../Systems/System.h"
 #include "Renderer.h"
 
@@ -92,6 +93,7 @@ namespace gns {
 		RenderResourceCache m_resourceCache;
 		EngineDefaultTextureHandles m_defaultTextures;
 		std::vector<DrawData> m_drawData;
+		SceneData m_sceneData = {};
 		GpuDataDescriptor m_sceneDataDescriptor = {};
 		bool m_hasSceneDataDescriptor = false;
 

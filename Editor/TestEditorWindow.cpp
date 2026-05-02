@@ -22,19 +22,24 @@ void TestEditorWindow::OnDraw()
         editor_camera_system->test = !editor_camera_system->test;
     }
 
-    
-    auto SceneData = gns::core::SystemsManager::GetRegistry()
-    .view<EntityComponent, Transform, gns::SceneData>();
-    SceneData.each([&](EntityComponent& entityComp, Transform& transform, gns::SceneData& scene_data)
+    auto ambientLights = gns::core::SystemsManager::GetRegistry()
+    .view<EntityComponent, AmbientLightComponent>();
+    ambientLights.each([&](EntityComponent& entityComp, AmbientLightComponent& ambient_light)
     {
-        if (widgets::startWidgets("test")){
-            widgets::float4_widget("Ambient Color", reinterpret_cast<float*>(&scene_data.ambientColor));
-            widgets::float4_widget("Sun Direction", reinterpret_cast<float*>(&scene_data.sunlightDirection));
-            widgets::float4_widget("sun Color", reinterpret_cast<float*>(&scene_data.sunlightColor));
+        if (widgets::startWidgets(entityComp.name + "##AmbientLight")){
+            widgets::float4_widget("Ambient Color", reinterpret_cast<float*>(&ambient_light.color));
             widgets::endWidgets();
         }
-        
     });
-    
-    
+
+    auto directionalLights = gns::core::SystemsManager::GetRegistry()
+    .view<EntityComponent, DirectionalLightComponent>();
+    directionalLights.each([&](EntityComponent& entityComp, DirectionalLightComponent& directional_light)
+    {
+        if (widgets::startWidgets(entityComp.name + "##DirectionalLight")){
+            widgets::float4_widget("Sun Direction", reinterpret_cast<float*>(&directional_light.direction));
+            widgets::float4_widget("Sun Color", reinterpret_cast<float*>(&directional_light.color));
+            widgets::endWidgets();
+        }
+    });
 }

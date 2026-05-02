@@ -1,5 +1,10 @@
 ﻿#pragma once
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "entt/entt.hpp"
+#include "Handles.h"
 #include "../Systems/SystemsManager.h"
 namespace gns
 {
@@ -62,20 +67,25 @@ namespace gns
         }
 
         GNS_API static Entity CreateEntity(const std::string& entityName);
+        GNS_API static Entity CreateEntity(
+            const std::string& entityName,
+            Handle sceneHandle,
+            entityHandle parent = entt::null);
+
+        GNS_API Entity Parent() const;
+        GNS_API const std::vector<gns::entityHandle>& Children() const;
+        GNS_API void SetParent(entityHandle parent);
         
         /* 
         GNS_API const std::vector<gns::ComponentData>& GetAllComponent();
         GNS_API entity::Transform& Transform();
-        GNS_API std::vector<gns::entityHandle>& Children();
         GNS_API void AddChild(entityHandle entity_handle);
         GNS_API void RemoveChild(entityHandle entity);
-        GNS_API Entity Parent();
         GNS_API const std::string& Name();
         GNS_API void SetName(const std::string& newName);
         GNS_API guid GetGuid();
         static Entity CreateEntity_Internal(const std::string& entityName, const guid guid, gns::scene::Scene* scene);
     private:
-        GNS_API void SetParent(entityHandle parent);
         std::vector<gns::ComponentData> componentsVector;
         */
     };

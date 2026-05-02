@@ -9,7 +9,10 @@ void gns::SceneSystem::OnCreate()
 
 void gns::SceneSystem::OnStart()
 {
-    SceneManager::CreateScene("empty(scene)");
+    if (SceneManager::TryGetActiveScene() == nullptr)
+    {
+        SceneManager::CreateScene("empty(scene)");
+    }
 }
 
 void gns::SceneSystem::OnUpdate(float deltaTime)
@@ -19,5 +22,5 @@ void gns::SceneSystem::OnUpdate(float deltaTime)
 
 void gns::SceneSystem::OnDestroy()
 {
-    //Unload Scenes;
+    SceneManager::Clear();
 }

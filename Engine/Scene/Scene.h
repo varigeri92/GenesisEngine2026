@@ -1,6 +1,9 @@
 ﻿#pragma once
+#include <string>
+
 #include <glm/glm.hpp>
 #include "../Core/Entity.h"
+#include "../Core/Handles.h"
 
 namespace gns
 {
@@ -16,8 +19,8 @@ namespace gns
 
     struct Scene
     {
+        Handle handle;
         std::string name;
         Entity root;
-        SceneData data;
     };
 }

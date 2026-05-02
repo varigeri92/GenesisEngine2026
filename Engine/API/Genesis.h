@@ -8,3 +8,4 @@
 #include "../Core/Screen.h"
 #include "../Core/ComponentLibrary.h"
 #include "../Scene/Scene.h"
+#include "../Scene/SceneManager.h"
