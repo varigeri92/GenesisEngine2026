@@ -72,6 +72,30 @@ uint64_t GuiSystem::GetTextureDescriptor(gns::Reference<gns::Texture> texture) c
     return renderSystem->GetTextureDescriptor(texture.m_handle);
 }
 
+uint64_t GuiSystem::GetSceneTextureDescriptor() const
+{
+    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    if (renderSystem == nullptr)
+    {
+        LOG_WARNING("[GuiSystem]: Cannot get scene texture descriptor because RenderSystem is missing.");
+        return 0;
+    }
+
+    return renderSystem->GetSceneTextureDescriptor();
+}
+
+void GuiSystem::SetSceneScreen(const gns::Screen& screen) const
+{
+    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    if (renderSystem == nullptr)
+    {
+        LOG_WARNING("[GuiSystem]: Cannot set scene screen because RenderSystem is missing.");
+        return;
+    }
+
+    renderSystem->SetScreen(screen);
+}
+
 void GuiSystem::OnCreate()
 {
     gns::window::WindowSystem* ws = 

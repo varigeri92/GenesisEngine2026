@@ -82,6 +82,9 @@ namespace gns {
 		GNS_API Handle GetDefaultTextureHandle(DefaultTexture texture) const;
 		GNS_API RenderTextureBinding GetTextureBinding(Handle textureHandle);
 		GNS_API uint64_t GetTextureDescriptor(Handle textureHandle);
+		GNS_API uint64_t GetSceneTextureDescriptor();
+		GNS_API void SetScreen(const Screen& screen);
+		GNS_API const Screen& GetScreen() const;
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;

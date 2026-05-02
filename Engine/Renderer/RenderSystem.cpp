@@ -280,6 +280,21 @@ uint64_t gns::RenderSystem::GetTextureDescriptor(Handle textureHandle)
 	return GetTextureBinding(textureHandle).descriptor;
 }
 
+uint64_t gns::RenderSystem::GetSceneTextureDescriptor()
+{
+	return m_renderer.GetSceneTextureDescriptor();
+}
+
+void gns::RenderSystem::SetScreen(const Screen& screen)
+{
+	m_renderer.SetScreen(screen);
+}
+
+const gns::Screen& gns::RenderSystem::GetScreen() const
+{
+	return m_renderer.GetScreen();
+}
+
 void gns::RenderSystem::CreateDefaultTextureObjects()
 {
 	const rendering::VulkanDefaultTextureHandles& vulkanDefaults = m_renderer.GetDefaultTextures();

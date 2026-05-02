@@ -6,11 +6,6 @@ namespace gns
     class RenderSystem;
 }
 
-namespace gns::window
-{
-    class WindowSystem;
-}
-
 class EditorCameraSystem : public gns::core::System
 {
     CameraBackend m_cameraBackend = {};
@@ -29,7 +24,6 @@ public:
     float m_mouseSensitivity = 0.0025f;
     
     gns::RenderSystem* m_renderSystem = nullptr;
-    gns::window::WindowSystem* m_windowSystem = nullptr;
     void OnCreate() override;
     void OnUpdate(float deltaTime) override;
     void SetViewYXZ(glm::vec3 position, glm::vec3 rotation);

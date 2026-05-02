@@ -4,6 +4,7 @@
 #include "RenderGraph.h"
 #include "Resources/VulkanShader.h"
 #include "../Core/Camera.h" 
+#include "../Core/Screen.h"
 
 namespace gns
 {
@@ -22,6 +23,8 @@ namespace gns::rendering {
 		RenderGraph m_renderGraph;
 		std::vector<DrawData> m_drawData;
 		CameraBackend m_cameraBackend;
+		Screen m_screen;
+		bool m_copySceneToSwapchain = false;
 		VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
 		VkDescriptorSetLayout _singleImageDescriptorLayout;
 	public:
@@ -37,6 +40,9 @@ namespace gns::rendering {
 		GNS_API VkInstance GetInstance();
 		GNS_API VkQueue GetGraphicsQueue();
 		GNS_API VkFormat* GetSwapChainFormat();
+		GNS_API uint64_t GetSceneTextureDescriptor();
+		GNS_API void SetScreen(const Screen& screen);
+		GNS_API const Screen& GetScreen() const;
 		const VulkanDefaultTextureHandles& GetDefaultTextures() const;
 		VulkanTexture* GetVulkanTexture(Handle textureHandle);
 		VulkanShader* GetVulkanShader(Handle shaderHandle);
@@ -50,9 +56,12 @@ namespace gns::rendering {
 
 	private:
 		void AddBackgroundPass();
+		void AddDrawImageToGeneralPass();
 		void AddDrawImageToColorAttachmentPass();
 		void AddGeometryPass();
+		void AddClearSwapchainPass(VkImageLayout finalLayout);
 		void AddCopyDrawImageToSwapchainPass();
+		void AddDrawImageToShaderReadPass();
 		void AddImGuiPass();
 	};
 }

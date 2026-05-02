@@ -37,6 +37,8 @@ public:
     void DrawWindows() const;
     gns::Reference<gns::Texture> GetDefaultCheckerboardTexture();
     uint64_t GetTextureDescriptor(gns::Reference<gns::Texture> texture) const;
+    GNS_API uint64_t GetSceneTextureDescriptor() const;
+    GNS_API void SetSceneScreen(const gns::Screen& screen) const;
     
     GuiSystem();
     void OnCreate() override;

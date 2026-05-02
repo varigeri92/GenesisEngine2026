@@ -3,7 +3,6 @@
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 #include "GenesisRendering.h"
-#include "../Engine/Window/WindowSystem.h"
 
 void EditorCameraSystem::OnCreate()
 {
@@ -21,7 +20,6 @@ void EditorCameraSystem::InitCamera()
     m_position = { 0,0,-8 };
     m_cameraSpeed = 5;
     m_renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
-    m_windowSystem = gns::core::SystemsManager::GetSystem<gns::window::WindowSystem>();
     UpdateCameraAspect();
     
     m_rotation = { pitch, yaw, 0.0f };
@@ -108,12 +106,12 @@ void EditorCameraSystem::UpdateCamera(float deltaTime)
 
 void EditorCameraSystem::UpdateCameraAspect()
 {
-    if (m_windowSystem == nullptr)
+    if (m_renderSystem == nullptr)
     {
         return;
     }
 
-    m_camera.aspect = m_windowSystem->GetScreen().GetAspectRatio(m_camera.aspect);
+    m_camera.aspect = m_renderSystem->GetScreen().GetAspectRatio(m_camera.aspect);
 }
 
 void EditorCameraSystem::SetViewYXZ(glm::vec3 position, glm::vec3 rotation)

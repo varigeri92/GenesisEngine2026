@@ -103,6 +103,10 @@ namespace gns::rendering
 		VmaAllocator GetAlocator(){return m_allocator;}
 		const VulkanDefaultTextureHandles& GetDefaultTextures() const { return m_defaultTextures; }
 		VkDescriptorSetLayout GetTextureDescriptorLayout() const { return _textureDescriptorLayout; }
+		uint64_t GetRenderTargetDescriptor() const { return reinterpret_cast<uint64_t>(_renderTargetDescriptor); }
+		VkExtent2D GetRenderExtent() const { return m_renderExtent; }
+		void SetRenderExtent(VkExtent2D extent);
+		void ApplyRenderTargetResize();
 		template <DerivedFromVulkanResource Resource_T, typename... Args>
 		Resource_T* CreateResource(Args&& ... args)
 		{
@@ -130,6 +134,8 @@ namespace gns::rendering
 		void DrawTest(VkCommandBuffer cmd);
 		void DrawGeometry(VkCommandBuffer cmd);
 		void EndRendering(VkCommandBuffer cmd);
+		void TransitionDrawImage(VkCommandBuffer cmd, VkImageLayout newLayout);
+		void TransitionDepthImage(VkCommandBuffer cmd, VkImageLayout newLayout);
 		void* GetMappedDataFromAllocation(VmaAllocation allocation);
 		void DrawMesh(VkCommandBuffer cmd, DrawData drawData);
 		
@@ -151,6 +157,9 @@ namespace gns::rendering
 		Swapchain m_swapchain;
 		VmaAllocator m_allocator = VK_NULL_HANDLE;
 		SDL_Window* m_sdl_window = nullptr;
+		VkExtent2D m_renderExtent = { 1, 1 };
+		bool m_useCustomRenderExtent = false;
+		bool m_renderTargetResizeRequest = false;
 
 		
 		void InitVulkan(SDL_Window* sdl_window);
@@ -162,6 +171,7 @@ namespace gns::rendering
 		void CreateDrawTargets(VkExtent2D extent);
 		void ResizeDrawTargets(VkExtent2D extent);
 		void UpdateDrawImageDescriptor();
+		void UpdateRenderTargetDescriptor();
 		Handle CreateDefaultTexture(
 			const void* data,
 			VkExtent3D size,
@@ -175,6 +185,8 @@ namespace gns::rendering
 		std::vector<FrameData> m_frames = {};
 		VulkanImage m_drawImage = {};
 		VulkanImage m_depthImage= {};
+		VkImageLayout m_drawImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		VkImageLayout m_depthImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		
 		VkQueue m_graphicsQueue = {};
 		uint32_t m_graphicsQueueFamily;
@@ -192,8 +204,10 @@ namespace gns::rendering
 		
 		DescriptorAllocator m_descriptorAllocator = {};
 		VkDescriptorSet _drawImageDescriptors = VK_NULL_HANDLE;
+		VkDescriptorSet _renderTargetDescriptor = VK_NULL_HANDLE;
 		VkDescriptorSetLayout _drawImageDescriptorLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout _textureDescriptorLayout = VK_NULL_HANDLE;
+		VkSampler _renderTargetSampler = VK_NULL_HANDLE;
 		VulkanDefaultTextureHandles m_defaultTextures = {};
 		
 		//test stuff:

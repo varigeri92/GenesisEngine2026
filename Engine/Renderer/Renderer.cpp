@@ -15,6 +15,8 @@ void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 {
 	m_drawData = {};
 	m_device.Create(sdl_window);
+	const VkExtent2D renderExtent = m_device.GetRenderExtent();
+	m_screen.SetSize(renderExtent.width, renderExtent.height);
 	SetupRenderPasses();
 }
 
@@ -22,16 +24,32 @@ void gns::rendering::Renderer::SetupRenderPasses()
 {
 	m_renderGraph.Clear();
 
-	m_renderGraph.AddImageTransitionPass(
-		"DrawImageToGeneral",
-		m_device.GetRenderTarget(),
-		VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_GENERAL);
+	AddDrawImageToGeneralPass();
 	AddBackgroundPass();
 	AddDrawImageToColorAttachmentPass();
 	AddGeometryPass();
-	AddCopyDrawImageToSwapchainPass();
+	if (m_copySceneToSwapchain)
+	{
+		AddClearSwapchainPass(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		AddCopyDrawImageToSwapchainPass();
+	}
+	else
+	{
+		AddDrawImageToShaderReadPass();
+		AddClearSwapchainPass(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	}
 	AddImGuiPass();
+}
+
+void gns::rendering::Renderer::AddDrawImageToGeneralPass()
+{
+	auto& transitionToGeneral = m_renderGraph.AddPass("DrawImageToGeneral",
+	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
+	{
+		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_GENERAL);
+		return true;
+	});
+	transitionToGeneral.data.renderTarget = m_device.GetRenderTarget();
 }
 
 void gns::rendering::Renderer::AddBackgroundPass()
@@ -50,9 +68,8 @@ void gns::rendering::Renderer::AddDrawImageToColorAttachmentPass()
 	auto& transitionToColorAttachment = m_renderGraph.AddPass("DrawImageToColorAttachment",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
-		utils::TransitionImage(
-			cmd, rp_data.renderTarget->image, rp_data.srcImageLayout, rp_data.dstImageLayout);
-		utils::TransitionImage(cmd,  rp_data.depthTarget->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		m_device.TransitionDepthImage(cmd, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 		return true;
 	});
 	transitionToColorAttachment.data.srcImageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -82,14 +99,12 @@ void gns::rendering::Renderer::AddCopyDrawImageToSwapchainPass()
 	auto& copyToSwapchain = m_renderGraph.AddPass("CopyDrawImageToSwapchain",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
-		utils::TransitionImage(
-			cmd, rp_data.renderTarget->image, rp_data.srcImageLayout, rp_data.dstImageLayout);
-		utils::TransitionImage(
-			cmd, frameData._swapchain->GetImage(frameData._swapchainImageIndex), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 		utils::CopyImageToImage(
 			cmd, rp_data.renderTarget->image, frameData._swapchain->GetImage(frameData._swapchainImageIndex), 
 	{rp_data.renderTarget->imageExtent.width, rp_data.renderTarget->imageExtent.height}, 
 	frameData._swapchain->GetExtent());
+		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		return true;
 	});
 	copyToSwapchain.data.srcImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -97,12 +112,69 @@ void gns::rendering::Renderer::AddCopyDrawImageToSwapchainPass()
 	copyToSwapchain.data.renderTarget = m_device.GetRenderTarget();
 }
 
+void gns::rendering::Renderer::AddClearSwapchainPass(VkImageLayout finalLayout)
+{
+	auto& clearSwapchain = m_renderGraph.AddPass("ClearSwapchain",
+	[finalLayout](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
+	{
+		utils::TransitionImage(
+			cmd,
+			frameData._swapchain->GetImage(frameData._swapchainImageIndex),
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+		VkClearValue clearColor = {};
+		clearColor.color = { { 0.f, 0.f, 0.f, 1.f } };
+
+		VkRenderingAttachmentInfo colorAttachment =
+			utils::AttachmentInfo(
+				frameData._swapchain->GetImageView(frameData._swapchainImageIndex),
+				&clearColor,
+				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		const VkRenderingInfo renderInfo =
+			utils::RenderingInfo(frameData._swapchain->GetExtent(), &colorAttachment, nullptr);
+
+		vkCmdBeginRendering(cmd, &renderInfo);
+		vkCmdEndRendering(cmd);
+
+		if (finalLayout != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+		{
+			utils::TransitionImage(
+				cmd,
+				frameData._swapchain->GetImage(frameData._swapchainImageIndex),
+				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				finalLayout);
+		}
+
+		return true;
+	});
+	clearSwapchain.data.dstImageLayout = finalLayout;
+}
+
+void gns::rendering::Renderer::AddDrawImageToShaderReadPass()
+{
+	auto& shaderReadPass = m_renderGraph.AddPass("DrawImageToShaderRead",
+	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
+	{
+		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		return true;
+	});
+	shaderReadPass.data.renderTarget = m_device.GetRenderTarget();
+}
+
 void gns::rendering::Renderer::AddImGuiPass()
 {
 	auto& imguiPass = m_renderGraph.AddPass("ImGui",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
-		utils::TransitionImage(cmd, frameData._swapchain->GetImage(frameData._swapchainImageIndex), rp_data.srcImageLayout, rp_data.dstImageLayout);
+		if (rp_data.srcImageLayout != rp_data.dstImageLayout)
+		{
+			utils::TransitionImage(
+				cmd,
+				frameData._swapchain->GetImage(frameData._swapchainImageIndex),
+				rp_data.srcImageLayout,
+				rp_data.dstImageLayout);
+		}
 		VkRenderingAttachmentInfo colorAttachment = 
 			utils::AttachmentInfo( frameData._swapchain->GetImageView(frameData._swapchainImageIndex), nullptr, rp_data.dstImageLayout);
 		const VkRenderingInfo renderInfo = utils::RenderingInfo(frameData._swapchain->GetExtent(), &colorAttachment, nullptr);
@@ -111,7 +183,9 @@ void gns::rendering::Renderer::AddImGuiPass()
 		return true;
 	});
 	imguiPass.data.renderTarget = m_device.GetRenderTarget();
-	imguiPass.data.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	imguiPass.data.srcImageLayout = m_copySceneToSwapchain
+		? VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+		: VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	imguiPass.data.dstImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 }
 
@@ -121,6 +195,7 @@ void gns::rendering::Renderer::DrawFrame(
 {
 	if (m_device.m_resizeRequest)
 		m_device.ResizeSwapchain();
+	m_device.ApplyRenderTargetResize();
 	
 	VkCommandBuffer cmd;
 	uint32_t swapchainImageIndex;
@@ -170,6 +245,27 @@ VkQueue gns::rendering::Renderer::GetGraphicsQueue()
 VkFormat* gns::rendering::Renderer::GetSwapChainFormat()
 {
 	return m_device.GetSwapchain().GetFormat_ptr();
+}
+
+uint64_t gns::rendering::Renderer::GetSceneTextureDescriptor()
+{
+	return m_device.GetRenderTargetDescriptor();
+}
+
+void gns::rendering::Renderer::SetScreen(const Screen& screen)
+{
+	if (!screen.IsValid())
+	{
+		return;
+	}
+
+	m_screen = screen;
+	m_device.SetRenderExtent({ screen.GetWidth(), screen.GetHeight() });
+}
+
+const gns::Screen& gns::rendering::Renderer::GetScreen() const
+{
+	return m_screen;
 }
 
 const gns::rendering::VulkanDefaultTextureHandles& gns::rendering::Renderer::GetDefaultTextures() const
