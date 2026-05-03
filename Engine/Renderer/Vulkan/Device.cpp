@@ -688,7 +688,8 @@ void gns::rendering::Device::init_background_pipelines()
 	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &_gradientPipelineLayout));
 	
 	VkShaderModule computeDrawShader;
-	std::string shaderPath = gns::path::InResourcesDirectory(R"(Shaders\sky.comp.spv)").string();
+	std::string shaderPath =
+		gns::path::Resolve(gns::path::Root::EditorResources, R"(Shaders\sky.comp.spv)").string();
 	if (!utils::LoadShaderModule(shaderPath, m_device, &computeDrawShader))
 	{
 		LOG_ERROR("Error when building the compute shader \n");

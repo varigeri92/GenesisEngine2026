@@ -110,26 +110,7 @@ namespace
 		ImGuiIO& io = ImGui::GetIO();
 
 		std::filesystem::path textFontPath =
-			gns::path::InResourcesDirectory("Fonts/geist-static/Geist-Regular.ttf");
-		if (!std::filesystem::exists(textFontPath))
-		{
-			const std::filesystem::path relativePaths[] =
-			{
-				"Resources/Fonts/geist-static/Geist-Regular.ttf",
-				"../Resources/Fonts/geist-static/Geist-Regular.ttf",
-				"../../Resources/Fonts/geist-static/Geist-Regular.ttf"
-			};
-
-			for (const std::filesystem::path& relativePath : relativePaths)
-			{
-				if (std::filesystem::exists(relativePath))
-				{
-					textFontPath = relativePath;
-					break;
-				}
-			}
-		}
-
+			gns::path::Resolve(gns::path::Root::EditorResources, "Fonts/geist-static/Geist-Regular.ttf");
 		const std::string textFontPathString = textFontPath.string();
 		if (io.Fonts->AddFontFromFileTTF(textFontPathString.c_str(), 16.0f) == nullptr)
 		{
@@ -150,26 +131,7 @@ namespace
 		};
 
 		std::filesystem::path iconFontPath =
-			gns::path::InResourcesDirectory("Fonts/MaterialIconsRound-Regular.otf");
-		if (!std::filesystem::exists(iconFontPath))
-		{
-			const std::filesystem::path relativePaths[] =
-			{
-				"Resources/Fonts/MaterialIconsRound-Regular.otf",
-				"../Resources/Fonts/MaterialIconsRound-Regular.otf",
-				"../../Resources/Fonts/MaterialIconsRound-Regular.otf"
-			};
-
-			for (const std::filesystem::path& relativePath : relativePaths)
-			{
-				if (std::filesystem::exists(relativePath))
-				{
-					iconFontPath = relativePath;
-					break;
-				}
-			}
-		}
-
+			gns::path::Resolve(gns::path::Root::EditorResources, "Fonts/MaterialIconsRound-Regular.otf");
 		const std::string iconFontPathString = iconFontPath.string();
 		if (io.Fonts->AddFontFromFileTTF(iconFontPathString.c_str(), 18.0f, &iconConfig, iconRanges) == nullptr)
 		{

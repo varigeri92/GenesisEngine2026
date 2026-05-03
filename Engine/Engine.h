@@ -1,6 +1,7 @@
 #pragma once
 #include "API/API.h"
 #include "functional"
+#include <filesystem>
 
 struct SDL_Window;
 
@@ -11,8 +12,10 @@ namespace  gns::rendering
 namespace gns::core {
 
 	struct EngineConfig {
-		bool headless;
-		bool InitTetsSystem;
+		bool headless = false;
+		bool InitTetsSystem = false;
+		std::filesystem::path projectRoot;
+		std::filesystem::path editorResourcesRoot;
 	};
 
 	class Engine {

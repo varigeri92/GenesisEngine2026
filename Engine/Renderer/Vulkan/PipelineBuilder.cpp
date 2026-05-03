@@ -87,9 +87,10 @@ namespace gns::rendering
 			fragmentShaderPath += ".spv";
 
 		LOG_INFO(fragmentShaderPath);
-		gns::path::InResourcesDirectory(fragmentShaderPath);
 		if (!utils::LoadShaderModule(
-			gns::path::InResourcesDirectory(fragmentShaderPath).string(), m_device->GetDevice(), &fragmentModule)) {
+			gns::path::Resolve(gns::path::Root::EditorResources, fragmentShaderPath).string(),
+			m_device->GetDevice(),
+			&fragmentModule)) {
 			LOG_ERROR("Can't build fragment shader module");
 		}
 		
@@ -98,7 +99,9 @@ namespace gns::rendering
 
 		LOG_INFO(vertexShaderPath);
 		if (!utils::LoadShaderModule(
-			gns::path::InResourcesDirectory(vertexShaderPath).string(), m_device->GetDevice(), &vertexModule)) {
+			gns::path::Resolve(gns::path::Root::EditorResources, vertexShaderPath).string(),
+			m_device->GetDevice(),
+			&vertexModule)) {
 			LOG_ERROR("Can't build vertex shader module");
 		}
 		SetShaders(vertexModule, fragmentModule);

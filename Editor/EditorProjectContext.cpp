@@ -1,20 +1,26 @@
 #include "EditorProjectContext.h"
 
-#include <system_error>
-#include <utility>
+#include "../Engine/Utils/Path.h"
 
 namespace
 {
-    std::filesystem::path NormalizePath(const std::filesystem::path& path)
+    std::filesystem::path FindPathArgument(
+        int argc,
+        char** argv,
+        const char* shortName,
+        const char* longName,
+        const std::filesystem::path& fallback)
     {
-        std::error_code error;
-        const std::filesystem::path absolutePath = std::filesystem::absolute(path, error);
-        if (error)
+        for (int index = 1; index < argc; ++index)
         {
-            return path.lexically_normal();
+            const std::string argument = argv[index] != nullptr ? argv[index] : "";
+            if ((argument == shortName || argument == longName) && index + 1 < argc)
+            {
+                return argv[index + 1];
+            }
         }
 
-        return absolutePath.lexically_normal();
+        return fallback;
     }
 
     void AddMissingFileError(
@@ -22,8 +28,7 @@ namespace
         const char* label,
         std::vector<std::string>& errors)
     {
-        std::error_code error;
-        if (std::filesystem::is_regular_file(path, error))
+        if (gns::path::IsRegularFile(path))
         {
             return;
         }
@@ -36,8 +41,7 @@ namespace
         const char* label,
         std::vector<std::string>& errors)
     {
-        std::error_code error;
-        if (std::filesystem::is_directory(path, error))
+        if (gns::path::IsDirectory(path))
         {
             return;
         }
@@ -46,52 +50,66 @@ namespace
     }
 }
 
-EditorProjectContext::EditorProjectContext()
-    : EditorProjectContext(DefaultProjectRoot)
+EditorProjectContext::EditorProjectContext() = default;
+
+std::filesystem::path EditorProjectContext::ProjectRootFromCommandLine(int argc, char** argv)
 {
+    return gns::path::Normalize(FindPathArgument(
+        argc,
+        argv,
+        "-p",
+        "--project",
+        gns::path::DefaultProjectDirectory()));
 }
 
-EditorProjectContext::EditorProjectContext(std::filesystem::path projectRoot)
+std::filesystem::path EditorProjectContext::EditorResourcesRootFromCommandLine(int argc, char** argv)
 {
-    SetProjectRoot(std::move(projectRoot));
-    Validate();
+    return gns::path::Normalize(FindPathArgument(
+        argc,
+        argv,
+        "-r",
+        "--resources",
+        gns::path::DefaultEditorResourcesDirectory()));
 }
 
-EditorProjectContext EditorProjectContext::FromCommandLine(int argc, char** argv)
+std::filesystem::path EditorProjectContext::ProjectRoot() const
 {
-    std::filesystem::path projectRoot = DefaultProjectRoot;
+    return gns::path::ProjectDirectory();
+}
 
-    for (int index = 1; index < argc; ++index)
-    {
-        const std::string argument = argv[index] != nullptr ? argv[index] : "";
-        if ((argument == "-p" || argument == "--project") && index + 1 < argc)
-        {
-            projectRoot = argv[index + 1];
-            ++index;
-        }
-    }
+std::filesystem::path EditorProjectContext::ProjectFilePath() const
+{
+    return gns::path::ProjectFilePath();
+}
 
-    return EditorProjectContext(projectRoot);
+std::filesystem::path EditorProjectContext::AssetsPath() const
+{
+    return gns::path::AssetsDirectory();
+}
+
+std::filesystem::path EditorProjectContext::LibraryPath() const
+{
+    return gns::path::LibraryDirectory();
+}
+
+std::filesystem::path EditorProjectContext::PackagesPath() const
+{
+    return gns::path::PackagesDirectory();
+}
+
+std::filesystem::path EditorProjectContext::CachePath() const
+{
+    return gns::path::CacheDirectory();
 }
 
 void EditorProjectContext::Validate()
 {
     m_validationErrors.clear();
 
-    AddMissingDirectoryError(m_projectRoot, "Project root", m_validationErrors);
-    AddMissingFileError(m_projectFilePath, ProjectFileName, m_validationErrors);
-    AddMissingDirectoryError(m_assetsPath, "Assets", m_validationErrors);
-    AddMissingDirectoryError(m_libraryPath, "Library", m_validationErrors);
-    AddMissingDirectoryError(m_packagesPath, "Packages", m_validationErrors);
-    AddMissingDirectoryError(m_cachePath, "Cache", m_validationErrors);
-}
-
-void EditorProjectContext::SetProjectRoot(std::filesystem::path projectRoot)
-{
-    m_projectRoot = NormalizePath(projectRoot);
-    m_projectFilePath = m_projectRoot / ProjectFileName;
-    m_assetsPath = m_projectRoot / "Assets";
-    m_libraryPath = m_projectRoot / "Library";
-    m_packagesPath = m_projectRoot / "Packages";
-    m_cachePath = m_projectRoot / "Cache";
+    AddMissingDirectoryError(ProjectRoot(), "Project root", m_validationErrors);
+    AddMissingFileError(ProjectFilePath(), gns::path::ProjectFileName, m_validationErrors);
+    AddMissingDirectoryError(AssetsPath(), "Assets", m_validationErrors);
+    AddMissingDirectoryError(LibraryPath(), "Library", m_validationErrors);
+    AddMissingDirectoryError(PackagesPath(), "Packages", m_validationErrors);
+    AddMissingDirectoryError(CachePath(), "Cache", m_validationErrors);
 }

@@ -29,8 +29,8 @@ void gns::RenderSystem::OnCreate()
 
 void gns::RenderSystem::OnStart()
 {
-	std::string fragmentShaderPath = gns::path::InResourcesDirectory(R"(Shaders\default.frag)").string();
-	std::string vertexShaderPath = gns::path::InResourcesDirectory(R"(Shaders\mesh.vert)").string();
+	std::string fragmentShaderPath = R"(Shaders\default.frag)";
+	std::string vertexShaderPath = R"(Shaders\mesh.vert)";
 	Shader* _shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_mesh_shader");
 	_shader->Apply();
 	Material* material = Object::Create<Material>();
@@ -43,7 +43,9 @@ void gns::RenderSystem::OnStart()
 	// NOTE: Startup currently loads a local sample asset directly; project/scene bootstrapping is not defined yet.
 	std::vector<gns::assets::LoadedObject> loaded 
 		= assets::AssetManager::LoadAsset(
-			R"(D:\ProjectGenesis\TestFiles\lucilla_-_vampiric_drake\scene.gltf)");
+			gns::path::Resolve(
+				gns::path::Root::ProjectAssets,
+				R"(lucilla_-_vampiric_drake\scene.gltf)").string());
 	for (auto& loaded_object : loaded)
 	{
 		Mesh* mesh = loaded_object.As<Mesh>();

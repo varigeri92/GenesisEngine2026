@@ -15,12 +15,14 @@
 #include "Systems/TransformSystem.h"
 #include "Utils/Path.h"
 
-gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{cfg.headless, cfg.InitTetsSystem} {}
+#include <utility>
+
+gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{std::move(cfg)} {}
 
 
 void gns::core::Engine::Initialize(std::function<void()> callback)
 {
-	gns::path::SetResourcesDirectory();
+	gns::path::Configure(m_engineConfig.projectRoot, m_engineConfig.editorResourcesRoot);
 	gns::RegisterCoreComponentReflection();
 	SystemsManager::RegisterSystem<gns::SceneSystem>();
 	SystemsManager::RegisterSystem<TransformSystem>();

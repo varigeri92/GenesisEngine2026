@@ -8,7 +8,7 @@
 #include "../Object/Material.h"
 #include "../Object/Mesh.h"
 #include "../Object/Texture.h"
-#include "../Utils/FileSystemUtils.h"
+#include "../Utils/Path.h"
 
 #include <cstdlib>
 #include <cstdint>
@@ -37,12 +37,7 @@ namespace
         const aiString& texturePath)
     {
         std::filesystem::path resolvedPath(texturePath.C_Str());
-        if (!resolvedPath.is_absolute())
-        {
-            resolvedPath = assetDirectory / resolvedPath;
-        }
-
-        return resolvedPath.lexically_normal();
+        return gns::path::ResolveAgainst(assetDirectory, resolvedPath);
     }
 
     gns::Texture* CreateTextureFromPixels(
@@ -82,13 +77,13 @@ namespace
         const std::filesystem::path& texturePath,
         std::unordered_map<std::string, gns::Texture*>& textureCache)
     {
-        const std::string normalizedPath = texturePath.lexically_normal().string();
+        const std::string normalizedPath = gns::path::Normalize(texturePath).string();
         if (const auto cachedTexture = textureCache.find(normalizedPath); cachedTexture != textureCache.end())
         {
             return cachedTexture->second;
         }
 
-        if (!std::filesystem::exists(texturePath))
+        if (!gns::path::Exists(texturePath))
         {
             LOG_ERROR("[AssetManager]: Texture file does not exist.");
             LOG_ERROR(normalizedPath);
@@ -321,8 +316,8 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(cons
         std::vector<gns::assets::LoadedObject> loaded;
         loaded.reserve(scene->mNumMeshes);
 
-        const std::filesystem::path assetPath(path);
-        const std::filesystem::path assetDirectory = assetPath.parent_path();
+        const std::filesystem::path assetPath = gns::path::Normalize(path);
+        const std::filesystem::path assetDirectory = gns::path::ParentDirectory(assetPath);
         std::unordered_map<std::string, gns::Texture*> textureCache;
         std::vector<gns::Handle> materialHandles;
 

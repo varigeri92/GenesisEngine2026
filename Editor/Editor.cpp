@@ -30,7 +30,8 @@ namespace
         YAML::Emitter emitter;
         emitter << YAML::BeginMap;
         emitter << YAML::Key << "name" << YAML::Value << "Genesis YAML smoke test";
-        emitter << YAML::Key << "projectRoot" << YAML::Value << projectContext.ProjectRoot().string();
+        emitter << YAML::Key << "projectFile" << YAML::Value
+            << gns::path::ToRelative(projectContext.ProjectFilePath(), projectContext.ProjectRoot()).generic_string();
         emitter << YAML::Key << "version" << YAML::Value << 1;
         emitter << YAML::EndMap;
 
@@ -50,12 +51,12 @@ namespace
         {
             const YAML::Node yaml = YAML::LoadFile(smokeTestPath.string());
             const std::string name = yaml["name"].as<std::string>();
-            const std::string root = yaml["projectRoot"].as<std::string>();
+            const std::string projectFile = yaml["projectFile"].as<std::string>();
             const int version = yaml["version"].as<int>();
 
             LOG_INFO("[Editor]: YAML smoke test loaded.");
             LOG_INFO("name: " + name);
-            LOG_INFO("projectRoot: " + root);
+            LOG_INFO("projectFile: " + projectFile);
             LOG_INFO("version: " + std::to_string(version));
         }
         catch (const YAML::Exception& exception)
@@ -68,15 +69,18 @@ namespace
 
 int main(int argc, char** argv)
 {
-    EditorProjectContext projectContext = EditorProjectContext::FromCommandLine(argc, argv);
+    EditorProjectContext projectContext;
 
     gns::core::EngineConfig cfg = {};
     cfg.headless = false;
     cfg.InitTetsSystem = true;
+    cfg.projectRoot = EditorProjectContext::ProjectRootFromCommandLine(argc, argv);
+    cfg.editorResourcesRoot = EditorProjectContext::EditorResourcesRootFromCommandLine(argc, argv);
 
     {
         gns::core::Engine engine(cfg);
         engine.Initialize([&]() {
+            projectContext.Validate();
             gns::core::SystemsManager::RegisterSystem<TestSystemExternal>();
             gns::core::SystemsManager::RegisterSystem<EditorCameraSystem>();
             GuiSystem* gui = gns::core::SystemsManager::GetSystem<GuiSystem>();
