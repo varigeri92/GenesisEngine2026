@@ -1,6 +1,5 @@
 #include "ProjectFilesWindow.h"
 
-#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -8,93 +7,13 @@
 
 #include "../../EditorAssetDragDrop.h"
 #include "../../EditorSelection.h"
+#include "../ProjectFilesModel.h"
 #include "../../../Engine/Utils/Path.h"
-
-
-bool IsMetaFile(const std::filesystem::path& path)
-{
-    return gns::path::HasExtension(path, "meta");
-}
-
-std::string GetDisplayName(const std::filesystem::path& path)
-{
-    const std::string filename = gns::path::FileName(path);
-    return filename.empty() ? path.string() : filename;
-}
-
-bool IsSameOrChildPath(const std::filesystem::path& path, const std::filesystem::path& parent)
-{
-    const std::filesystem::path normalizedPath = gns::path::Normalize(path);
-    const std::filesystem::path normalizedParent = gns::path::Normalize(parent);
-    const std::filesystem::path relativePath = normalizedPath.lexically_relative(normalizedParent);
-    if (relativePath.empty())
-    {
-        return false;
-    }
-
-    if (relativePath == ".")
-    {
-        return true;
-    }
-
-    const auto firstPart = relativePath.begin();
-    return firstPart != relativePath.end() && *firstPart != "..";
-}
-
-std::vector<std::filesystem::directory_entry> GetVisibleChildren(
-    const std::filesystem::path& directory,
-    bool showMetaFiles,
-    std::error_code& error)
-{
-    std::vector<std::filesystem::directory_entry> children;
-    const std::filesystem::directory_options options =
-        std::filesystem::directory_options::skip_permission_denied;
-
-    std::filesystem::directory_iterator iterator(directory, options, error);
-    if (error)
-    {
-        return children;
-    }
-
-    const std::filesystem::directory_iterator end;
-    for (; iterator != end; iterator.increment(error))
-    {
-        if (error)
-        {
-            break;
-        }
-
-        const std::filesystem::directory_entry& entry = *iterator;
-        std::error_code entryError;
-        if (!showMetaFiles && entry.is_regular_file(entryError) && IsMetaFile(entry.path()))
-        {
-            continue;
-        }
-
-        children.emplace_back(entry);
-    }
-
-    std::sort(children.begin(), children.end(), [](const auto& left, const auto& right)
-    {
-        std::error_code leftError;
-        std::error_code rightError;
-        const bool leftIsDirectory = left.is_directory(leftError);
-        const bool rightIsDirectory = right.is_directory(rightError);
-        if (leftIsDirectory != rightIsDirectory)
-        {
-            return leftIsDirectory;
-        }
-
-        return gns::path::FileName(left.path()) < gns::path::FileName(right.path());
-    });
-
-    return children;
-}
 
 void DrawFileNode(const std::filesystem::path& filePath)
 {
     const std::string id = filePath.string();
-    const std::string label = GetDisplayName(filePath);
+    const std::string label = editor::projectfiles::GetDisplayName(filePath);
     ImGuiTreeNodeFlags flags =
         ImGuiTreeNodeFlags_Leaf |
         ImGuiTreeNodeFlags_NoTreePushOnOpen |
@@ -116,10 +35,10 @@ void DrawFileNode(const std::filesystem::path& filePath)
 void ProjectFilesWindow::DrawDirectoryNode(const std::filesystem::path& directory, bool showMetaFiles, bool root)
 {
     std::error_code error;
-    const std::vector<std::filesystem::directory_entry> children =
-        GetVisibleChildren(directory, showMetaFiles, error);
+    const std::vector<editor::projectfiles::ProjectFileEntry> children =
+        editor::projectfiles::GetVisibleChildren(directory, showMetaFiles, error);
 
-    std::string label = root ? directory.string() : GetDisplayName(directory);
+    std::string label = root ? directory.string() : editor::projectfiles::GetDisplayName(directory);
     if (label.empty())
     {
         label = "Project";
@@ -143,7 +62,7 @@ void ProjectFilesWindow::DrawDirectoryNode(const std::filesystem::path& director
 
     const std::string id = directory.string();
     ImGui::PushID(id.c_str());
-    if (IsSameOrChildPath(m_currentDirectory, directory))
+    if (gns::path::IsSameOrChildPath(m_currentDirectory, directory))
     {
         ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     }
@@ -160,16 +79,15 @@ void ProjectFilesWindow::DrawDirectoryNode(const std::filesystem::path& director
 
     if (open)
     {
-        for (const std::filesystem::directory_entry& child : children)
+        for (const editor::projectfiles::ProjectFileEntry& child : children)
         {
-            std::error_code childError;
-            if (child.is_directory(childError))
+            if (child.isDirectory)
             {
-                DrawDirectoryNode(child.path(), showMetaFiles, false);
+                DrawDirectoryNode(child.path, showMetaFiles, false);
                 continue;
             }
             if (m_showFilesInTree)
-                DrawFileNode(child.path());
+                DrawFileNode(child.path);
         }
 
         ImGui::TreePop();
@@ -180,8 +98,8 @@ void ProjectFilesWindow::DrawDirectoryNode(const std::filesystem::path& director
 void ProjectFilesWindow::DrawContentView(const std::filesystem::path& directory, bool showMetaFiles)
 {
     std::error_code error;
-    const std::vector<std::filesystem::directory_entry> children =
-        GetVisibleChildren(directory, showMetaFiles, error);
+    const std::vector<editor::projectfiles::ProjectFileEntry> children =
+        editor::projectfiles::GetVisibleChildren(directory, showMetaFiles, error);
 
     if (error)
     {
@@ -201,13 +119,12 @@ void ProjectFilesWindow::DrawContentView(const std::filesystem::path& directory,
 
     for (size_t index = 0; index < children.size(); ++index)
     {
-        const std::filesystem::directory_entry& child = children[index];
-        const std::filesystem::path childPath = gns::path::Normalize(child.path());
+        const editor::projectfiles::ProjectFileEntry& child = children[index];
+        const std::filesystem::path childPath = child.path;
         const std::string id = childPath.string();
-        const std::string label = GetDisplayName(childPath);
+        const std::string label = child.displayName;
 
-        std::error_code childError;
-        const bool isDirectory = child.is_directory(childError);
+        const bool isDirectory = child.isDirectory;
         const bool isSelected = EditorSelection::IsFileSelected(childPath);
 
         ImGui::PushID(id.c_str());
@@ -284,7 +201,7 @@ void DrawValidationErrors(const EditorProjectContext& projectContext)
 
 void ProjectFilesWindow::OnDraw()
 {
-    const std::filesystem::path projectRoot = m_projectContext.ProjectRoot();
+    const std::filesystem::path projectRoot = m_projectContext.AssetsPath();
     if (m_currentDirectory.empty() || !gns::path::IsDirectory(m_currentDirectory))
     {
         m_currentDirectory = gns::path::Normalize(projectRoot);

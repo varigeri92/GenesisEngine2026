@@ -29,7 +29,11 @@ void gns::core::Engine::Initialize(std::function<void()> callback)
 	gns::window::WindowSystem* ws = nullptr;
 	GuiSystem* gui_system = nullptr;
 	if (!m_engineConfig.headless) {
-		ws = SystemsManager::RegisterSystem<gns::window::WindowSystem>(this);
+		ws = SystemsManager::RegisterSystem<gns::window::WindowSystem>(
+			this,
+			m_engineConfig.windowWidth,
+			m_engineConfig.windowHeight,
+			m_engineConfig.windowTitle);
 		SystemsManager::RegisterSystem<gns::RenderSystem>(ws);
 		gui_system = gns::core::SystemsManager::RegisterSystem<GuiSystem>();
 	}

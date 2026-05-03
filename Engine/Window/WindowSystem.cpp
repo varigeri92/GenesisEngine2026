@@ -5,12 +5,22 @@
 #include "../API/GenesisWindow.h"
 #include "../Systems/SystemsManager.h"
 
-gns::window::WindowSystem::WindowSystem(gns::core::Engine* engine): m_engine(engine)
+#include <utility>
+
+gns::window::WindowSystem::WindowSystem(
+	gns::core::Engine* engine,
+	uint32_t width,
+	uint32_t height,
+	std::string title)
+	: m_engine(engine),
+	  m_initialWidth(width),
+	  m_initialHeight(height),
+	  m_title(std::move(title))
 {}
 
 void gns::window::WindowSystem::OnCreate()
 {
-	m_window = std::make_unique<gns::window::Window>(1920, 1080, "GenesisTestWindow");
+	m_window = std::make_unique<gns::window::Window>(m_initialWidth, m_initialHeight, m_title);
 	m_window->Create();
 	LOG_INFO("Window system Created!");
 }

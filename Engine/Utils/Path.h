@@ -62,6 +62,9 @@ namespace gns::path
     GNS_API bool IsRegularFile(const std::filesystem::path& path);
     GNS_API bool IsDirectory(const std::filesystem::path& path);
     GNS_API bool IsAbsolute(const std::filesystem::path& path);
+    GNS_API bool IsSameOrChildPath(
+        const std::filesystem::path& path,
+        const std::filesystem::path& parent);
 
     GNS_API bool WriteTextFile(const std::filesystem::path& path, const std::string& data);
     GNS_API bool DeleteFile(const std::filesystem::path& path);

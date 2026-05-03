@@ -4,6 +4,7 @@
 #include <SDL2/SDL.h>
 #include "../Core/Screen.h"
 namespace gns::window {
+	bool HandleBorderlessWindowEvent(SDL_Window* window, const SDL_Event& event, Uint32 mainWindowId);
 
 	class Window
 	{

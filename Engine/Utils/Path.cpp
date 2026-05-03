@@ -268,6 +268,27 @@ bool gns::path::IsAbsolute(const std::filesystem::path& path)
     return path.is_absolute();
 }
 
+bool gns::path::IsSameOrChildPath(
+    const std::filesystem::path& path,
+    const std::filesystem::path& parent)
+{
+    const std::filesystem::path normalizedPath = Normalize(path);
+    const std::filesystem::path normalizedParent = Normalize(parent);
+    const std::filesystem::path relativePath = normalizedPath.lexically_relative(normalizedParent);
+    if (relativePath.empty())
+    {
+        return false;
+    }
+
+    if (relativePath == ".")
+    {
+        return true;
+    }
+
+    const auto firstPart = relativePath.begin();
+    return firstPart != relativePath.end() && *firstPart != "..";
+}
+
 bool gns::path::WriteTextFile(const std::filesystem::path& path, const std::string& data)
 {
     std::ofstream file(path);

@@ -17,4 +17,8 @@ private:
 
 	void AcceptSceneAssetDrop();
 	void DrawTransformGizmo(const ImVec2& scenePosition, const ImVec2& sceneSize);
+
+public:
+	void BeginWindow() override;
+	void EndWindow() override;
 };

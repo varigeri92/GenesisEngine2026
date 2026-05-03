@@ -5,12 +5,10 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 #include <ImGuizmo.h>
-
-#include <cmath>
-
 #include "../../EditorAssetDragDrop.h"
 #include "../../EditorSelection.h"
 #include "Genesis.h"
+#include "GenesisMaterialIcons.h"
 #include "../../../Engine/Assets/AssetManager.h"
 #include "../../../Engine/Renderer/RenderSystem.h"
 #include "../../../Engine/Systems/GuiSystem.h"
@@ -142,8 +140,25 @@ void SceneViewWindow::DrawTransformGizmo(const ImVec2& scenePosition, const ImVe
 	transform->matrix = transformMatrix;
 }
 
+void SceneViewWindow::BeginWindow()
+{
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+	GuiWindow::BeginWindow();
+}
+
+void SceneViewWindow::EndWindow()
+{
+	GuiWindow::EndWindow();
+	ImGui::PopStyleVar();
+}
+
 void SceneViewWindow::OnDraw()
 {
+	ImGui::Button(ICON_MD_ARROW_OUTWARD);
+	ImGui::SameLine();
+	ImGui::Button(ICON_MD_3K);
+	ImGui::SameLine();
+	ImGui::Button(ICON_MD_ROTATE_LEFT);
 	GuiSystem* guiSystem = gns::core::SystemsManager::GetSystem<GuiSystem>();
 	if (guiSystem == nullptr)
 	{

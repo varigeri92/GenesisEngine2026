@@ -1,7 +1,9 @@
 #pragma once
 #include "API/API.h"
 #include "functional"
+#include <cstdint>
 #include <filesystem>
+#include <string>
 
 struct SDL_Window;
 
@@ -14,6 +16,9 @@ namespace gns::core {
 	struct EngineConfig {
 		bool headless = false;
 		bool InitTetsSystem = false;
+		uint32_t windowWidth = 1920;
+		uint32_t windowHeight = 1080;
+		std::string windowTitle = "Genesis";
 		std::filesystem::path projectRoot;
 		std::filesystem::path editorResourcesRoot;
 	};

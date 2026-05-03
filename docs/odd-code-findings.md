@@ -2,7 +2,7 @@
 
 Scope: first-party tracked project files under `Engine`, `Editor`, root Premake Lua files, and docs used for architecture context. External/vendor/generated areas such as `vendor`, `submodules`, `bin`, `bin-int`, `obj`, `stb_image`, and generated icon tables were treated as out of scope unless first-party integration code referenced them.
 
-No source files were changed for this report.
+Cleanup is now in progress. Completed findings are marked `Done`; deferred findings carry a decision note.
 
 ## Findings
 
@@ -88,7 +88,7 @@ No source files were changed for this report.
 
    Reason: low-level device setup should not contain a named test path or hard-coded sample pass. The current naming hides a real render dependency behind test terminology.
 
-10. `Engine/Input/InputBackend.cpp:9`, `Engine/Input/InputBackend.cpp:46`, `Engine/Input/InputBackend.cpp:67`, `Engine/Input/InputBackend.cpp:99`, `Engine/Input/InputBackend.cpp:120`, `Engine/Input/InputBackend.cpp:169`, `Engine/Input/InputBackend.cpp:245`, `Engine/Input/InputBackend.cpp:263`, `Engine/Window/Window.cpp:8`, `Engine/Window/Window.cpp:12`, `Engine/Window/Window.cpp:66`
+10. **Done.** `Engine/Input/InputBackend.cpp:9`, `Engine/Input/InputBackend.cpp:46`, `Engine/Input/InputBackend.cpp:67`, `Engine/Input/InputBackend.cpp:99`, `Engine/Input/InputBackend.cpp:120`, `Engine/Input/InputBackend.cpp:169`, `Engine/Input/InputBackend.cpp:245`, `Engine/Input/InputBackend.cpp:263`, `Engine/Window/Window.cpp:8`, `Engine/Window/Window.cpp:12`, `Engine/Window/Window.cpp:66`
 
     Odd code: borderless window resize state, resize cursors, mouse capture, and SDL window resizing live in `InputBackend`, while hit testing lives in `Window.cpp`.
 
@@ -98,13 +98,15 @@ No source files were changed for this report.
 
 11. `Engine/Utils/Path.h:10`, `Engine/Utils/Path.cpp:43`, `Engine/Utils/Path.cpp:45`
 
+    Decision: leave for later. The hard-coded default project root needs a separate project/bootstrap decision.
+
     Odd code: `DefaultProjectRoot` is a hard-coded machine-local path: `D:\ProjectGenesis\TestProject\`.
 
     Move target: resolve the default project root from command-line/config, project discovery, or an editor project selection flow.
 
     Reason: AGENTS.md says rooted machine-local paths are allowed at process boundaries and inside configured path state. A compiled-in test project root is not portable.
 
-12. `Engine/Window/WindowSystem.cpp:11`, `Engine/Window/WindowSystem.cpp:13`
+12. **Done.** `Engine/Window/WindowSystem.cpp:11`, `Engine/Window/WindowSystem.cpp:13`
 
     Odd code: the window system creates a fixed `1920x1080` window named `GenesisTestWindow`.
 
@@ -112,7 +114,7 @@ No source files were changed for this report.
 
     Reason: the window system should consume window configuration, not embed test naming and dimensions.
 
-13. `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:14`, `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:19`, `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:25`, `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:44`, `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:77`
+13. **Done.** `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:14`, `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:19`, `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:25`, `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:44`, `Editor/EditorGUI/Windows/ProjectFilesWindow.cpp:77`
 
     Odd code: `ProjectFilesWindow` owns generic path helpers such as meta detection, display-name selection, child/root path checks, visible child enumeration, and directory-first sorting.
 
