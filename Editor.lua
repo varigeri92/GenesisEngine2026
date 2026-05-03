@@ -11,15 +11,14 @@ project "Editor"
     links {
         "Engine.lib"
     }
-    
-    --[[
-        filter { "configurations:not Debug" }
-        links { Libs.YAMLCPP, Libs.SpirvCrossCore }
-        
-        filter { "configurations:Debug" }
-        links { Libs.YAMLCPPd, Libs.SpirvCrossCore_d }
-        
-    ]]
+
+    filter { "configurations:not Debug" }
+        libdirs { LibDir.YAMLCPP_Release }
+        links { Libs.YAMLCPP }
+
+    filter { "configurations:Debug" }
+        libdirs { LibDir.YAMLCPP_Debug }
+        links { Libs.YAMLCPPd }
 
     filter {}
 
@@ -33,14 +32,8 @@ project "Editor"
         IncludeDir.EnTT,
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
-        IncludeDir.gnsGui
-        --[[
-            IncludeDir.SDL,
-            IncludeDir.VKBootstrap,
-            IncludeDir.ImGuizmo,
-            IncludeDir.YAML,
-            IncludeDir.SpirvReflect
-        ]]
+        IncludeDir.gnsGui,
+        IncludeDir.YAML
     }
 
     files {
@@ -52,5 +45,5 @@ project "Editor"
 
     -- debugargs { "-p", Paths.ProjectDir, "-r", Paths.ResourceDir }
     
-    dependson { "Engine", "ImGui" }
+    dependson { "Engine", "ImGui", "yaml-cpp" }
     -- dependson { "Engine", "ImGui", "spirv_reflect", "yaml-cpp", "assimp" }

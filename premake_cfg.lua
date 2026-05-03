@@ -60,12 +60,14 @@ LibDir = {
     Output   = Paths.OutputDir,
     Vulkan   = Paths.Vulkan_Lib,
     Assimp   = Submodules.Assimp .. "/build/lib/Release",
+    YAMLCPP_Debug = Submodules.YAMLCPP .. "/build-shared/Debug",
+    YAMLCPP_Release = Submodules.YAMLCPP .. "/build-shared/Release",
     fmt_d    = Submodules.fmt .. "/build/Debug",
     fmt_r    = Submodules.fmt .. "/build/Release"
 }
 
 ---------------------------------------
--- THIRD-PARTY STATIC LIBS (file names only)
+-- THIRD-PARTY LIBS (file names only)
 ---------------------------------------
 Libs = {
     SDL2             = "SDL2.lib",

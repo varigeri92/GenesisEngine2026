@@ -39,6 +39,6 @@ group "Application"
     
 --group "dependencies"
     --include "ImGui.lua"
-    --include "yaml-cpp.lua"
     --include "spirv_reflect.lua"
+    include "YamlCpp.lua"
     include "Assimp.lua"
