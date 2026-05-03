@@ -42,7 +42,6 @@ namespace gns::rendering {
 		GNS_API VkFormat* GetSwapChainFormat();
 		GNS_API uint64_t GetSceneTextureDescriptor();
 		GNS_API void SetScreen(const Screen& screen);
-		GNS_API const Screen& GetScreen() const;
 		const VulkanDefaultTextureHandles& GetDefaultTextures() const;
 		VulkanTexture* GetVulkanTexture(Handle textureHandle);
 		VulkanShader* GetVulkanShader(Handle shaderHandle);

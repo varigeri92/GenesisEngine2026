@@ -6,6 +6,34 @@
 
 namespace gns::rendering
 {
+	namespace
+	{
+		bool LoadShaderStageModule(
+			Device& device,
+			const std::string& shaderPath,
+			const char* stageName,
+			VkShaderModule& shaderModule)
+		{
+			std::string resolvedShaderPath = shaderPath;
+			if (!gns::path::HasExtension(resolvedShaderPath, "spv"))
+			{
+				resolvedShaderPath += ".spv";
+			}
+
+			LOG_INFO(resolvedShaderPath);
+			if (!utils::LoadShaderModule(
+				gns::path::Resolve(gns::path::Root::EditorResources, resolvedShaderPath).string(),
+				device.GetDevice(),
+				&shaderModule))
+			{
+				LOG_ERROR(std::string("Can't build ") + stageName + " shader module");
+				return false;
+			}
+
+			return true;
+		}
+	}
+
 	PipelineBuilder::PipelineBuilder(Device* device):m_device(device)
 	{ Clear(); }
 
@@ -80,29 +108,8 @@ namespace gns::rendering
 
 	void PipelineBuilder::SetShaders(Shader& shader)
 	{
-		std::string fragmentShaderPath = shader.GetFragmentShaderPath();
-		std::string vertexShaderPath = shader.GetVertexShaderPath();
-		if (!gns::path::HasExtension(fragmentShaderPath, "spv"))
-			fragmentShaderPath += ".spv";
-
-		LOG_INFO(fragmentShaderPath);
-		if (!utils::LoadShaderModule(
-			gns::path::Resolve(gns::path::Root::EditorResources, fragmentShaderPath).string(),
-			m_device->GetDevice(),
-			&fragmentModule)) {
-			LOG_ERROR("Can't build fragment shader module");
-		}
-		
-		if (!gns::path::HasExtension(vertexShaderPath, "spv"))
-			vertexShaderPath += ".spv";
-
-		LOG_INFO(vertexShaderPath);
-		if (!utils::LoadShaderModule(
-			gns::path::Resolve(gns::path::Root::EditorResources, vertexShaderPath).string(),
-			m_device->GetDevice(),
-			&vertexModule)) {
-			LOG_ERROR("Can't build vertex shader module");
-		}
+		LoadShaderStageModule(*m_device, shader.GetFragmentShaderPath(), "fragment", fragmentModule);
+		LoadShaderStageModule(*m_device, shader.GetVertexShaderPath(), "vertex", vertexModule);
 		SetShaders(vertexModule, fragmentModule);
 	}
 

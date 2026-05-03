@@ -263,11 +263,6 @@ void gns::RenderSystem::SetScreen(const Screen& screen)
 	m_renderer.SetScreen(screen);
 }
 
-const gns::Screen& gns::RenderSystem::GetScreen() const
-{
-	return m_renderer.GetScreen();
-}
-
 void gns::RenderSystem::CreateDefaultTextureObjects()
 {
 	const rendering::VulkanDefaultTextureHandles& vulkanDefaults = m_renderer.GetDefaultTextures();

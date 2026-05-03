@@ -271,11 +271,6 @@ void gns::rendering::Renderer::SetScreen(const Screen& screen)
 	m_device.SetRenderExtent({ screen.GetWidth(), screen.GetHeight() });
 }
 
-const gns::Screen& gns::rendering::Renderer::GetScreen() const
-{
-	return m_screen;
-}
-
 const gns::rendering::VulkanDefaultTextureHandles& gns::rendering::Renderer::GetDefaultTextures() const
 {
 	return m_device.GetDefaultTextures();

@@ -2,7 +2,7 @@
 
 Scope: first-party tracked project files under `Engine`, `Editor`, and root Premake Lua files. External/vendor/generated files were excluded. I used manual review plus a simple exact-body scan, then filtered out normal polymorphic methods such as `OnDraw` and system lifecycle overrides.
 
-No source files were changed for this report.
+Cleanup is now in progress. Completed findings are marked `Done`; deferred findings carry a decision note.
 
 ## Duplicates To Collapse
 
@@ -126,7 +126,7 @@ No source files were changed for this report.
 
     Reason: this was an exact body-pattern match. The current duplication is tiny, but a helper would make future root additions less repetitive.
 
-16. `Engine/Renderer/RenderSystem.cpp:82`, `Engine/Renderer/Renderer.cpp:299`, `Engine/Renderer/Vulkan/Device.cpp:69`, `Engine/Renderer/RenderSystem.cpp:264`, `Engine/Renderer/Renderer.cpp:258`, `Engine/Systems/GuiSystem.cpp:75`, `Engine/Renderer/RenderSystem.cpp:269`, `Engine/Renderer/Renderer.cpp:263`, `Engine/Renderer/RenderSystem.cpp:274`, `Engine/Renderer/Renderer.cpp:274`
+16. **Done.** `Engine/Renderer/RenderSystem.cpp:82`, `Engine/Renderer/Renderer.cpp:299`, `Engine/Renderer/Vulkan/Device.cpp:69`, `Engine/Renderer/RenderSystem.cpp:264`, `Engine/Renderer/Renderer.cpp:258`, `Engine/Systems/GuiSystem.cpp:75`, `Engine/Renderer/RenderSystem.cpp:269`, `Engine/Renderer/Renderer.cpp:263`, `Engine/Renderer/RenderSystem.cpp:274`, `Engine/Renderer/Renderer.cpp:274`
 
     Duplicate: several functions are pure pass-through chains for wait, screen, and scene texture descriptor access.
 
@@ -134,7 +134,7 @@ No source files were changed for this report.
 
     Reason: pass-through APIs are sometimes valid, but too many of them make ownership harder to see and increase API surface area.
 
-17. `Engine/Renderer/Vulkan/PipelineBuilder.cpp:86` and `Engine/Renderer/Vulkan/PipelineBuilder.cpp:97`
+17. **Done.** `Engine/Renderer/Vulkan/PipelineBuilder.cpp:86` and `Engine/Renderer/Vulkan/PipelineBuilder.cpp:97`
 
     Duplicate: fragment and vertex shader path handling both check for `.spv`, append it, log the path, resolve against `EditorResources`, load the shader module, and log failure.
 
@@ -142,7 +142,7 @@ No source files were changed for this report.
 
     Reason: shader-stage differences are only the destination module and error message.
 
-18. `Engine/Systems/GuiSystem.cpp:38`, `Engine/Systems/GuiSystem.cpp:65`, `Engine/Systems/GuiSystem.cpp:77`, `Engine/Systems/GuiSystem.cpp:89`, `Engine/Systems/GuiSystem.cpp:114`, `Engine/Systems/GuiSystem.cpp:156`
+18. **Done.** `Engine/Systems/GuiSystem.cpp:38`, `Engine/Systems/GuiSystem.cpp:65`, `Engine/Systems/GuiSystem.cpp:77`, `Engine/Systems/GuiSystem.cpp:89`, `Engine/Systems/GuiSystem.cpp:114`, `Engine/Systems/GuiSystem.cpp:156`
 
     Duplicate: `GuiSystem` repeatedly fetches `RenderSystem`, checks for null, logs a message, and then calls a single render-system function.
 

@@ -16,6 +16,7 @@ namespace
 void editor::assets::ModelImportController::Begin(const std::filesystem::path& assetPath)
 {
     m_pendingModelImportPath = gns::path::Normalize(assetPath);
+    m_relativePath = assetPath;
     m_loadOptions = {};
     m_error.clear();
     m_popupOpen = true;
@@ -36,9 +37,12 @@ void editor::assets::ModelImportController::DrawPopup()
     }
 
     bool popupOpen = m_popupOpen;
-    if (ImGui::BeginPopupModal(ModelImportPopupTitle, &popupOpen, ImGuiWindowFlags_AlwaysAutoResize))
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 10.0f));
+    if (ImGui::BeginPopupModal(ModelImportPopupTitle, &popupOpen))
     {
-        ImGui::TextWrapped("%s", m_pendingModelImportPath.string().c_str());
+        ImGui::TextWrapped("%s", m_relativePath.string().c_str());
         ImGui::Separator();
 
         ImGui::Checkbox("Flatten hierarchy", &m_loadOptions.flattenHierarchy);
@@ -53,15 +57,15 @@ void editor::assets::ModelImportController::DrawPopup()
         }
 
         ImGui::Separator();
-        if (ImGui::Button("Import"))
+        if (ImGui::Button("Import", ImVec2(100, 0)))
         {
             if (Complete())
             {
                 ImGui::CloseCurrentPopup();
             }
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel"))
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 100.0f);
+        if (ImGui::Button("Cancel", ImVec2(100, 0)))
         {
             Cancel();
             ImGui::CloseCurrentPopup();
@@ -69,7 +73,7 @@ void editor::assets::ModelImportController::DrawPopup()
 
         ImGui::EndPopup();
     }
-
+    ImGui::PopStyleVar();
     if (m_popupOpen && !popupOpen)
     {
         Cancel();

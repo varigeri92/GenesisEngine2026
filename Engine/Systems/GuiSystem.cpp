@@ -35,15 +35,14 @@ gns::Reference<gns::Texture> GuiSystem::GetDefaultCheckerboardTexture()
         return m_defaultCheckerboardTexture;
     }
 
-    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
-    if (renderSystem == nullptr)
+    if (m_renderSystem == nullptr)
     {
         LOG_WARNING("[GuiSystem]: Cannot get default checkerboard texture because RenderSystem is missing.");
         return {};
     }
 
     const gns::Handle checkerboardHandle =
-        renderSystem->GetDefaultTextureHandle(gns::DefaultTexture::ErrorCheckerboard);
+        m_renderSystem->GetDefaultTextureHandle(gns::DefaultTexture::ErrorCheckerboard);
     if (!checkerboardHandle.IsValid())
     {
         LOG_WARNING("[GuiSystem]: Default checkerboard texture handle is invalid.");
@@ -62,38 +61,35 @@ uint64_t GuiSystem::GetTextureDescriptor(gns::Reference<gns::Texture> texture) c
         return 0;
     }
 
-    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
-    if (renderSystem == nullptr)
+    if (m_renderSystem == nullptr)
     {
         LOG_WARNING("[GuiSystem]: Cannot get GUI texture descriptor because RenderSystem is missing.");
         return 0;
     }
 
-    return renderSystem->GetTextureDescriptor(texture.m_handle);
+    return m_renderSystem->GetTextureDescriptor(texture.m_handle);
 }
 
 uint64_t GuiSystem::GetSceneTextureDescriptor() const
 {
-    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
-    if (renderSystem == nullptr)
+    if (m_renderSystem == nullptr)
     {
         LOG_WARNING("[GuiSystem]: Cannot get scene texture descriptor because RenderSystem is missing.");
         return 0;
     }
 
-    return renderSystem->GetSceneTextureDescriptor();
+    return m_renderSystem->GetSceneTextureDescriptor();
 }
 
 void GuiSystem::SetSceneScreen(const gns::Screen& screen) const
 {
-    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
-    if (renderSystem == nullptr)
+    if (m_renderSystem == nullptr)
     {
         LOG_WARNING("[GuiSystem]: Cannot set scene screen because RenderSystem is missing.");
         return;
     }
 
-    renderSystem->SetScreen(screen);
+    m_renderSystem->SetScreen(screen);
 }
 
 void GuiSystem::OnCreate()
@@ -111,13 +107,13 @@ void GuiSystem::OnCreate()
         LOG_ERROR("[GuiSystem]: SDL window is missing. Cannot create GUI backend.");
         return;
     }
-    gns::RenderSystem* render_system = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
-    if (render_system == nullptr)
+    m_renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    if (m_renderSystem == nullptr)
     {
         LOG_ERROR("[GuiSystem]: RenderSystem is missing. Cannot create GUI backend.");
         return;
     }
-    gui_backend.OnCreate(sdl_window, *render_system);
+    gui_backend.OnCreate(sdl_window, *m_renderSystem);
     LOG_INFO("Gui System Created!");
 }
 
@@ -153,13 +149,12 @@ void GuiSystem::OnDisable()
 
 void GuiSystem::OnDestroy()
 {
-    gns::RenderSystem* render_system = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
-    if (render_system == nullptr)
+    if (m_renderSystem == nullptr)
     {
         LOG_WARNING("[GuiSystem]: RenderSystem is missing during GUI shutdown.");
         gui_backend.OnDestroy();
         return;
     }
-    render_system->WaitForIdle();
+    m_renderSystem->WaitForIdle();
     gui_backend.OnDestroy();
 }

@@ -15,6 +15,7 @@ namespace editor::assets
 
     private:
         std::filesystem::path m_pendingModelImportPath = {};
+        std::filesystem::path m_relativePath = {};
         gns::assets::AssetLoadOptions m_loadOptions = {};
         std::string m_error = {};
         bool m_popupOpen = false;

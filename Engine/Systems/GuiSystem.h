@@ -6,11 +6,17 @@
 #include "../Gui/GuiWindow.h"
 #include "../Object/Texture.h"
 
+namespace gns
+{
+    class RenderSystem;
+}
+
 class GuiSystem : public gns::core::System
 {
     gns::gui::GuiBackend gui_backend = {};
     std::vector<std::unique_ptr<GuiWindow>> Windows = {};
     gns::Reference<gns::Texture> m_defaultCheckerboardTexture;
+    gns::RenderSystem* m_renderSystem = nullptr;
 public:
     template 
     <typename window_T, typename = std::enable_if<std::is_base_of<GuiWindow, window_T>::value>::type, typename... Args>

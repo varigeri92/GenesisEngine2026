@@ -85,7 +85,6 @@ namespace gns {
 		GNS_API uint64_t GetTextureDescriptor(Handle textureHandle);
 		GNS_API uint64_t GetSceneTextureDescriptor();
 		GNS_API void SetScreen(const Screen& screen);
-		GNS_API const Screen& GetScreen() const;
 		GNS_API bool EnsureDefaultMeshResources();
 		GNS_API Handle GetDefaultMeshShaderHandle() const;
 		GNS_API Handle GetDefaultMeshMaterialHandle() const;
