@@ -20,6 +20,7 @@
 
 constexpr unsigned int FRAME_OVERLAP = 3;
 constexpr bool useValidationLayers = true;
+constexpr const char* BackgroundComputeShaderPath = R"(Shaders\sky.comp.spv)";
 
 
 void gns::rendering::CleanupQueue::Push(std::function<void()>&& func)
@@ -62,8 +63,7 @@ void gns::rendering::Device::Create(SDL_Window* sdl_window)
 	InitDescriptors();
 	InitDefaultTextures();
 	
-	//init pipeline for test:
-	init_pipelines();
+	InitBackgroundResources();
 }
 
 void gns::rendering::Device::WaitForIdle()
@@ -623,23 +623,29 @@ void gns::rendering::Device::Cleanup()
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-glm::vec4 to01rgba(float r, float g, float b, float a)
+glm::vec4 ToUnitRgba(float r, float g, float b, float a)
 {
 	return { r / 255 ,g / 255,  b/255,  a /255 };
 }
-void gns::rendering::Device::DrawTest(VkCommandBuffer cmd)
+
+void gns::rendering::Device::DrawBackground(VkCommandBuffer cmd)
 {
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
+	if (m_backgroundPipeline == VK_NULL_HANDLE || m_backgroundPipelineLayout == VK_NULL_HANDLE)
+	{
+		LOG_WARNING("[Device]: Skipping background pass because background pipeline is not ready.");
+		return;
+	}
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_backgroundPipeline);
 	vkCmdBindDescriptorSets(
-		cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0,
+		cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_backgroundPipelineLayout, 0,
 		1, &_drawImageDescriptors, 0, nullptr);
 	
 	ComputePushConstants pc;
-	pc.data1 = to01rgba(182, 202, 255, 255);
-	pc.data2 = to01rgba(87, 95, 99, 255);
-	pc.data2 = to01rgba(0, 0, 0, 255);
+	pc.data1 = ToUnitRgba(182, 202, 255, 255);
+	pc.data2 = ToUnitRgba(0, 0, 0, 255);
 
-	vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
+	vkCmdPushConstants(cmd, m_backgroundPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
 
 	
 	vkCmdDispatch(cmd, 
@@ -670,12 +676,12 @@ void gns::rendering::Device::TransitionDepthImage(VkCommandBuffer cmd, VkImageLa
 	m_depthImageLayout = newLayout;
 }
 
-void gns::rendering::Device::init_pipelines()
+void gns::rendering::Device::InitBackgroundResources()
 {
-	init_background_pipelines();
+	CreateBackgroundPipeline();
 }
 
-void gns::rendering::Device::init_background_pipelines()
+void gns::rendering::Device::CreateBackgroundPipeline()
 {
 	VkPipelineLayoutCreateInfo computeLayout{};
 	computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -691,36 +697,54 @@ void gns::rendering::Device::init_background_pipelines()
 	computeLayout.pPushConstantRanges = &pushConstant;
 	computeLayout.pushConstantRangeCount = 1;
 	
-	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &_gradientPipelineLayout));
+	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &m_backgroundPipelineLayout));
 	
-	VkShaderModule computeDrawShader;
+	VkShaderModule backgroundShader = VK_NULL_HANDLE;
 	std::string shaderPath =
-		gns::path::Resolve(gns::path::Root::EditorResources, R"(Shaders\sky.comp.spv)").string();
-	if (!utils::LoadShaderModule(shaderPath, m_device, &computeDrawShader))
+		gns::path::Resolve(gns::path::Root::EditorResources, BackgroundComputeShaderPath).string();
+	if (!utils::LoadShaderModule(shaderPath, m_device, &backgroundShader))
 	{
-		LOG_ERROR("Error when building the compute shader \n");
+		LOG_ERROR("[Device]: Failed to load background compute shader.");
+		LOG_ERROR(shaderPath);
+		vkDestroyPipelineLayout(m_device, m_backgroundPipelineLayout, nullptr);
+		m_backgroundPipelineLayout = VK_NULL_HANDLE;
+		return;
 	}
 
 	VkPipelineShaderStageCreateInfo stageinfo{};
 	stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	stageinfo.pNext = nullptr;
 	stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-	stageinfo.module = computeDrawShader;
+	stageinfo.module = backgroundShader;
 	stageinfo.pName = "main";
 
 	VkComputePipelineCreateInfo computePipelineCreateInfo{};
 	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 	computePipelineCreateInfo.pNext = nullptr;
-	computePipelineCreateInfo.layout = _gradientPipelineLayout;
+	computePipelineCreateInfo.layout = m_backgroundPipelineLayout;
 	computePipelineCreateInfo.stage = stageinfo;
 	
-	VK_CHECK(vkCreateComputePipelines(m_device,VK_NULL_HANDLE,1,&computePipelineCreateInfo, nullptr, &_gradientPipeline));
+	VK_CHECK(vkCreateComputePipelines(
+		m_device,
+		VK_NULL_HANDLE,
+		1,
+		&computePipelineCreateInfo,
+		nullptr,
+		&m_backgroundPipeline));
 
-	vkDestroyShaderModule(m_device, computeDrawShader, nullptr);
+	vkDestroyShaderModule(m_device, backgroundShader, nullptr);
 
 	m_cleanupQueue.Push([&]() {
-		vkDestroyPipelineLayout(m_device, _gradientPipelineLayout, nullptr);
-		vkDestroyPipeline(m_device, _gradientPipeline, nullptr);
+		if (m_backgroundPipeline != VK_NULL_HANDLE)
+		{
+			vkDestroyPipeline(m_device, m_backgroundPipeline, nullptr);
+			m_backgroundPipeline = VK_NULL_HANDLE;
+		}
+		if (m_backgroundPipelineLayout != VK_NULL_HANDLE)
+		{
+			vkDestroyPipelineLayout(m_device, m_backgroundPipelineLayout, nullptr);
+			m_backgroundPipelineLayout = VK_NULL_HANDLE;
+		}
 		});
 }
 

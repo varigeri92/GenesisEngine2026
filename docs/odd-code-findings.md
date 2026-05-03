@@ -80,9 +80,9 @@ No source files were changed for this report.
 
    Reason: this is debug UI and state leaking into the editor camera system. The flag is not used by the camera system, so it is dead state.
 
-9. `Engine/Renderer/Renderer.cpp:55`, `Engine/Renderer/Renderer.cpp:60`, `Engine/Renderer/Vulkan/Device.cpp:66`, `Engine/Renderer/Vulkan/Device.cpp:630`, `Engine/Renderer/Vulkan/Device.cpp:673`, `Engine/Renderer/Vulkan/Device.cpp:678`, `Engine/Renderer/Vulkan/Device.cpp:698`, `Engine/Renderer/Vulkan/Device.h:134`, `Engine/Renderer/Vulkan/Device.h:214`
+9. **Done.** `Engine/Renderer/Renderer.cpp:55`, `Engine/Renderer/Renderer.cpp:60`, `Engine/Renderer/Vulkan/Device.cpp:66`, `Engine/Renderer/Vulkan/Device.cpp:630`, `Engine/Renderer/Vulkan/Device.cpp:673`, `Engine/Renderer/Vulkan/Device.cpp:678`, `Engine/Renderer/Vulkan/Device.cpp:698`, `Engine/Renderer/Vulkan/Device.h:134`, `Engine/Renderer/Vulkan/Device.h:214`
 
-   Odd code: the renderer background pass calls `Device::DrawTest`, while `Device` owns `_gradientPipeline`, `init_pipelines`, `init_background_pipelines`, and hard-coded `Shaders/sky.comp.spv` loading.
+   Odd code: the renderer background pass called `Device::DrawTest`, while `Device` owned `_gradientPipeline`, `init_pipelines`, `init_background_pipelines`, and hard-coded `Shaders/sky.comp.spv` loading.
 
    Move target: rename and isolate this as a real background/sky pass resource, or move it to a debug/sample render pass.
 

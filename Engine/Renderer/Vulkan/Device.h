@@ -131,7 +131,7 @@ namespace gns::rendering
 		VulkanImage* GetRenderTarget() { return &m_drawImage; }
 		VulkanImage* GetDepthTarget() { return &m_depthImage; }
 
-		void DrawTest(VkCommandBuffer cmd);
+		void DrawBackground(VkCommandBuffer cmd);
 		void DrawGeometry(VkCommandBuffer cmd);
 		void EndRendering(VkCommandBuffer cmd);
 		void TransitionDrawImage(VkCommandBuffer cmd, VkImageLayout newLayout);
@@ -210,11 +210,10 @@ namespace gns::rendering
 		VkSampler _renderTargetSampler = VK_NULL_HANDLE;
 		VulkanDefaultTextureHandles m_defaultTextures = {};
 		
-		//test stuff:
-		VkPipeline _gradientPipeline = VK_NULL_HANDLE;
-		VkPipelineLayout _gradientPipelineLayout = VK_NULL_HANDLE;
-		void init_pipelines();
-		void init_background_pipelines();
+		VkPipeline m_backgroundPipeline = VK_NULL_HANDLE;
+		VkPipelineLayout m_backgroundPipelineLayout = VK_NULL_HANDLE;
+		void InitBackgroundResources();
+		void CreateBackgroundPipeline();
 		
 	};
 }

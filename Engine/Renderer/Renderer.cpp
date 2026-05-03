@@ -57,7 +57,7 @@ void gns::rendering::Renderer::AddBackgroundPass()
 	auto& backgroundPass = m_renderGraph.AddPass("Background",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
-		m_device.DrawTest(cmd);
+		m_device.DrawBackground(cmd);
 		return true;
 	});
 	backgroundPass.data.renderTarget = m_device.GetRenderTarget();
