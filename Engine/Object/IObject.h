@@ -27,7 +27,14 @@ namespace gns
             auto [it, inserted] = objectMap.try_emplace(obj->GetHandle(), obj);
             if (inserted)
                 return obj;
-            
+            else
+            {
+                if (objectMap.contains(obj->GetHandle()))
+                {
+                    LOG_INFO("This object has been already created return original");
+                    return reinterpret_cast<Object_T*>(objectMap.at(obj->GetHandle()));
+                }
+            }
             LOG_ERROR("Cannot Create Object!");
             delete obj;
             return nullptr;

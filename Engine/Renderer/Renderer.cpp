@@ -202,11 +202,19 @@ void gns::rendering::Renderer::DrawFrame(
 	VkExtent2D extent;
 	FrameData frameData;
     if (m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData))
-    {
+	{
 		m_drawData = drawData;
-		if (sceneDataDescriptor != nullptr)
+		if (sceneDataDescriptor != nullptr && !m_drawData.empty())
 		{
-			m_device.UpdateDescriptorSet(*sceneDataDescriptor, _gpuSceneDataDescriptorLayout);
+			if (_gpuSceneDataDescriptorLayout == VK_NULL_HANDLE)
+			{
+				LOG_WARNING("[Renderer]: Cannot update scene data descriptor because layout is null.");
+				m_drawData.clear();
+			}
+			else
+			{
+				m_device.UpdateDescriptorSet(*sceneDataDescriptor, _gpuSceneDataDescriptorLayout);
+			}
 		}
 		m_renderGraph.Execute(cmd, frameData);
 		//depth prepass

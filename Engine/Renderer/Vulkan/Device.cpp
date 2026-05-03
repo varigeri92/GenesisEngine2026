@@ -265,6 +265,12 @@ void gns::rendering::Device::ResizeSwapchain()
 
 void gns::rendering::Device::UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout)
 {
+	if (setlayout == VK_NULL_HANDLE)
+	{
+		LOG_WARNING("[Device]: Cannot update descriptor set because layout is null.");
+		return;
+	}
+
 	FrameData& frame = GetCurrentFrame();
 	void* mappedBufferData = frame._gpuSceneDataBuffer.allocation->GetMappedData();
 	memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);

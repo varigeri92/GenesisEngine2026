@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <filesystem>
 #include <unordered_map>
 #include <vector>
 
@@ -18,6 +19,10 @@ namespace gns {
 	struct Mesh;
 	struct Shader;
 	struct Texture;
+	namespace assets
+	{
+		struct AssetLoadOptions;
+	}
 
 	enum class DefaultTexture
 	{
@@ -86,6 +91,10 @@ namespace gns {
 		GNS_API uint64_t GetSceneTextureDescriptor();
 		GNS_API void SetScreen(const Screen& screen);
 		GNS_API const Screen& GetScreen() const;
+		GNS_API bool LoadMeshAssetIntoScene(const std::filesystem::path& assetPath);
+		GNS_API bool LoadMeshAssetIntoScene(
+			const std::filesystem::path& assetPath,
+			const assets::AssetLoadOptions& loadOptions);
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;
@@ -96,9 +105,12 @@ namespace gns {
 		SceneData m_sceneData = {};
 		GpuDataDescriptor m_sceneDataDescriptor = {};
 		bool m_hasSceneDataDescriptor = false;
+		Handle m_defaultMeshShader;
+		Handle m_defaultMeshMaterial;
 
 		void CreateDefaultTextureObjects();
 		Handle RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle);
+		bool EnsureDefaultMeshResources();
 		void BuildDrawData();
 		void BuildSceneDataDescriptor();
 	};

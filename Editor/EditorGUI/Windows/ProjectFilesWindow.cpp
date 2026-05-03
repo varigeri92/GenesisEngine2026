@@ -6,6 +6,7 @@
 #include <system_error>
 #include <vector>
 
+#include "../../EditorAssetDragDrop.h"
 #include "../../EditorSelection.h"
 #include "../../../Engine/Utils/Path.h"
 
@@ -215,6 +216,18 @@ void ProjectFilesWindow::DrawContentView(const std::filesystem::path& directory,
         ImGui::InvisibleButton("select", ImGui::GetContentRegionAvail());
         const bool clicked = ImGui::IsItemClicked();
         const bool doubleClicked = ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+        if (!isDirectory && ImGui::BeginDragDropSource())
+        {
+            EditorSelection::SelectFile(childPath);
+            const editor::dragdrop::ProjectAssetPayload payload =
+                editor::dragdrop::MakeProjectAssetPayload(childPath);
+            ImGui::SetDragDropPayload(
+                editor::dragdrop::ProjectAssetPayloadType,
+                &payload,
+                sizeof(payload));
+            ImGui::TextUnformatted(label.c_str());
+            ImGui::EndDragDropSource();
+        }
         ImGui::SetCursorScreenPos(textStart);
         ImGui::TextDisabled("%s", isDirectory ? "Folder" : "File");
         ImGui::Separator();

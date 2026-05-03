@@ -15,6 +15,8 @@
 #include <filesystem>
 #include <utility>
 
+#include <glm/gtc/quaternion.hpp>
+
 std::unordered_map<gns::Handle, gns::assets::Asset> gns::assets::AssetManager::AssetMap = {};
 
 namespace
@@ -26,10 +28,33 @@ namespace
         bool failed = false;
     };
 
+    struct NodeTransform
+    {
+        glm::vec3 position = glm::vec3(0.0f);
+        glm::vec3 rotation = glm::vec3(0.0f);
+        glm::vec3 scale = glm::vec3(1.0f);
+    };
+
     const char* GetStbiFailureReason()
     {
         const char* reason = stbi_failure_reason();
         return reason != nullptr ? reason : "Unknown STB image failure.";
+    }
+
+    NodeTransform ToNodeTransform(const aiMatrix4x4& matrix)
+    {
+        aiVector3D scale;
+        aiVector3D position;
+        aiQuaternion rotation;
+        matrix.Decompose(scale, rotation, position);
+
+        const glm::quat glmRotation(rotation.w, rotation.x, rotation.y, rotation.z);
+        return NodeTransform
+        {
+            .position = glm::vec3(position.x, position.y, position.z),
+            .rotation = glm::degrees(glm::eulerAngles(glmRotation)),
+            .scale = glm::vec3(scale.x, scale.y, scale.z)
+        };
     }
 
     std::filesystem::path ResolveTexturePath(
@@ -248,7 +273,8 @@ namespace
         uint32_t materialIndex,
         const std::filesystem::path& assetDirectory,
         const std::string& assetPath,
-        std::unordered_map<std::string, gns::Texture*>& textureCache)
+        std::unordered_map<std::string, gns::Texture*>& textureCache,
+        bool importTextures)
     {
         const std::string materialName =
             assetPath + "::material_" + std::to_string(materialIndex) + "_" + assimpMaterial->GetName().C_Str();
@@ -267,48 +293,191 @@ namespace
             material->albedo_color = glm::vec4(baseColor.r, baseColor.g, baseColor.b, baseColor.a);
         }
 
-        TextureLoadResult albedoTexture = LoadMaterialTexture(
-            scene,
-            assimpMaterial,
-            aiTextureType_BASE_COLOR,
-            assetDirectory,
-            assetPath,
-            textureCache);
-        if (!albedoTexture.textureSlotExists)
+        if (importTextures)
         {
-            albedoTexture = LoadMaterialTexture(
+            TextureLoadResult albedoTexture = LoadMaterialTexture(
                 scene,
                 assimpMaterial,
-                aiTextureType_DIFFUSE,
+                aiTextureType_BASE_COLOR,
                 assetDirectory,
                 assetPath,
                 textureCache);
-        }
+            if (!albedoTexture.textureSlotExists)
+            {
+                albedoTexture = LoadMaterialTexture(
+                    scene,
+                    assimpMaterial,
+                    aiTextureType_DIFFUSE,
+                    assetDirectory,
+                    assetPath,
+                    textureCache);
+            }
 
-        if (albedoTexture.texture != nullptr)
-        {
-            material->albedo_texture = albedoTexture.texture->Ref<gns::Texture>();
-        }
-        else if (albedoTexture.failed)
-        {
-            material->albedo_texture = gns::Reference<gns::Texture>(
-                gns::Handle::CreateFromString(gns::DefaultResourceNames::ErrorCheckerboardTexture));
+            if (albedoTexture.texture != nullptr)
+            {
+                material->albedo_texture = albedoTexture.texture->Ref<gns::Texture>();
+            }
+            else if (albedoTexture.failed)
+            {
+                material->albedo_texture = gns::Reference<gns::Texture>(
+                    gns::Handle::CreateFromString(gns::DefaultResourceNames::ErrorCheckerboardTexture));
+            }
         }
 
         return material;
     }
 }
 
+namespace
+{
+    gns::assets::LoadedObject LoadMesh(
+        const aiMesh* mesh,
+        uint32_t meshIndex,
+        const std::vector<gns::Handle>& materialHandles,
+        const NodeTransform& transform)
+    {
+        std::string meshName = mesh->mName.C_Str();
+        if (meshName.empty())
+        {
+            meshName = "Mesh_" + std::to_string(meshIndex);
+        }
+
+        LOG_INFO(meshName);
+        gns::Mesh* newMesh = gns::Object::Create<gns::Mesh>(meshName);
+        if (newMesh == nullptr)
+        {
+            LOG_WARNING("[AssetManager]: Failed to create mesh object.");
+            LOG_WARNING(meshName);
+            return {};
+        }
+
+        gns::Handle materialHandle;
+        if (mesh->mMaterialIndex < materialHandles.size())
+        {
+            materialHandle = materialHandles[mesh->mMaterialIndex];
+        }
+
+        for (size_t v = 0; v < mesh->mNumVertices; v++)
+        {
+            newMesh->positions.emplace_back(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z);
+            if (mesh->HasNormals())
+            {
+                newMesh->normals.emplace_back(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
+                newMesh->colors.emplace_back(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z, 1.f);
+            }
+            else
+            {
+                newMesh->normals.emplace_back(0.0f, 1.0f, 0.0f);
+                newMesh->colors.emplace_back(1.0f);
+            }
+
+            if (mesh->HasTextureCoords(0))
+            {
+                newMesh->uvs.emplace_back(mesh->mTextureCoords[0][v].x, mesh->mTextureCoords[0][v].y * -1);
+            }
+            else
+            {
+                newMesh->uvs.emplace_back(0.0f);
+            }
+        }
+
+        if (mesh->HasTangentsAndBitangents())
+        {
+            for (size_t v = 0; v < mesh->mNumVertices; v++)
+            {
+                newMesh->tangents.emplace_back(mesh->mTangents[v].x, mesh->mTangents[v].y, mesh->mTangents[v].z);
+                newMesh->bitangents.emplace_back(mesh->mBitangents[v].x, mesh->mBitangents[v].y, mesh->mBitangents[v].z);
+            }
+        }
+
+        const size_t startindex = newMesh->indices.size();
+        for (uint32_t f = 0; f < mesh->mNumFaces; f++)
+        {
+            const aiFace& Face = mesh->mFaces[f];
+            for (uint32_t i = 0; i < Face.mNumIndices; i++)
+            {
+                uint32_t vi = Face.mIndices[i];
+                newMesh->indices.push_back(vi);
+            }
+        }
+
+        const uint32_t count = static_cast<uint32_t>(newMesh->indices.size());
+        newMesh->bufferRange = {
+            .startIndex = static_cast<uint32_t>(startindex),
+            .count = count
+        };
+
+        return
+        {
+            .objectHandle = newMesh->GetHandle(),
+            .object = newMesh,
+            .materialHandle = materialHandle,
+            .position = transform.position,
+            .rotation = transform.rotation,
+            .scale = transform.scale
+        };
+    }
+
+    void LoadMeshesFromNode(
+        const aiScene* scene,
+        const aiNode* node,
+        const aiMatrix4x4& parentTransform,
+        const std::vector<gns::Handle>& materialHandles,
+        bool flattenHierarchy,
+        std::vector<gns::assets::LoadedObject>& loaded)
+    {
+        const aiMatrix4x4 nodeTransform = parentTransform * node->mTransformation;
+        const NodeTransform transform = flattenHierarchy ? NodeTransform{} : ToNodeTransform(nodeTransform);
+
+        for (uint32_t meshSlot = 0; meshSlot < node->mNumMeshes; ++meshSlot)
+        {
+            const uint32_t meshIndex = node->mMeshes[meshSlot];
+            if (meshIndex >= scene->mNumMeshes || scene->mMeshes[meshIndex] == nullptr)
+            {
+                continue;
+            }
+
+            gns::assets::LoadedObject loadedMesh =
+                LoadMesh(scene->mMeshes[meshIndex], meshIndex, materialHandles, transform);
+            if (loadedMesh.object != nullptr)
+            {
+                loaded.emplace_back(loadedMesh);
+            }
+        }
+
+        for (uint32_t childIndex = 0; childIndex < node->mNumChildren; ++childIndex)
+        {
+            if (node->mChildren[childIndex] != nullptr)
+            {
+                LoadMeshesFromNode(
+                    scene,
+                    node->mChildren[childIndex],
+                    nodeTransform,
+                    materialHandles,
+                    flattenHierarchy,
+                    loaded);
+            }
+        }
+    }
+}
+
 std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(const std::string& path)
 {
+    return LoadAsset(path, AssetLoadOptions{});
+}
+
+std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
+    const std::string& path,
+    const AssetLoadOptions& loadOptions)
+{
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile( path,
+    const aiScene* scene = importer.ReadFile(path,
       aiProcess_CalcTangentSpace       |
       aiProcess_Triangulate            |
       aiProcess_JoinIdenticalVertices  |
       aiProcess_SortByPType);
     if (nullptr == scene) {
-        LOG_ERROR( importer.GetErrorString());
+        LOG_ERROR(importer.GetErrorString());
         return {};
     }
     if (scene->HasMeshes())
@@ -321,7 +490,7 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(cons
         std::unordered_map<std::string, gns::Texture*> textureCache;
         std::vector<gns::Handle> materialHandles;
 
-        if (scene->HasMaterials())
+        if (loadOptions.importMaterials && scene->HasMaterials())
         {
             materialHandles.reserve(scene->mNumMaterials);
             for (uint32_t materialIndex = 0; materialIndex < scene->mNumMaterials; ++materialIndex)
@@ -332,77 +501,36 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(cons
                     materialIndex,
                     assetDirectory,
                     path,
-                    textureCache);
+                    textureCache,
+                    loadOptions.importTextures);
                 materialHandles.push_back(material != nullptr ? material->GetHandle() : gns::Handle{});
             }
         }
 
-        for (uint32_t m = 0; m < scene->mNumMeshes; m++)
+        if (scene->mRootNode != nullptr)
         {
-            LOG_INFO(scene->mMeshes[m]->mName.C_Str());
-            const aiMesh* mesh = scene->mMeshes[m];
-            gns::Mesh* newMesh = gns::Object::Create<gns::Mesh>(mesh->mName.C_Str());
-
-            if (newMesh == nullptr)
-            {
-                LOG_WARNING("[AssetManager]: Failed to create mesh object.");
-                LOG_WARNING(mesh->mName.C_Str());
-                continue;
-            }
-
-            gns::Handle materialHandle;
-            if (mesh->mMaterialIndex < materialHandles.size())
-            {
-                materialHandle = materialHandles[mesh->mMaterialIndex];
-            }
-                
-            for (size_t v = 0; v < scene->mMeshes[m]->mNumVertices; v++)
-            {
-                newMesh->positions.emplace_back(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z);
-                if (mesh->HasNormals())
-                {
-                    newMesh->normals.emplace_back(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
-                    newMesh->colors.emplace_back(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z, 1.f);
-                }
-                else
-                {
-                    newMesh->normals.emplace_back(0.0f, 1.0f, 0.0f);
-                    newMesh->colors.emplace_back(1.0f);
-                }
-
-                if (mesh->HasTextureCoords(0))
-                {
-                    newMesh->uvs.emplace_back(mesh->mTextureCoords[0][v].x, mesh->mTextureCoords[0][v].y * -1);
-                }
-                else
-                {
-                    newMesh->uvs.emplace_back(0.0f);
-                }
-            }
-            if (mesh->HasTangentsAndBitangents())
-            {
-                for (size_t v = 0; v < scene->mMeshes[m]->mNumVertices; v++)
-                {
-                    newMesh->tangents.emplace_back(mesh->mTangents[v].x, mesh->mTangents[v].y, mesh->mTangents[v].z);
-                    newMesh->bitangents.emplace_back(mesh->mBitangents[v].x, mesh->mBitangents[v].y, mesh->mBitangents[v].z);
-                }
-            }
-            const size_t startindex = newMesh->indices.size();
-            for (uint32_t f = 0; f < mesh->mNumFaces; f++) {
-                const aiFace& Face = mesh->mFaces[f];
-                for (uint32_t i = 0; i < Face.mNumIndices; i++)
-                {
-                    uint32_t vi = Face.mIndices[i];
-                    newMesh->indices.push_back(vi);
-                }
-            }
-            const uint32_t count = static_cast<uint32_t>(newMesh->indices.size());
-            newMesh->bufferRange = {
-                .startIndex = static_cast<uint32_t>(startindex),
-                .count = count
-            };
-            loaded.push_back({ newMesh->GetHandle(), newMesh, materialHandle });
+            LoadMeshesFromNode(
+                scene,
+                scene->mRootNode,
+                aiMatrix4x4(),
+                materialHandles,
+                loadOptions.flattenHierarchy,
+                loaded);
         }
+        else
+        {
+            const NodeTransform identityTransform = {};
+            for (uint32_t meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
+            {
+                gns::assets::LoadedObject loadedMesh =
+                    LoadMesh(scene->mMeshes[meshIndex], meshIndex, materialHandles, identityTransform);
+                if (loadedMesh.object != nullptr)
+                {
+                    loaded.emplace_back(loadedMesh);
+                }
+            }
+        }
+
         return loaded;
     }
     LOG_INFO("File: " + path + " does not contain meshes.");
