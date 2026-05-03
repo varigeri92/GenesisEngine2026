@@ -1,9 +1,15 @@
-﻿#pragma once
+#pragma once
+
 #include "system.h"
 
-class TransformSystem: public gns::core::System
+#include <vector>
+
+#include <glm/glm.hpp>
+
+#include "../Core/Entity.h"
+
+class TransformSystem : public gns::core::System
 {
-    // Inherited via System
     void OnCreate() override;
     void OnStart() override;
     void OnEnable() override;
@@ -16,4 +22,13 @@ class TransformSystem: public gns::core::System
 public:
     TransformSystem() = default;
     ~TransformSystem();
+
+private:
+    struct TransformTraversalNode
+    {
+        gns::entityHandle entity = entt::null;
+        glm::mat4 parentMatrix = glm::mat4(1.0f);
+    };
+
+    std::vector<TransformTraversalNode> m_traversalStack;
 };

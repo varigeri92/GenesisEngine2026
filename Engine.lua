@@ -49,7 +49,8 @@ project "Engine"
         IncludeDir.EnTT,
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
-        IncludeDir.ImGui
+        IncludeDir.ImGui,
+        IncludeDir.ImGuizmo .. "/src"
         --[[
         IncludeDir.YAML,
         IncludeDir.ImGuizmo
@@ -70,6 +71,8 @@ project "Engine"
 
         Submodules.ImGui .. "/*.h",
         Submodules.ImGui .. "/*.cpp",
+        IncludeDir.ImGuizmo .. "/src/ImGuizmo.h",
+        IncludeDir.ImGuizmo .. "/src/ImGuizmo.cpp",
     }
     filter { 'files:imgui/**.cpp' }
     flags { 'NoPCH' }
@@ -82,3 +85,9 @@ project "Engine"
 
     filter { 'files:vendor/ImGui/*.cpp' }
     flags { 'NoPCH' }
+
+    filter { 'files:vendor/ImGuizmo/src/ImGuizmo.cpp' }
+    defines { "IMGUI_DEFINE_MATH_OPERATORS" }
+    flags { 'NoPCH' }
+
+    filter {}

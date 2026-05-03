@@ -89,6 +89,11 @@ void gns::RenderSystem::SetCamera(const CameraBackend& camera_backend)
 	m_renderer.m_cameraBackend = camera_backend;
 }
 
+const CameraBackend& gns::RenderSystem::GetCamera() const
+{
+	return m_renderer.m_cameraBackend;
+}
+
 gns::Handle gns::RenderSystem::ApplyMesh(Mesh& mesh)
 {
 	const Handle meshHandle = mesh.GetHandle();

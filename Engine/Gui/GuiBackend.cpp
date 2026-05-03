@@ -2,6 +2,7 @@
 #include "GuiBackend.h"
 #include <iterator>
 #include "imgui.h"
+#include "ImGuizmo.h"
 #include "backends/imgui_impl_sdl2.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "../Renderer/RenderSystem.h"
@@ -210,6 +211,7 @@ void gns::gui::GuiBackend::OnCreate(SDL_Window* window, gns::RenderSystem& rende
 		return;
 	}
 	ImGui::CreateContext();
+	ImGuizmo::SetImGuiContext(ImGui::GetCurrentContext());
 	LoadGenesisEditorFonts();
 	if (!ImGui_ImplSDL2_InitForVulkan(window))
 	{
@@ -234,6 +236,7 @@ void gns::gui::GuiBackend::BeginGuiFrame()
 	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
+	ImGuizmo::BeginFrame();
 }
 
 void gns::gui::GuiBackend::OnUpdate()

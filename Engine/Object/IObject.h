@@ -3,6 +3,7 @@
 #include <concepts>
 #include <utility>
 #include <entt/entt.hpp>
+#include "../Log/Logger.h"
 
 
 namespace gns

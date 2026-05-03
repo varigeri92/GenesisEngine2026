@@ -33,14 +33,16 @@ project "Editor"
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
         IncludeDir.gnsGui,
-        IncludeDir.YAML
+        IncludeDir.YAML,
+        IncludeDir.ImGuizmo .. "/src"
     }
 
     files {
         "Editor/**.h",
         "Editor/**.c",
         "Editor/**.cpp",
-        "Editor/**.hpp"
+        "Editor/**.hpp",
+        IncludeDir.ImGuizmo .. "/src/ImGuizmo.h"
     }
 
     -- debugargs { "-p", Paths.ProjectDir, "-r", Paths.ResourceDir }
