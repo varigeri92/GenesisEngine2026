@@ -36,8 +36,8 @@ namespace gns
             uvs.reserve(1);
         }
         
-        void Apply(bool cpuReadWrite = false);
     private:
         void FreeCPUSide();
+        friend class RenderSystem;
     };
 }

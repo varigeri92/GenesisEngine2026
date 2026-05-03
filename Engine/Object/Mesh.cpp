@@ -1,17 +1,6 @@
 ﻿#include "gnspch.h"
 #include "Mesh.h"
 
-#include "../Renderer/RenderSystem.h"
-#include "../Systems/SystemsManager.h"
-
-void gns::Mesh::Apply(bool cpuReadWrite /*=false */)
-{
-    RenderSystem* render_system = core::SystemsManager::GetSystem<RenderSystem>();
-    render_system->ApplyMesh(*this);
-    if (!cpuReadWrite)
-        FreeCPUSide();
-}
-
 void gns::Mesh::FreeCPUSide()
 {
     indices.clear();

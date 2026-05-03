@@ -31,6 +31,4 @@ public:
     void InitCamera();
     void UpdateCamera(float deltaTime);
     void UpdateCameraAspect();
-    
-    bool test = false;
 };

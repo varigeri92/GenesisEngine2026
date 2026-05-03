@@ -1,9 +1,6 @@
 ﻿#include "gnspch.h"
 #include "Shader.h"
 
-#include "RenderSystem.h"
-#include "../Systems/SystemsManager.h"
-
 gns::Shader::Shader(const std::string& vertexShaderPath, const std::string& fragmentShaderPath, const std::string& name) : 
 Object(name), m_vertexShaderPath(vertexShaderPath), m_fragmentShaderPath(fragmentShaderPath)
 {
@@ -18,11 +15,4 @@ void gns::Shader::Dispose()
 
 gns::Shader::~Shader()
 {
-}
-
-gns::Handle gns::Shader::Apply()
-{
-    gns::RenderSystem* render_system = core::SystemsManager::GetSystem<RenderSystem>();
-    return render_system->ApplyShader(*this);
-    
 }

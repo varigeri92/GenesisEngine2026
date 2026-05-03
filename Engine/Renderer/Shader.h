@@ -20,8 +20,7 @@ public:
     ~Shader() override;
     std::string GetVertexShaderPath() const { return m_vertexShaderPath; }
     std::string GetFragmentShaderPath() const { return m_fragmentShaderPath; }
-    Handle Apply();
-    
+
     friend class gns::rendering::Renderer;
 };
 }

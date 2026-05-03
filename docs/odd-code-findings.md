@@ -22,7 +22,7 @@ No source files were changed for this report.
 
    Reason: the AGENTS.md ownership rule says `RenderSystem` is the bridge between engine resources and Vulkan resources. Importing files and mutating scene hierarchy is a higher-level scene/editor workflow.
 
-3. `Engine/Object/Mesh.cpp:7`, `Engine/Object/Mesh.cpp:10`, `Engine/Object/Texture.cpp:20`, `Engine/Object/Texture.cpp:23`, `Engine/Renderer/Shader.cpp:23`, `Engine/Renderer/Shader.cpp:26`
+3. **Done.** `Engine/Object/Mesh.cpp:7`, `Engine/Object/Mesh.cpp:10`, `Engine/Object/Texture.cpp:20`, `Engine/Object/Texture.cpp:23`, `Engine/Renderer/Shader.cpp:23`, `Engine/Renderer/Shader.cpp:26`
 
    Odd code: engine-side resource objects call `SystemsManager::GetSystem<RenderSystem>()` and trigger renderer upload through `Apply()`.
 
@@ -32,6 +32,8 @@ No source files were changed for this report.
 
 4. `Engine/Renderer/RenderSystem.cpp:146`, `Engine/Renderer/RenderSystem.cpp:159`, `Engine/Renderer/RenderSystem.cpp:164`, `Engine/Renderer/RenderSystem.cpp:192`
 
+   Decision: leave for now. This is odd, but the material/backend binding design needs a proper solution before changing it.
+
    Odd code: material resource cache entries map the engine material handle back to itself.
 
    Move target: finish the planned backend material resource path with `VulkanMaterial` or a renderer-owned material binding cache.
@@ -39,6 +41,8 @@ No source files were changed for this report.
    Reason: the documented cache shape is `engine resource handle -> Vulkan resource handle`. Identity mapping is a temporary ownership gap and will become riskier as materials gain texture sets, descriptor sets, and lifetime rules.
 
 5. `Engine/Gui/GuiBackend.cpp:15`, `Engine/Gui/GuiBackend.cpp:109`, `Engine/Gui/GuiBackend.cpp:215`, `Engine/Gui/GuiBackend.cpp:231`, `Engine/Gui/GuiBackend.cpp:244`
+
+   Decision: leave for now. The Dear ImGui demo window should stay visible because it is used as a live reference, and editor style can remain until styling moves into its own config file later.
 
    Odd code: the low-level GUI backend owns Genesis editor styling, editor font loading from `EditorResources`, Material Icons setup, and always shows the Dear ImGui demo window.
 
@@ -48,13 +52,17 @@ No source files were changed for this report.
 
 6. `Engine/Engine.cpp:6`, `Engine/Engine.cpp:9`, `Engine/Engine.cpp:39`, `Engine/Engine.cpp:44`, `Editor/Editor.cpp:10`, `Editor/Editor.cpp:13`, `Editor/Editor.cpp:84`, `Editor/Editor.cpp:93`
 
+   Decision: leave for now. The test systems/windows are intentionally kept because this environment is not treated as production even if it is sometimes handled that way.
+
    Odd code: runtime/editor startup registers `TestSystem`, `TestWindow`, `TestSystemExternal`, and `TestEditorWindow` as normal boot behavior.
 
    Move target: move these into examples, tests, or a dev-only startup path gated by explicit config.
 
    Reason: test/demo systems should not be part of production engine/editor boot. They obscure what the actual runtime depends on and can change behavior unexpectedly.
 
-7. `Editor/Editor.cpp:25`, `Editor/Editor.cpp:27`, `Editor/Editor.cpp:39`, `Editor/Editor.cpp:52`, `Editor/Editor.cpp:95`
+7. **Done.** `Editor/Editor.cpp:25`, `Editor/Editor.cpp:27`, `Editor/Editor.cpp:39`, `Editor/Editor.cpp:52`, `Editor/Editor.cpp:95`
+
+   Decision: remove it from editor startup. If a YAML smoke check is needed later, it should smoke somewhere else.
 
    Odd code: `RunYamlCppSmokeTest` writes `yaml-cpp-smoke-test.yaml` into the project root on every editor launch, reads it back, and logs its contents.
 
@@ -62,7 +70,9 @@ No source files were changed for this report.
 
    Reason: opening the editor should not create project files just to prove a dependency works.
 
-8. `Editor/EditorCameraSystem.h:35`, `Editor/TestEditorWindow.cpp:11`, `Editor/TestEditorWindow.cpp:22`, `Editor/TestEditorWindow.cpp:29`, `Editor/TestEditorWindow.cpp:39`
+8. **Done.** `Editor/EditorCameraSystem.h:35`, `Editor/TestEditorWindow.cpp:11`, `Editor/TestEditorWindow.cpp:22`, `Editor/TestEditorWindow.cpp:29`, `Editor/TestEditorWindow.cpp:39`
+
+   Decision: the editor camera should only be the editor camera. Test toggles, dead state, and test-window camera controls can be removed.
 
    Odd code: `EditorCameraSystem` exposes a public `test` flag, and `TestEditorWindow` toggles it while also editing camera and light state.
 

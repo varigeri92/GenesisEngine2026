@@ -97,6 +97,7 @@ gns::Handle gns::RenderSystem::ApplyMesh(Mesh& mesh)
 	if (renderMeshHandle.IsValid())
 	{
 		m_resourceCache.meshes[meshHandle] = renderMeshHandle;
+		mesh.FreeCPUSide();
 	}
 	return renderMeshHandle;
 }
@@ -315,7 +316,7 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 			return false;
 		}
 
-		shader->Apply();
+		ApplyShader(*shader);
 		m_defaultMeshShader = shader->GetHandle();
 	}
 

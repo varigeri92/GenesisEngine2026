@@ -35,7 +35,6 @@ namespace gns
         explicit Texture(std::string name);
         Texture(std::string name, std::string path);
 
-        Handle Apply();
         bool HasPixels() const;
         void SetPixels(
             std::vector<uint8_t> pixelData,
