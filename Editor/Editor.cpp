@@ -6,15 +6,19 @@
 #include "../Engine/Renderer/RenderSystem.h"
 #include "GenesisGUI_Backend.h"
 #include "TestEditorWindow.h"
+#include "EditorProjectContext.h"
 #include "EditorGUI/Windows/DockingRoot.h"
 #include "EditorGUI/Windows/IconBrowserWindow.h"
 #include "EditorGUI/Windows/InspectorWindow.h"
+#include "EditorGUI/Windows/ProjectFilesWindow.h"
 #include "EditorGUI/Windows/SceneHierarchyWindow.h"
 #include "EditorGUI/Windows/SceneViewWindow.h"
 #include "../Engine/Systems/GuiSystem.h"
 
-int main()
+int main(int argc, char** argv)
 {
+    EditorProjectContext projectContext = EditorProjectContext::FromCommandLine(argc, argv);
+
     gns::core::EngineConfig cfg = {};
     cfg.headless = false;
     cfg.InitTetsSystem = true;
@@ -29,6 +33,7 @@ int main()
             gui->RegisterWindow<SceneHierarchyWindow>("Scene Hierarchy");
             gui->RegisterWindow<InspectorWindow>("Inspector");
             gui->RegisterWindow<SceneViewWindow>("Scene View");
+            gui->RegisterWindow<ProjectFilesWindow>("Project Files", projectContext);
             gui->RegisterWindow<IconBrowserWindow>("Material Icons");
             gui->RegisterWindow<TestEditorWindow>("testEditorWindow");
         });
