@@ -42,18 +42,6 @@ namespace gns
         }
         
         template <DerivedFromObject Object_T>
-        static Object_T* LoadFromFile(const std::string& path)
-        {
-            return nullptr;
-        }
-        
-        template <DerivedFromObject Object_T>
-        static Object_T* Find(const std::string& name)
-        {
-            return nullptr;
-        }
-        
-        template <DerivedFromObject Object_T>
         static Object_T* Get(const gns::Handle handle)
         {
             if (objectMap.contains(handle))

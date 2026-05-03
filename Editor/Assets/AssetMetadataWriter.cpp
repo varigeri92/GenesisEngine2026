@@ -20,6 +20,8 @@ namespace
             return "Texture";
         case gns::assets::Shader:
             return "Shader";
+        case gns::assets::ComputeShader:
+            return "ComputeShader";
         case gns::assets::Material:
             return "Material";
         default:

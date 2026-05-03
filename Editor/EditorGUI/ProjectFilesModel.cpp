@@ -1,12 +1,47 @@
 #include "ProjectFilesModel.h"
 
 #include <algorithm>
+#include <cctype>
 
 #include "../../Engine/Utils/Path.h"
 
 bool editor::projectfiles::IsMetaFile(const std::filesystem::path& path)
 {
     return gns::path::HasExtension(path, "meta");
+}
+
+gns::assets::AssetType editor::projectfiles::GetAssetTypeFromPath(const std::filesystem::path& path)
+{
+    std::string extension = gns::path::Extension(path);
+    for (char& c : extension)
+    {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    if (extension == "gltf" || extension == "glb" || extension == "obj" ||
+        extension == "fbx" || extension == "dae" || extension == "3ds" ||
+        extension == "blend" || extension == "ply" || extension == "stl")
+    {
+        return gns::assets::Mesh;
+    }
+
+    if (extension == "png" || extension == "jpg" || extension == "jpeg" ||
+        extension == "tga" || extension == "bmp")
+    {
+        return gns::assets::Texture;
+    }
+
+    if (extension == "comp")
+    {
+        return gns::assets::ComputeShader;
+    }
+
+    if (extension == "vert" || extension == "frag" || extension == "glsl")
+    {
+        return gns::assets::Shader;
+    }
+
+    return gns::assets::Generic;
 }
 
 std::string editor::projectfiles::GetDisplayName(const std::filesystem::path& path)

@@ -1,6 +1,5 @@
 #include "gnspch.h"
 #include "SystemsManager.h"
-#include "SystemsManager.h"
 
 entt::registry gns::core::SystemsManager::Registry = entt::registry();
 

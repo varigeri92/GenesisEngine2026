@@ -2,7 +2,6 @@
 #include "PipelineBuilder.h"
 #include "Device.h"
 #include "vkutils.h"
-#include "../Utils/FileSystemUtils.h"
 #include "../Utils/Path.h"
 
 namespace gns::rendering
@@ -83,7 +82,7 @@ namespace gns::rendering
 	{
 		std::string fragmentShaderPath = shader.GetFragmentShaderPath();
 		std::string vertexShaderPath = shader.GetVertexShaderPath();
-		if (!fileUtils::HasFileExtension(fragmentShaderPath, "spv"))
+		if (!gns::path::HasExtension(fragmentShaderPath, "spv"))
 			fragmentShaderPath += ".spv";
 
 		LOG_INFO(fragmentShaderPath);
@@ -94,7 +93,7 @@ namespace gns::rendering
 			LOG_ERROR("Can't build fragment shader module");
 		}
 		
-		if (!fileUtils::HasFileExtension(vertexShaderPath, "spv"))
+		if (!gns::path::HasExtension(vertexShaderPath, "spv"))
 			vertexShaderPath += ".spv";
 
 		LOG_INFO(vertexShaderPath);

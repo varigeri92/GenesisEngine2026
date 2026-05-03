@@ -5,6 +5,8 @@
 #include <system_error>
 #include <vector>
 
+#include "../../Engine/Assets/AssetManager.h"
+
 namespace editor::projectfiles
 {
     struct ProjectFileEntry
@@ -16,6 +18,7 @@ namespace editor::projectfiles
     };
 
     bool IsMetaFile(const std::filesystem::path& path);
+    gns::assets::AssetType GetAssetTypeFromPath(const std::filesystem::path& path);
     std::string GetDisplayName(const std::filesystem::path& path);
     std::vector<ProjectFileEntry> GetVisibleChildren(
         const std::filesystem::path& directory,

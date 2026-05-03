@@ -17,8 +17,6 @@
 
 #include <glm/gtc/quaternion.hpp>
 
-std::unordered_map<gns::Handle, gns::assets::Asset> gns::assets::AssetManager::AssetMap = {};
-
 namespace
 {
     struct TextureLoadResult

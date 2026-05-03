@@ -122,7 +122,7 @@ Cleanup is now in progress. Completed findings are marked `Done`; deferred findi
 
     Reason: AGENTS.md says path normalization, root checks, relative paths, and existence helpers should stay centralized in `gns::path`. The UI window should render a model, not own generic filesystem rules.
 
-14. `Editor/EditorAssetDragDrop.h:23`, `Editor/EditorAssetDragDrop.h:33`, `Editor/EditorAssetDragDrop.h:58`
+14. **Done.** `Editor/EditorAssetDragDrop.h:23`, `Editor/EditorAssetDragDrop.h:33`, `Editor/EditorAssetDragDrop.h:58`
 
     Odd code: asset type detection from file extension is implemented inside a drag-drop payload header.
 
@@ -130,7 +130,7 @@ Cleanup is now in progress. Completed findings are marked `Done`; deferred findi
 
     Reason: asset classification is broader than drag/drop. Importers, project browser, metadata generation, and validation will need the same rules.
 
-15. `Engine/Assets/AssetManager.h:13`, `Engine/Assets/AssetManager.h:50`, `Engine/Assets/AssetManager.cpp:20`
+15. **Done.** `Engine/Assets/AssetManager.h:13`, `Engine/Assets/AssetManager.h:50`, `Engine/Assets/AssetManager.cpp:20`
 
     Odd code: `Asset`, `AssetMap`, and an asset registry shape exist, but `AssetMap` is not used anywhere else.
 
@@ -138,7 +138,7 @@ Cleanup is now in progress. Completed findings are marked `Done`; deferred findi
 
     Reason: unused registry state suggests ownership that does not actually exist and confuses the role of `AssetManager`.
 
-16. `Engine/Object/IObject.h:44`, `Engine/Object/IObject.h:50`
+16. **Done.** `Engine/Object/IObject.h:44`, `Engine/Object/IObject.h:50`
 
     Odd code: `Object::LoadFromFile` and `Object::Find` are templated API stubs that always return `nullptr`.
 
@@ -148,13 +148,15 @@ Cleanup is now in progress. Completed findings are marked `Done`; deferred findi
 
 17. `Engine.lua:67`, `Engine.lua:72`, `Engine.lua:74`, `ImGui.lua:10`, `ImGui.lua:16`, `ImGui.lua:31`, `ImGui.lua:36`, `Editor.lua:50`
 
+    Decision: leave for later. Premake/build ownership cleanup should be handled in a dedicated pass.
+
     Odd code: the standalone `ImGui` project links `Engine.lib` and Assimp/Vulkan, while `Engine.lua` also compiles ImGui backend/core sources directly. `Editor.lua` still depends on `ImGui`.
 
     Move target: choose one owner for ImGui compilation. Either make `Engine` depend on an `ImGui` static library, or keep ImGui fully embedded in `Engine` and remove the separate project dependency.
 
     Reason: build ownership is split and likely compiles the same third-party sources in multiple targets. The ImGui target should not depend back on the engine it is meant to support.
 
-18. `Engine/Renderer/Vulkan/PipelineBuilder.cpp:5`, `Engine/Renderer/Vulkan/PipelineBuilder.cpp:86`, `Engine/Renderer/Vulkan/PipelineBuilder.cpp:97`
+18. **Done.** `Engine/Renderer/Vulkan/PipelineBuilder.cpp:5`, `Engine/Renderer/Vulkan/PipelineBuilder.cpp:86`, `Engine/Renderer/Vulkan/PipelineBuilder.cpp:97`
 
     Odd code: `PipelineBuilder` includes `FileSystemUtils.h` and calls `fileUtils::HasFileExtension`.
 
@@ -164,13 +166,15 @@ Cleanup is now in progress. Completed findings are marked `Done`; deferred findi
 
 19. `Engine/Scene/SceneManager.cpp:31`, `Engine/Scene/SceneManager.cpp:80`, `Engine/Scene/SceneManager.cpp:105`
 
+    Decision: leave for later. Default scene content needs a separate scene-template/editor-bootstrap decision.
+
     Odd code: `SceneManager::CreateScene` always injects ambient and directional light entities through `CreateDefaultSceneEntities`.
 
     Move target: move default scene content to a scene template, editor "new scene" command, or project bootstrap layer.
 
     Reason: scene manager should manage scene lifetime and active-scene state. Authoring default content is editor/project policy and may not be wanted for every runtime-created scene.
 
-20. `Engine/Systems/SystemsManager.cpp:2`, `Engine/Systems/SystemsManager.cpp:3`
+20. **Done.** `Engine/Systems/SystemsManager.cpp:2`, `Engine/Systems/SystemsManager.cpp:3`
 
     Odd code: `SystemsManager.cpp` includes `SystemsManager.h` twice.
 

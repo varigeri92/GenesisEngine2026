@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -11,15 +10,7 @@
 
 namespace gns::assets
 {
-    enum AssetType { Generic, Mesh, Texture, Shader, Material };
-
-    struct Asset
-    {
-        gns::Handle assetHandle;
-        std::string assetName;
-        std::string assetPath;
-        AssetType assetType;
-    };
+    enum AssetType { Generic, Mesh, Texture, Shader, ComputeShader, Material };
 
     struct AssetLoadOptions
     {
@@ -47,7 +38,6 @@ namespace gns::assets
     
     class AssetManager
     {
-        static std::unordered_map<gns::Handle, Asset> AssetMap;
     public:
         static std::vector<LoadedObject> LoadAsset(const std::string& path);
         static std::vector<LoadedObject> LoadAsset(const std::string& path, const AssetLoadOptions& loadOptions);
