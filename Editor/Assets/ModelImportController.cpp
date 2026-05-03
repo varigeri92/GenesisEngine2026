@@ -4,6 +4,7 @@
 
 #include "AssetMetadataWriter.h"
 #include "../../Engine/Renderer/RenderSystem.h"
+#include "../../Engine/Scene/SceneAssetImporter.h"
 #include "../../Engine/Systems/SystemsManager.h"
 #include "../../Engine/Utils/Path.h"
 
@@ -105,7 +106,10 @@ bool editor::assets::ModelImportController::Complete()
         return false;
     }
 
-    if (!renderSystem->LoadMeshAssetIntoScene(m_pendingModelImportPath, m_loadOptions))
+    if (!gns::SceneAssetImporter::LoadMeshAssetIntoScene(
+        m_pendingModelImportPath,
+        m_loadOptions,
+        *renderSystem))
     {
         m_error = "Model import failed.";
         return false;

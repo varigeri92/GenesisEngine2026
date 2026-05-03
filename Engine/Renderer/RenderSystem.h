@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include <filesystem>
 #include <unordered_map>
 #include <vector>
 
@@ -19,11 +18,6 @@ namespace gns {
 	struct Mesh;
 	struct Shader;
 	struct Texture;
-	namespace assets
-	{
-		struct AssetLoadOptions;
-	}
-
 	enum class DefaultTexture
 	{
 		White,
@@ -74,7 +68,7 @@ namespace gns {
 		void OnFixedUpdate() override;
 		void OnDisable() override;
 		void OnDestroy() override;
-		
+
 		GNS_API rendering::Renderer& GetRenderer();
 		void WaitForIdle();
 		GNS_API void SetCamera(const CameraBackend& camera_backend);
@@ -92,10 +86,9 @@ namespace gns {
 		GNS_API uint64_t GetSceneTextureDescriptor();
 		GNS_API void SetScreen(const Screen& screen);
 		GNS_API const Screen& GetScreen() const;
-		GNS_API bool LoadMeshAssetIntoScene(const std::filesystem::path& assetPath);
-		GNS_API bool LoadMeshAssetIntoScene(
-			const std::filesystem::path& assetPath,
-			const assets::AssetLoadOptions& loadOptions);
+		GNS_API bool EnsureDefaultMeshResources();
+		GNS_API Handle GetDefaultMeshShaderHandle() const;
+		GNS_API Handle GetDefaultMeshMaterialHandle() const;
 
 	private:
 		gns::window::WindowSystem* m_windowSystem;
@@ -111,7 +104,6 @@ namespace gns {
 
 		void CreateDefaultTextureObjects();
 		Handle RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle);
-		bool EnsureDefaultMeshResources();
 		void BuildDrawData();
 		void BuildSceneDataDescriptor();
 	};

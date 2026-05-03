@@ -1,9 +1,7 @@
 #include "gnspch.h"
 #include "RenderSystem.h"
 
-#include "../Assets/AssetManager.h"
 #include "../Window/WindowSystem.h"
-#include "../Core/Entity.h"
 #include "../Object/Mesh.h"
 #include "../Object/Texture.h"
 #include "../Utils/Path.h"
@@ -29,13 +27,6 @@ void gns::RenderSystem::OnCreate()
 
 void gns::RenderSystem::OnStart()
 {
-	/*   
-	// NOTE: Startup currently loads a local sample asset directly; project/scene bootstrapping is not defined yet.
-	LoadMeshAssetIntoScene(
-		gns::path::Resolve(
-			gns::path::Root::ProjectAssets,
-			R"(lucilla_-_vampiric_drake\scene.gltf)"));
-	*/
 }
 
 void gns::RenderSystem::OnEnable()
@@ -276,93 +267,6 @@ const gns::Screen& gns::RenderSystem::GetScreen() const
 	return m_renderer.GetScreen();
 }
 
-bool gns::RenderSystem::LoadMeshAssetIntoScene(const std::filesystem::path& assetPath)
-{
-	return LoadMeshAssetIntoScene(assetPath, assets::AssetLoadOptions{});
-}
-
-bool gns::RenderSystem::LoadMeshAssetIntoScene(
-	const std::filesystem::path& assetPath,
-	const assets::AssetLoadOptions& loadOptions)
-{
-	if (!EnsureDefaultMeshResources())
-	{
-		LOG_ERROR("[RenderSystem]: Cannot load mesh asset because default mesh resources are missing.");
-		return false;
-	}
-
-	Shader* shader = Object::Get<Shader>(m_defaultMeshShader);
-	Material* defaultMaterial = Object::Get<Material>(m_defaultMeshMaterial);
-	if (shader == nullptr || defaultMaterial == nullptr)
-	{
-		LOG_ERROR("[RenderSystem]: Cannot load mesh asset because default mesh resources are invalid.");
-		return false;
-	}
-
-	const std::filesystem::path normalizedAssetPath = gns::path::Normalize(assetPath);
-	std::vector<gns::assets::LoadedObject> loaded =
-		assets::AssetManager::LoadAsset(normalizedAssetPath.string(), loadOptions);
-	if (loaded.empty())
-	{
-		LOG_WARNING("[RenderSystem]: Mesh asset produced no loadable meshes.");
-		LOG_WARNING(normalizedAssetPath.string());
-		return false;
-	}
-
-	bool createdAny = false;
-	Entity rootEntity = Entity::CreateEntity(gns::path::FileStem(normalizedAssetPath));
-	Transform& rootTransform = rootEntity.GetComponent<Transform>();
-	rootTransform.position = glm::vec3(0.0f);
-	rootTransform.rotation = glm::vec3(0.0f);
-	rootTransform.scale = glm::vec3(1.0f);
-
-	const Reference<Material> defaultMaterialRef = defaultMaterial->Ref<Material>();
-	const Reference<Shader> shaderRef = shader->Ref<Shader>();
-	for (auto& loadedObject : loaded)
-	{
-		Mesh* mesh = loadedObject.As<Mesh>();
-		if (mesh == nullptr)
-		{
-			continue;
-		}
-
-		mesh->Apply();
-
-		Reference<Material> meshMaterial = defaultMaterialRef;
-		if (loadedObject.materialHandle.IsValid())
-		{
-			Material* loadedMaterial = Object::Get<Material>(loadedObject.materialHandle);
-			if (loadedMaterial != nullptr)
-			{
-				loadedMaterial->shader_ref = shaderRef;
-				ApplyMaterial(*loadedMaterial);
-				meshMaterial = loadedMaterial->Ref<Material>();
-			}
-		}
-
-		const std::string name = mesh->GetName();
-		Entity entity = Entity::CreateEntity(name, SceneManager::GetActiveScene().handle, rootEntity.entity_handle);
-		Transform& transform = entity.GetComponent<Transform>();
-		transform.position = loadedObject.position;
-		transform.rotation = loadedObject.rotation;
-		transform.scale = loadedObject.scale;
-
-		MeshComponent& meshComp = entity.AddComponent<MeshComponent>();
-		meshComp.mesh = mesh->Ref<Mesh>();
-		meshComp.shader = shaderRef;
-		meshComp.material = meshMaterial;
-		LOG_INFO(name);
-		createdAny = true;
-	}
-
-	if (!createdAny)
-	{
-		rootEntity.Delete();
-	}
-
-	return createdAny;
-}
-
 void gns::RenderSystem::CreateDefaultTextureObjects()
 {
 	const rendering::VulkanDefaultTextureHandles& vulkanDefaults = m_renderer.GetDefaultTextures();
@@ -433,6 +337,16 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 	}
 
 	return true;
+}
+
+gns::Handle gns::RenderSystem::GetDefaultMeshShaderHandle() const
+{
+	return m_defaultMeshShader;
+}
+
+gns::Handle gns::RenderSystem::GetDefaultMeshMaterialHandle() const
+{
+	return m_defaultMeshMaterial;
 }
 
 void gns::RenderSystem::BuildDrawData()

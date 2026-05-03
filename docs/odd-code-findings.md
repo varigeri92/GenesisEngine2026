@@ -6,7 +6,7 @@ No source files were changed for this report.
 
 ## Findings
 
-1. `Editor/EditorGUI/Windows/SceneViewWindow.cpp:8`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:21`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:102`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:111`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:169`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:206`, `Editor/EditorGUI/Windows/SceneViewWindow.h:16`
+1. **Done.** `Editor/EditorGUI/Windows/SceneViewWindow.cpp:8`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:21`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:102`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:111`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:169`, `Editor/EditorGUI/Windows/SceneViewWindow.cpp:206`, `Editor/EditorGUI/Windows/SceneViewWindow.h:16`
 
    Odd code: `SceneViewWindow` owns the full model import popup state, import option struct, YAML `.meta` file generation, asset type string conversion, and final import execution.
 
@@ -14,7 +14,7 @@ No source files were changed for this report.
 
    Reason: the scene view should display the render target, accept scene interactions, and draw gizmos. Asset import policy and metadata serialization are asset/editor responsibilities, not viewport responsibilities.
 
-2. `Engine/Renderer/RenderSystem.cpp:279`, `Engine/Renderer/RenderSystem.cpp:284`, `Engine/Renderer/RenderSystem.cpp:304`, `Engine/Renderer/RenderSystem.cpp:313`, `Engine/Renderer/RenderSystem.cpp:329`, `Engine/Renderer/RenderSystem.cpp:344`
+2. **Done.** `Engine/Renderer/RenderSystem.cpp:279`, `Engine/Renderer/RenderSystem.cpp:284`, `Engine/Renderer/RenderSystem.cpp:304`, `Engine/Renderer/RenderSystem.cpp:313`, `Engine/Renderer/RenderSystem.cpp:329`, `Engine/Renderer/RenderSystem.cpp:344`
 
    Odd code: `RenderSystem::LoadMeshAssetIntoScene` imports an asset, creates ECS entities, parents them, assigns transforms, applies materials, and names scene objects.
 
@@ -165,4 +165,3 @@ No source files were changed for this report.
     Move target: remove the duplicate include in a cleanup pass.
 
     Reason: this is not a relocation issue, but it is obvious source noise found during the scan.
-
