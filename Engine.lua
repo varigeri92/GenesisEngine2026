@@ -9,21 +9,38 @@ project "Engine"
     --dependson { "ImGui", "yaml-cpp", "assimp" }
     dependson { "assimp" }
 
-    libdirs {
-        LibDir.Assimp,
-        LibDir.Output,
-        LibDir.Vulkan,
-        LibDir.fmt_d
-    }
+    filter { "system:windows" }
+        libdirs {
+            LibDir.Assimp,
+            LibDir.Output,
+            LibDir.Vulkan,
+            LibDir.fmt_d
+        }
 
-    links {
-        Libs.SDL2,
-        Libs.SDL2main,
-        Libs.Vulkan,
-        Libs.Assimp,
-        Libs.fmt_d
-    }
+        links {
+            Libs.Windows.SDL2,
+            Libs.Windows.SDL2main,
+            Libs.Windows.Vulkan,
+            Libs.Windows.Assimp,
+            Libs.Windows.fmt_d
+        }
+
+    filter { "system:linux" }
+        libdirs {
+            LibDir.Assimp_Linux,
+            LibDir.Output,
+            LibDir.Vulkan
+        }
+
+        links {
+            Libs.Linux.SDL2,
+            Libs.Linux.Vulkan,
+            Libs.Linux.pthread,
+            Libs.Linux.dl
+        }
+        linkoptions { "-lassimp" }
     
+    filter {}
     
     --[[
     -- Release library
@@ -49,6 +66,7 @@ project "Engine"
         IncludeDir.EnTT,
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
+        IncludeDir.Assimp_Build_Linux,
         IncludeDir.ImGui,
         IncludeDir.ImGuizmo .. "/src"
         --[[

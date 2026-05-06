@@ -7,7 +7,11 @@
 
 namespace gns::path
 {
+    #if defined(_WIN32)
     inline constexpr const char* DefaultProjectRoot = R"(D:\ProjectGenesis\TestProject\)";
+    #else
+    inline constexpr const char* DefaultProjectRoot = "TestProject";
+    #endif
     inline constexpr const char* ProjectFileName = "project.gnsproject";
 
     enum class Root

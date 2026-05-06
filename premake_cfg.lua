@@ -2,13 +2,36 @@ function to_win_path(p)
     return p:gsub("/", "\\")
 end
 
+function is_windows()
+    return os.target() == "windows"
+end
+
+function is_linux()
+    return os.target() == "linux"
+end
+
 VULKAN_SDK = os.getenv("VULKAN_SDK")
 SolutionRoot = os.getcwd()
 
+local VulkanInclude = "/usr/include"
+local VulkanLib = "/usr/lib"
+local SDLInclude = "/usr/include/SDL2"
+
+if VULKAN_SDK ~= nil then
+    if is_windows() then
+        VulkanInclude = VULKAN_SDK .. "/Include"
+        VulkanLib = VULKAN_SDK .. "/Lib"
+        SDLInclude = VULKAN_SDK .. "/Include/SDL2"
+    elseif not VULKAN_SDK:match("^%a:") then
+        VulkanInclude = VULKAN_SDK .. "/include"
+        VulkanLib = VULKAN_SDK .. "/lib"
+    end
+end
+
 Paths = {
-    Vulkan_Include = VULKAN_SDK .. "/Include",
-    Vulkan_Lib     = VULKAN_SDK .. "/Lib",
-    SDL_Include    = VULKAN_SDK .. "/Include/SDL2",
+    Vulkan_Include = VulkanInclude,
+    Vulkan_Lib     = VulkanLib,
+    SDL_Include    = SDLInclude,
     OutputDir      = "bin/%{cfg.buildcfg}",
     IntermediateDir= "bin-int"
 }
@@ -46,6 +69,7 @@ IncludeDir = {
     
     Assimp         = Submodules.Assimp .. "/include",
     Assimp_Build   = Submodules.Assimp .. "/build/include",
+    Assimp_Build_Linux = Submodules.Assimp .. "/build-linux/%{cfg.buildcfg}/include",
     
     VKBootstrap    = Submodules.VKBootstrap .. "/src",
     EnTT           = Submodules.EnTT .. "/single_include",
@@ -60,8 +84,10 @@ LibDir = {
     Output   = Paths.OutputDir,
     Vulkan   = Paths.Vulkan_Lib,
     Assimp   = Submodules.Assimp .. "/build/lib/Release",
+    Assimp_Linux = Submodules.Assimp .. "/build-linux/%{cfg.buildcfg}/lib",
     YAMLCPP_Debug = Submodules.YAMLCPP .. "/build-shared/Debug",
     YAMLCPP_Release = Submodules.YAMLCPP .. "/build-shared/Release",
+    YAMLCPP_Linux = Submodules.YAMLCPP .. "/build-linux/%{cfg.buildcfg}",
     fmt_d    = Submodules.fmt .. "/build/Debug",
     fmt_r    = Submodules.fmt .. "/build/Release"
 }
@@ -70,19 +96,30 @@ LibDir = {
 -- THIRD-PARTY LIBS (file names only)
 ---------------------------------------
 Libs = {
-    SDL2             = "SDL2.lib",
-    SDL2main         = "SDL2main.lib",
-    Vulkan           = "vulkan-1.lib",
-    Assimp           = "assimp-vc145-mt.lib",
-    Assimp_d         = "assimp-vc145-mtd.lib",
-    fmt              = "fmt.lib",
-    fmt_d            = "fmtd.lib",
-    ImGui            = "ImGui.lib",
-    SpirvReflect     = "spirv_reflect.lib",
-    YAMLCPPd         = "yaml-cppd.lib",
-    YAMLCPP          = "yaml-cpp.lib",
-    SpirvCrossCore_d = "spirv-cross-cored.lib",
-    SpirvCrossCore   = "spirv-cross-core.lib"
+    Windows = {
+        SDL2             = "SDL2.lib",
+        SDL2main         = "SDL2main.lib",
+        Vulkan           = "vulkan-1.lib",
+        Assimp           = "assimp-vc145-mt.lib",
+        Assimp_d         = "assimp-vc145-mtd.lib",
+        fmt              = "fmt.lib",
+        fmt_d            = "fmtd.lib",
+        ImGui            = "ImGui.lib",
+        SpirvReflect     = "spirv_reflect.lib",
+        YAMLCPPd         = "yaml-cppd.lib",
+        YAMLCPP          = "yaml-cpp.lib",
+        SpirvCrossCore_d = "spirv-cross-cored.lib",
+        SpirvCrossCore   = "spirv-cross-core.lib"
+    },
+    Linux = {
+        SDL2             = "SDL2",
+        Vulkan           = "vulkan",
+        Assimp           = "assimp",
+        fmt              = "fmt",
+        YAMLCPP          = "yaml-cpp",
+        pthread          = "pthread",
+        dl               = "dl"
+    }
 }
 
 

@@ -302,8 +302,8 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 	Shader* shader = m_defaultMeshShader.IsValid() ? Object::Get<Shader>(m_defaultMeshShader) : nullptr;
 	if (shader == nullptr)
 	{
-		std::string fragmentShaderPath = R"(Shaders\default.frag)";
-		std::string vertexShaderPath = R"(Shaders\mesh.vert)";
+		std::string fragmentShaderPath = "Shaders/default.frag";
+		std::string vertexShaderPath = "Shaders/mesh.vert";
 		shader = Object::Create<Shader>(vertexShaderPath, fragmentShaderPath, "default_mesh_shader");
 		if (shader == nullptr)
 		{

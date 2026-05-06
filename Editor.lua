@@ -8,17 +8,28 @@ project "Editor"
         LibDir.Output,
     }
 
-    links {
-        "Engine.lib"
-    }
+    filter { "system:windows" }
+        links {
+            "Engine.lib"
+        }
 
-    filter { "configurations:not Debug" }
-        libdirs { LibDir.YAMLCPP_Release }
-        links { Libs.YAMLCPP }
+        filter { "system:windows", "configurations:not Debug" }
+            libdirs { LibDir.YAMLCPP_Release }
+            links { Libs.Windows.YAMLCPP }
 
-    filter { "configurations:Debug" }
-        libdirs { LibDir.YAMLCPP_Debug }
-        links { Libs.YAMLCPPd }
+        filter { "system:windows", "configurations:Debug" }
+            libdirs { LibDir.YAMLCPP_Debug }
+            links { Libs.Windows.YAMLCPPd }
+
+    filter { "system:linux" }
+        libdirs {
+            LibDir.Output,
+            LibDir.YAMLCPP_Linux
+        }
+        links {
+            "Engine"
+        }
+        linkoptions { "-lyaml-cpp" }
 
     filter {}
 

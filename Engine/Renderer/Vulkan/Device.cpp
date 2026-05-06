@@ -20,7 +20,7 @@
 
 constexpr unsigned int FRAME_OVERLAP = 3;
 constexpr bool useValidationLayers = true;
-constexpr const char* BackgroundComputeShaderPath = R"(Shaders\sky.comp.spv)";
+constexpr const char* BackgroundComputeShaderPath = "Shaders/sky.comp.spv";
 
 
 void gns::rendering::CleanupQueue::Push(std::function<void()>&& func)

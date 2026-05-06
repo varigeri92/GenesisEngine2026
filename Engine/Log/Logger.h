@@ -2,6 +2,7 @@
 #include "API.h"
 #include <string>
 #include <assert.h>
+#include <cstring>
 
 #define RED     "\x1B[31m"
 #define GREEN   "\x1B[32m"
@@ -11,7 +12,7 @@
 #define GRAY    "\x1B[90m"
 #define DEFAULT "\x1B[0m"
 
-#define FILE_NAME (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#define FILE_NAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__))
 
 #ifdef BUILD_DLL
 #define PROJECT_SRC GREEN"[ENGINE]:"
