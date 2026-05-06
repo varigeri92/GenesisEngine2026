@@ -122,6 +122,13 @@ Libs = {
     }
 }
 
+Defines = {
+    ImGui = {
+        "IMGUI_API=GNS_API",
+        "IMGUI_USER_CONFIG=\"imgui_config_helper.h\""
+    }
+}
+
 
 Out = function(projectName)
     return ("%s/bin/%s/%%{cfg.buildcfg}"):format(SolutionRoot, projectName)

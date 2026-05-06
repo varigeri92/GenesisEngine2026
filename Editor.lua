@@ -33,7 +33,11 @@ project "Editor"
 
     filter {}
 
-    defines { "BUILD_EXE", "GLM_ENABLE_EXPERIMENTAL", "IMGUI_API=GNS_API", "IMGUI_USER_CONFIG=<imgui_config_helper.h>" }
+    defines {
+        "BUILD_EXE",
+        "GLM_ENABLE_EXPERIMENTAL",
+        Defines.ImGui
+    }
 
     includedirs {
         IncludeDir.Engine_API,

@@ -18,7 +18,10 @@ project "ImGui"
         Libs.Vulkan
     }
 
-    defines { "BUILD_ENGINE_LIB" }
+    defines {
+        "BUILD_ENGINE_LIB",
+        Defines.ImGui
+    }
 
     includedirs {
         IncludeDir.Vulkan,
