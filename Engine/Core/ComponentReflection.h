@@ -106,6 +106,18 @@ namespace gns::reflection
         return name;
     }
 
+    inline std::string ReferenceTargetTypeName(const std::string& referenceTypeName)
+    {
+        const size_t start = referenceTypeName.find('<');
+        const size_t end = referenceTypeName.rfind('>');
+        if (start == std::string::npos || end == std::string::npos || end <= start + 1)
+        {
+            return referenceTypeName;
+        }
+
+        return referenceTypeName.substr(start + 1, end - start - 1);
+    }
+
     template<typename T>
     struct FieldKindResolver
     {
@@ -185,7 +197,7 @@ namespace gns::reflection
 
             if constexpr (IsReference<FieldType>::value)
             {
-                fieldMeta.reference_type_name = fieldMeta.type_name;
+                fieldMeta.reference_type_name = ReferenceTargetTypeName(fieldMeta.type_name);
                 fieldMeta.get_reference_handle = [](void* field) -> uint64_t
                 {
                     return static_cast<FieldType*>(field)->m_handle.Get();

@@ -7,7 +7,7 @@ project "Engine"
     pchsource "Engine/pch/gnspch.cpp"
 
     --dependson { "ImGui", "yaml-cpp", "assimp" }
-    dependson { "assimp" }
+    dependson { "assimp", "yaml-cpp" }
 
     libdirs {
         LibDir.Assimp,
@@ -23,17 +23,17 @@ project "Engine"
         Libs.Assimp,
         Libs.fmt_d
     }
-    
-    
-    --[[
+
     -- Release library
     filter { "configurations:not Debug" }
-    links { Libs.YAMLCPP }
+        libdirs { LibDir.YAMLCPP_Release }
+        links { Libs.YAMLCPP }
     
     -- Debug-only library
     filter { "configurations:Debug" }
-    links { Libs.YAMLCPPd }
-    ]]
+        libdirs { LibDir.YAMLCPP_Debug }
+        links { Libs.YAMLCPPd }
+
     filter {}
 
     defines { "BUILD_DLL", "GLM_ENABLE_EXPERIMENTAL", "IMGUI_API=GNS_API", "IMGUI_USER_CONFIG=<imgui_config_helper.h>"}
@@ -47,6 +47,7 @@ project "Engine"
         IncludeDir.VKBootstrap,
         IncludeDir.fmt,
         IncludeDir.EnTT,
+        IncludeDir.YAML,
         IncludeDir.Assimp,
         IncludeDir.Assimp_Build,
         IncludeDir.ImGui,

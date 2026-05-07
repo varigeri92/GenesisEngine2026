@@ -5,6 +5,8 @@
 #include <utility>
 #include "GenesisMaterialIcons.h"
 #include "GenesisWindow.h"
+#include "../../../Engine/Scene/SceneManager.h"
+#include "../../../Engine/Scene/SceneSerializer.h"
 
 namespace
 {
@@ -89,6 +91,11 @@ namespace
                 if (ImGui::MenuItem("Exit"))
                 {
                     gns::window::RequestCloseMainWindow();
+                }
+                
+                if (ImGui::MenuItem("Save"))
+                {
+                    gns::SceneSerializer::SaveScene(gns::SceneManager::GetActiveScene());
                 }
                 ImGui::EndMenu();
             }

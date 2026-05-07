@@ -47,7 +47,7 @@ gns::Scene& gns::SceneManager::GetActiveScene()
 
     if (ScenesList.empty())
     {
-        return CreateScene("empty(scene)");
+        return CreateScene("default_scene");
     }
 
     ActiveScene = ScenesList[0].get();

@@ -9,4 +9,5 @@
 #include "../Core/ComponentLibrary.h"
 #include "../Scene/Scene.h"
 #include "../Scene/SceneManager.h"
+#include "../Scene/SceneSerializer.h"
 #include "../Utils/Path.h"
