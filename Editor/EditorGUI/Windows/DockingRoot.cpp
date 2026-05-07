@@ -97,6 +97,11 @@ namespace
                 {
                     gns::SceneSerializer::SaveScene(gns::SceneManager::GetActiveScene());
                 }
+                
+                if (ImGui::MenuItem("load"))
+                {
+                    gns::SceneSerializer::LoadScene("empty(scene).gnsscene");
+                }
                 ImGui::EndMenu();
             }
 

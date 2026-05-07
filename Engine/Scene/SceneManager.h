@@ -18,6 +18,7 @@ namespace gns
         GNS_API static Scene* GetScene(Handle sceneHandle);
         GNS_API static const std::vector<std::unique_ptr<Scene>>& GetLoadedScenes();
         GNS_API static Scene& CreateScene(const std::string& name);
+        GNS_API static Scene& CreateScene(const std::string& name, bool createDefaultEntities);
         GNS_API static bool DestroyScene(Handle sceneHandle);
         GNS_API static bool SetActiveScene(Handle sceneHandle);
         GNS_API static bool IsSceneLoaded(Handle sceneHandle);

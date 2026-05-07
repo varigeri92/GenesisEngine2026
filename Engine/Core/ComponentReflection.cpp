@@ -44,7 +44,8 @@ gns::reflection::ComponentMeta& gns::reflection::ComponentRegistry::RegisterComp
     const std::string& componentName,
     size_t componentSize,
     ComponentHasFn hasComponent,
-    ComponentGetFn getComponent)
+    ComponentGetFn getComponent,
+    ComponentEnsureFn ensureComponent)
 {
     auto& components = ComponentMetas();
     auto& index = ComponentMetaIndex();
@@ -54,6 +55,7 @@ gns::reflection::ComponentMeta& gns::reflection::ComponentRegistry::RegisterComp
         ComponentMeta& existing = components[it->second];
         existing.has_component = hasComponent;
         existing.get_component = getComponent;
+        existing.ensure_component = ensureComponent;
         return existing;
     }
 
@@ -63,6 +65,7 @@ gns::reflection::ComponentMeta& gns::reflection::ComponentRegistry::RegisterComp
     meta.size = componentSize;
     meta.has_component = hasComponent;
     meta.get_component = getComponent;
+    meta.ensure_component = ensureComponent;
 
     const size_t metaIndex = components.size();
     components.emplace_back(std::move(meta));

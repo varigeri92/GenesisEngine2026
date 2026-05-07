@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <fstream>
 #include <utility>
 
 #include <glm/gtc/quaternion.hpp>
@@ -49,6 +50,29 @@ namespace
     {
         static std::unordered_map<gns::Handle, AssetArtifactRecord> artifacts;
         return artifacts;
+    }
+
+    std::filesystem::path ArtifactDirectory()
+    {
+        return gns::path::Resolve(gns::path::Root::ProjectLibrary, "Artifacts");
+    }
+
+    std::filesystem::path ArtifactLinkPath(gns::Handle handle)
+    {
+        return ArtifactDirectory() / std::to_string(handle.Get());
+    }
+
+    std::string Trim(std::string value)
+    {
+        const char* whitespace = " \t\r\n";
+        const size_t start = value.find_first_not_of(whitespace);
+        if (start == std::string::npos)
+        {
+            return {};
+        }
+
+        const size_t end = value.find_last_not_of(whitespace);
+        return value.substr(start, end - start + 1);
     }
 
     std::string ToProjectRelativeAssetString(const std::filesystem::path& assetPath)
@@ -178,6 +202,41 @@ namespace
         }
     }
 
+    bool LoadArtifactLink(gns::Handle handle)
+    {
+        const std::filesystem::path linkPath = ArtifactLinkPath(handle);
+        if (!gns::path::IsRegularFile(linkPath))
+        {
+            return false;
+        }
+
+        std::ifstream file(linkPath);
+        if (!file)
+        {
+            return false;
+        }
+
+        std::string metaPathText;
+        std::getline(file, metaPathText, '\0');
+        metaPathText = Trim(std::move(metaPathText));
+        if (metaPathText.empty())
+        {
+            LOG_WARNING("[AssetManager]: Artifact link is empty.");
+            LOG_WARNING(linkPath.string());
+            return false;
+        }
+
+        const std::filesystem::path metaPath = ResolveProjectPath(metaPathText);
+        if (!LoadModelMetaFile(metaPath))
+        {
+            LOG_WARNING("[AssetManager]: Artifact link points to unreadable metadata.");
+            LOG_WARNING(metaPath.string());
+            return false;
+        }
+
+        return ArtifactRegistry().contains(handle);
+    }
+
     void LoadAssetRegistry()
     {
         ArtifactRegistry().clear();
@@ -215,6 +274,14 @@ namespace
         if (const auto found = artifacts.find(handle); found != artifacts.end())
         {
             return found->second;
+        }
+
+        if (LoadArtifactLink(handle))
+        {
+            if (const auto found = artifacts.find(handle); found != artifacts.end())
+            {
+                return found->second;
+            }
         }
 
         LoadAssetRegistry();

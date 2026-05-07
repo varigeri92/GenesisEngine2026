@@ -1,6 +1,7 @@
 #include "gnspch.h"
 #include "RenderSystem.h"
 
+#include "../Assets/AssetManager.h"
 #include "../Window/WindowSystem.h"
 #include "../Object/Mesh.h"
 #include "../Object/Texture.h"
@@ -350,6 +351,7 @@ void gns::RenderSystem::BuildDrawData()
 	const size_t previousDrawCount = m_drawData.size();
 	m_drawData.clear();
 	m_drawData.reserve(previousDrawCount);
+	EnsureDefaultMeshResources();
 
 	auto view = core::SystemsManager::GetRegistry().view<EntityComponent, SceneMemberComponent, Transform, MeshComponent>();
 	view.each([&](
@@ -368,6 +370,36 @@ void gns::RenderSystem::BuildDrawData()
 			!meshComp.shader.m_handle.IsValid())
 		{
 			return;
+		}
+
+		if (!m_resourceCache.shaders.contains(meshComp.shader.m_handle))
+		{
+			if (Shader* shader = Object::Get<Shader>(meshComp.shader.m_handle))
+			{
+				ApplyShader(*shader);
+			}
+		}
+
+		if (!m_resourceCache.meshes.contains(meshComp.mesh.m_handle))
+		{
+			if (Mesh* mesh = assets::AssetManager::EnsureMeshLoaded(meshComp.mesh.m_handle))
+			{
+				ApplyMesh(*mesh);
+			}
+		}
+
+		if (!m_resourceCache.materials.contains(meshComp.material.m_handle))
+		{
+			Material* material = Object::Get<Material>(meshComp.material.m_handle);
+			if (material == nullptr)
+			{
+				material = assets::AssetManager::EnsureMaterialLoaded(meshComp.material.m_handle);
+			}
+
+			if (material != nullptr)
+			{
+				ApplyMaterial(*material);
+			}
 		}
 
 		const Handle renderShaderHandle = GetRenderShaderHandle(meshComp.shader.m_handle);

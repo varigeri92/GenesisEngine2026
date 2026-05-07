@@ -48,6 +48,7 @@ namespace gns::reflection
 
     using ComponentHasFn = bool (*)(entt::registry& registry, entt::entity entity);
     using ComponentGetFn = void* (*)(entt::registry& registry, entt::entity entity);
+    using ComponentEnsureFn = void* (*)(entt::registry& registry, entt::entity entity);
 
     struct FieldMeta
     {
@@ -60,6 +61,7 @@ namespace gns::reflection
         size_t alignment = 0;
         std::function<void*(void*)> get_field;
         std::function<const void*(const void*)> get_const_field;
+        std::function<void(void*, const void*)> set_field;
         std::function<uint64_t(void*)> get_reference_handle;
         std::function<void(void*, uint64_t)> set_reference_handle;
         std::function<size_t(void*)> get_reference_type_id;
@@ -76,6 +78,7 @@ namespace gns::reflection
         std::vector<FieldMeta> fields;
         ComponentHasFn has_component = nullptr;
         ComponentGetFn get_component = nullptr;
+        ComponentEnsureFn ensure_component = nullptr;
     };
 
     template<typename Component>
@@ -163,7 +166,8 @@ namespace gns::reflection
                 componentName,
                 sizeof(Component),
                 &HasComponent<Component>,
-                &GetComponent<Component>);
+                &GetComponent<Component>,
+                &EnsureComponent<Component>);
         }
 
         template<typename Component, typename Field>
@@ -193,6 +197,10 @@ namespace gns::reflection
             fieldMeta.get_const_field = [member](const void* component) -> const void*
             {
                 return &(static_cast<const Component*>(component)->*member);
+            };
+            fieldMeta.set_field = [member](void* component, const void* value)
+            {
+                static_cast<Component*>(component)->*member = *static_cast<const FieldType*>(value);
             };
 
             if constexpr (IsReference<FieldType>::value)
@@ -237,12 +245,29 @@ namespace gns::reflection
             return registry.try_get<Component>(entity);
         }
 
+        template<typename Component>
+        static void* EnsureComponent(entt::registry& registry, entt::entity entity)
+        {
+            if (!registry.valid(entity))
+            {
+                return nullptr;
+            }
+
+            if (Component* component = registry.try_get<Component>(entity))
+            {
+                return component;
+            }
+
+            return &registry.emplace<Component>(entity);
+        }
+
         GNS_API static ComponentMeta& RegisterComponentInternal(
             Handle typeId,
             const std::string& componentName,
             size_t componentSize,
             ComponentHasFn hasComponent,
-            ComponentGetFn getComponent);
+            ComponentGetFn getComponent,
+            ComponentEnsureFn ensureComponent);
 
         GNS_API static void RegisterFieldInternal(Handle componentTypeId, FieldMeta fieldMeta);
     };

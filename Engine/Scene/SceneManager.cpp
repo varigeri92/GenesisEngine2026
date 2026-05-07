@@ -79,6 +79,11 @@ const std::vector<std::unique_ptr<gns::Scene>>& gns::SceneManager::GetLoadedScen
 
 gns::Scene& gns::SceneManager::CreateScene(const std::string& name)
 {
+    return CreateScene(name, true);
+}
+
+gns::Scene& gns::SceneManager::CreateScene(const std::string& name, bool createDefaultEntities)
+{
     auto scene = std::make_unique<Scene>();
     scene->handle = Handle::New();
     scene->name = name;
@@ -107,7 +112,11 @@ gns::Scene& gns::SceneManager::CreateScene(const std::string& name)
         ActiveScene = &createdScene;
     }
 
-    CreateDefaultSceneEntities(createdScene);
+    if (createDefaultEntities)
+    {
+        CreateDefaultSceneEntities(createdScene);
+    }
+
     return createdScene;
 }
 

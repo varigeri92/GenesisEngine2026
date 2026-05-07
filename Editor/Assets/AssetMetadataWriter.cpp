@@ -194,6 +194,64 @@ namespace
 
         return emitter.good() && gns::path::WriteTextFile(materialPath, emitter.c_str());
     }
+
+    std::filesystem::path ArtifactDirectory()
+    {
+        return gns::path::Resolve(gns::path::Root::ProjectLibrary, "Artifacts");
+    }
+
+    bool WriteArtifactLink(gns::Handle handle, const std::filesystem::path& metaPath)
+    {
+        if (!handle.IsValid())
+        {
+            return true;
+        }
+
+        const std::filesystem::path artifactDirectory = ArtifactDirectory();
+        std::error_code error;
+        std::filesystem::create_directories(artifactDirectory, error);
+        if (error)
+        {
+            LOG_WARNING("[AssetMetadataWriter]: Failed to create artifact directory.");
+            LOG_WARNING(artifactDirectory.string());
+            return false;
+        }
+
+        const std::filesystem::path linkPath = artifactDirectory / std::to_string(handle.Get());
+        if (!gns::path::WriteTextFile(linkPath, ToProjectRelativeString(metaPath)))
+        {
+            LOG_WARNING("[AssetMetadataWriter]: Failed to write artifact link.");
+            LOG_WARNING(linkPath.string());
+            return false;
+        }
+
+        return true;
+    }
+
+    void WriteArtifactLinks(
+        const std::filesystem::path& metaPath,
+        gns::Handle sourceHandle,
+        const std::vector<gns::Handle>& meshHandles,
+        const std::vector<MaterialArtifact>& materialArtifacts,
+        const std::vector<TextureArtifact>& textureArtifacts)
+    {
+        WriteArtifactLink(sourceHandle, metaPath);
+
+        for (gns::Handle meshHandle : meshHandles)
+        {
+            WriteArtifactLink(meshHandle, metaPath);
+        }
+
+        for (const MaterialArtifact& material : materialArtifacts)
+        {
+            WriteArtifactLink(material.handle, metaPath);
+        }
+
+        for (const TextureArtifact& texture : textureArtifacts)
+        {
+            WriteArtifactLink(texture.handle, metaPath);
+        }
+    }
 }
 
 bool editor::assets::WriteModelMetaFile(
@@ -225,6 +283,7 @@ bool editor::assets::WriteModelMetaFile(
 
     std::vector<TextureArtifact> textureArtifacts;
     std::vector<MaterialArtifact> materialArtifacts;
+    std::vector<gns::Handle> meshArtifactHandles;
     if (scene->HasMaterials())
     {
         materialArtifacts.reserve(scene->mNumMaterials);
@@ -269,6 +328,11 @@ bool editor::assets::WriteModelMetaFile(
     emitter << YAML::Key << "artifacts" << YAML::Value << YAML::BeginMap;
 
     emitter << YAML::Key << "meshes" << YAML::Value << YAML::BeginSeq;
+    if (scene->HasMeshes())
+    {
+        meshArtifactHandles.reserve(scene->mNumMeshes);
+    }
+
     for (uint32_t meshIndex = 0; scene->HasMeshes() && meshIndex < scene->mNumMeshes; ++meshIndex)
     {
         const aiMesh* mesh = scene->mMeshes[meshIndex];
@@ -278,6 +342,9 @@ bool editor::assets::WriteModelMetaFile(
             meshName = "Mesh_" + std::to_string(meshIndex);
         }
 
+        const gns::Handle meshHandle = gns::assets::AssetManager::GetMeshArtifactHandle(sourcePath, meshIndex);
+        meshArtifactHandles.push_back(meshHandle);
+
         gns::Handle materialHandle;
         if (mesh != nullptr && mesh->mMaterialIndex < materialArtifacts.size())
         {
@@ -285,8 +352,7 @@ bool editor::assets::WriteModelMetaFile(
         }
 
         emitter << YAML::BeginMap;
-        emitter << YAML::Key << "handle" << YAML::Value
-            << gns::assets::AssetManager::GetMeshArtifactHandle(sourcePath, meshIndex).Get();
+        emitter << YAML::Key << "handle" << YAML::Value << meshHandle.Get();
         emitter << YAML::Key << "meshIndex" << YAML::Value << meshIndex;
         emitter << YAML::Key << "name" << YAML::Value << meshName;
         if (materialHandle.IsValid())
@@ -336,6 +402,13 @@ bool editor::assets::WriteModelMetaFile(
 
     LOG_INFO("[AssetMetadataWriter]: Wrote model meta file.");
     LOG_INFO(metaPath.string());
+    WriteArtifactLinks(
+        metaPath,
+        gns::assets::AssetManager::GetModelAssetHandle(sourcePath),
+        meshArtifactHandles,
+        materialArtifacts,
+        textureArtifacts);
+
     return true;
 }
 
