@@ -6,10 +6,12 @@ project "Editor"
 
     libdirs { 
         LibDir.Output,
+        LibDir.Assimp,
     }
 
     links {
-        "Engine.lib"
+        "Engine.lib",
+        Libs.Assimp
     }
 
     filter { "configurations:not Debug" }

@@ -14,3 +14,9 @@ gns::Material::Material(std::string name)
       albedo_texture(Handle::CreateFromString(DefaultResourceNames::WhiteTexture))
 {
 }
+
+gns::Material::Material(Handle handle, std::string name)
+    : Object(handle, std::move(name)),
+      albedo_texture(Handle::CreateFromString(DefaultResourceNames::WhiteTexture))
+{
+}

@@ -18,5 +18,6 @@ namespace gns
 
         Material();
         explicit Material(std::string name);
+        Material(Handle handle, std::string name);
     };
 }

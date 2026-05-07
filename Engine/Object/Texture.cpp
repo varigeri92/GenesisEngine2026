@@ -14,6 +14,12 @@ gns::Texture::Texture(std::string name, std::string path)
 {
 }
 
+gns::Texture::Texture(Handle handle, std::string name, std::string path)
+    : Object(handle, std::move(name)),
+      assetPath(std::move(path))
+{
+}
+
 bool gns::Texture::HasPixels() const
 {
     return !pixels.empty();

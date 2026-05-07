@@ -13,12 +13,24 @@
 #include <cstdlib>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <utility>
 
 #include <glm/gtc/quaternion.hpp>
+#include <yaml-cpp/yaml.h>
 
 namespace
 {
+    struct AssetArtifactRecord
+    {
+        gns::assets::AssetArtifactType type = gns::assets::AssetArtifactType::Unknown;
+        gns::Handle handle;
+        std::filesystem::path sourcePath;
+        gns::assets::AssetLoadOptions loadOptions;
+        uint32_t index = 0;
+        std::filesystem::path artifactPath;
+    };
+
     struct TextureLoadResult
     {
         gns::Texture* texture = nullptr;
@@ -32,6 +44,195 @@ namespace
         glm::vec3 rotation = glm::vec3(0.0f);
         glm::vec3 scale = glm::vec3(1.0f);
     };
+
+    std::unordered_map<gns::Handle, AssetArtifactRecord>& ArtifactRegistry()
+    {
+        static std::unordered_map<gns::Handle, AssetArtifactRecord> artifacts;
+        return artifacts;
+    }
+
+    std::string ToProjectRelativeAssetString(const std::filesystem::path& assetPath)
+    {
+        const std::filesystem::path normalizedPath = gns::path::Normalize(assetPath);
+        const std::filesystem::path projectRoot = gns::path::ProjectDirectory();
+        if (projectRoot.empty())
+        {
+            return normalizedPath.generic_string();
+        }
+
+        return gns::path::ToRelative(normalizedPath, projectRoot).generic_string();
+    }
+
+    std::filesystem::path ResolveProjectPath(const std::filesystem::path& path)
+    {
+        return gns::path::Resolve(gns::path::Root::Project, path);
+    }
+
+    void RegisterArtifact(const AssetArtifactRecord& artifact)
+    {
+        if (artifact.handle.IsValid())
+        {
+            ArtifactRegistry()[artifact.handle] = artifact;
+        }
+    }
+
+    gns::assets::AssetLoadOptions ReadLoadOptions(const YAML::Node& node)
+    {
+        gns::assets::AssetLoadOptions options;
+        if (!node)
+        {
+            return options;
+        }
+
+        if (node["flattenHierarchy"])
+        {
+            options.flattenHierarchy = node["flattenHierarchy"].as<bool>();
+        }
+        if (node["importSkeleton"])
+        {
+            options.importSkeleton = node["importSkeleton"].as<bool>();
+        }
+        if (node["importMaterials"])
+        {
+            options.importMaterials = node["importMaterials"].as<bool>();
+        }
+        if (node["importTextures"])
+        {
+            options.importTextures = node["importTextures"].as<bool>();
+        }
+
+        return options;
+    }
+
+    void ReadArtifactSequence(
+        const YAML::Node& sequence,
+        gns::assets::AssetArtifactType type,
+        const std::filesystem::path& sourcePath,
+        const gns::assets::AssetLoadOptions& loadOptions)
+    {
+        if (!sequence || !sequence.IsSequence())
+        {
+            return;
+        }
+
+        for (const YAML::Node& artifactNode : sequence)
+        {
+            if (!artifactNode["handle"])
+            {
+                continue;
+            }
+
+            AssetArtifactRecord artifact;
+            artifact.type = type;
+            artifact.handle = gns::Handle::Create(artifactNode["handle"].as<uint64_t>());
+            artifact.sourcePath = sourcePath;
+            artifact.loadOptions = loadOptions;
+
+            if (artifactNode["meshIndex"])
+            {
+                artifact.index = artifactNode["meshIndex"].as<uint32_t>();
+            }
+            else if (artifactNode["materialIndex"])
+            {
+                artifact.index = artifactNode["materialIndex"].as<uint32_t>();
+            }
+
+            if (artifactNode["path"])
+            {
+                artifact.artifactPath = artifactNode["path"].as<std::string>();
+            }
+
+            RegisterArtifact(artifact);
+        }
+    }
+
+    bool LoadModelMetaFile(const std::filesystem::path& metaPath)
+    {
+        try
+        {
+            const YAML::Node root = YAML::LoadFile(metaPath.string());
+            if (!root["sourcePath"])
+            {
+                return false;
+            }
+
+            const std::filesystem::path sourcePath = root["sourcePath"].as<std::string>();
+            const gns::assets::AssetLoadOptions loadOptions = ReadLoadOptions(root["importOptions"]);
+            const YAML::Node artifacts = root["artifacts"];
+            if (!artifacts)
+            {
+                return false;
+            }
+
+            ReadArtifactSequence(artifacts["meshes"], gns::assets::AssetArtifactType::Mesh, sourcePath, loadOptions);
+            ReadArtifactSequence(artifacts["materials"], gns::assets::AssetArtifactType::Material, sourcePath, loadOptions);
+            ReadArtifactSequence(artifacts["textures"], gns::assets::AssetArtifactType::Texture, sourcePath, loadOptions);
+            return true;
+        }
+        catch (const std::exception& exception)
+        {
+            LOG_WARNING("[AssetManager]: Failed to read asset metadata.");
+            LOG_WARNING(metaPath.string());
+            LOG_WARNING(exception.what());
+            return false;
+        }
+    }
+
+    void LoadAssetRegistry()
+    {
+        ArtifactRegistry().clear();
+
+        const std::filesystem::path assetsRoot = gns::path::AssetsDirectory();
+        if (!gns::path::IsDirectory(assetsRoot))
+        {
+            return;
+        }
+
+        std::error_code error;
+        for (const std::filesystem::directory_entry& entry :
+            std::filesystem::recursive_directory_iterator(assetsRoot, error))
+        {
+            if (error)
+            {
+                break;
+            }
+
+            if (!entry.is_regular_file(error))
+            {
+                continue;
+            }
+
+            if (entry.path().extension() == ".meta")
+            {
+                LoadModelMetaFile(entry.path());
+            }
+        }
+    }
+
+    std::optional<AssetArtifactRecord> FindArtifact(gns::Handle handle)
+    {
+        auto& artifacts = ArtifactRegistry();
+        if (const auto found = artifacts.find(handle); found != artifacts.end())
+        {
+            return found->second;
+        }
+
+        LoadAssetRegistry();
+        if (const auto found = artifacts.find(handle); found != artifacts.end())
+        {
+            return found->second;
+        }
+
+        return std::nullopt;
+    }
+
+    void EnsureSourceAssetLoaded(const AssetArtifactRecord& artifact)
+    {
+        if (!artifact.sourcePath.empty())
+        {
+            gns::assets::AssetManager::LoadAsset(ResolveProjectPath(artifact.sourcePath).string(), artifact.loadOptions);
+        }
+    }
 
     const char* GetStbiFailureReason()
     {
@@ -64,6 +265,7 @@ namespace
     }
 
     gns::Texture* CreateTextureFromPixels(
+        gns::Handle textureHandle,
         const std::string& name,
         const std::string& assetPath,
         std::vector<uint8_t> pixels,
@@ -83,7 +285,7 @@ namespace
             return cachedTexture->second;
         }
 
-        gns::Texture* texture = gns::Object::Create<gns::Texture>(name, assetPath);
+        gns::Texture* texture = gns::Object::Create<gns::Texture>(textureHandle, name, assetPath);
         if (texture == nullptr)
         {
             LOG_ERROR("[AssetManager]: Failed to create texture object.");
@@ -100,12 +302,13 @@ namespace
         const std::filesystem::path& texturePath,
         std::unordered_map<std::string, gns::Texture*>& textureCache)
     {
-        const std::string normalizedPath = gns::path::Normalize(texturePath).string();
-        if (const auto cachedTexture = textureCache.find(normalizedPath); cachedTexture != textureCache.end())
+        const std::string textureAssetPath = ToProjectRelativeAssetString(texturePath);
+        if (const auto cachedTexture = textureCache.find(textureAssetPath); cachedTexture != textureCache.end())
         {
             return cachedTexture->second;
         }
 
+        const std::string normalizedPath = gns::path::Normalize(texturePath).string();
         if (!gns::path::Exists(texturePath))
         {
             LOG_ERROR("[AssetManager]: Texture file does not exist.");
@@ -130,8 +333,9 @@ namespace
         stbi_image_free(loadedPixels);
 
         return CreateTextureFromPixels(
-            normalizedPath,
-            normalizedPath,
+            gns::assets::AssetManager::GetTextureArtifactHandle(textureAssetPath),
+            textureAssetPath,
+            textureAssetPath,
             std::move(pixels),
             static_cast<uint32_t>(width),
             static_cast<uint32_t>(height),
@@ -199,6 +403,7 @@ namespace
             stbi_image_free(loadedPixels);
 
             return CreateTextureFromPixels(
+                gns::assets::AssetManager::GetTextureArtifactHandle(textureObjectName),
                 textureObjectName,
                 textureObjectName,
                 std::move(pixels),
@@ -220,6 +425,7 @@ namespace
         }
 
         return CreateTextureFromPixels(
+            gns::assets::AssetManager::GetTextureArtifactHandle(textureObjectName),
             textureObjectName,
             textureObjectName,
             std::move(pixels),
@@ -276,7 +482,9 @@ namespace
     {
         const std::string materialName =
             assetPath + "::material_" + std::to_string(materialIndex) + "_" + assimpMaterial->GetName().C_Str();
-        gns::Material* material = gns::Object::Create<gns::Material>(materialName);
+        const gns::Handle materialHandle =
+            gns::assets::AssetManager::GetMaterialArtifactHandle(assetPath, materialIndex);
+        gns::Material* material = gns::Object::Create<gns::Material>(materialHandle, materialName);
         if (material == nullptr)
         {
             LOG_WARNING("[AssetManager]: Failed to create material object.");
@@ -331,6 +539,7 @@ namespace
     gns::assets::LoadedObject LoadMesh(
         const aiMesh* mesh,
         uint32_t meshIndex,
+        const std::string& sourcePath,
         const std::vector<gns::Handle>& materialHandles,
         const NodeTransform& transform)
     {
@@ -341,7 +550,8 @@ namespace
         }
 
         LOG_INFO(meshName);
-        gns::Mesh* newMesh = gns::Object::Create<gns::Mesh>(meshName);
+        const gns::Handle meshHandle = gns::assets::AssetManager::GetMeshArtifactHandle(sourcePath, meshIndex);
+        gns::Mesh* newMesh = gns::Object::Create<gns::Mesh>(meshHandle, meshName);
         if (newMesh == nullptr)
         {
             LOG_WARNING("[AssetManager]: Failed to create mesh object.");
@@ -420,6 +630,7 @@ namespace
         const aiScene* scene,
         const aiNode* node,
         const aiMatrix4x4& parentTransform,
+        const std::string& sourcePath,
         const std::vector<gns::Handle>& materialHandles,
         bool flattenHierarchy,
         std::vector<gns::assets::LoadedObject>& loaded)
@@ -436,7 +647,7 @@ namespace
             }
 
             gns::assets::LoadedObject loadedMesh =
-                LoadMesh(scene->mMeshes[meshIndex], meshIndex, materialHandles, transform);
+                LoadMesh(scene->mMeshes[meshIndex], meshIndex, sourcePath, materialHandles, transform);
             if (loadedMesh.object != nullptr)
             {
                 loaded.emplace_back(loadedMesh);
@@ -451,6 +662,7 @@ namespace
                     scene,
                     node->mChildren[childIndex],
                     nodeTransform,
+                    sourcePath,
                     materialHandles,
                     flattenHierarchy,
                     loaded);
@@ -484,6 +696,7 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
         loaded.reserve(scene->mNumMeshes);
 
         const std::filesystem::path assetPath = gns::path::Normalize(path);
+        const std::string sourcePath = ToProjectRelativeAssetString(assetPath);
         const std::filesystem::path assetDirectory = gns::path::ParentDirectory(assetPath);
         std::unordered_map<std::string, gns::Texture*> textureCache;
         std::vector<gns::Handle> materialHandles;
@@ -498,7 +711,7 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
                     scene->mMaterials[materialIndex],
                     materialIndex,
                     assetDirectory,
-                    path,
+                    sourcePath,
                     textureCache,
                     loadOptions.importTextures);
                 materialHandles.push_back(material != nullptr ? material->GetHandle() : gns::Handle{});
@@ -511,6 +724,7 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
                 scene,
                 scene->mRootNode,
                 aiMatrix4x4(),
+                sourcePath,
                 materialHandles,
                 loadOptions.flattenHierarchy,
                 loaded);
@@ -521,7 +735,7 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
             for (uint32_t meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
             {
                 gns::assets::LoadedObject loadedMesh =
-                    LoadMesh(scene->mMeshes[meshIndex], meshIndex, materialHandles, identityTransform);
+                    LoadMesh(scene->mMeshes[meshIndex], meshIndex, sourcePath, materialHandles, identityTransform);
                 if (loadedMesh.object != nullptr)
                 {
                     loaded.emplace_back(loadedMesh);
@@ -533,4 +747,95 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
     }
     LOG_INFO("File: " + path + " does not contain meshes.");
     return {};
+}
+
+gns::Mesh* gns::assets::AssetManager::EnsureMeshLoaded(Handle meshHandle)
+{
+    if (gns::Mesh* mesh = Object::Get<gns::Mesh>(meshHandle))
+    {
+        return mesh;
+    }
+
+    const std::optional<AssetArtifactRecord> artifact = FindArtifact(meshHandle);
+    if (!artifact || artifact->type != AssetArtifactType::Mesh)
+    {
+        LOG_WARNING("[AssetManager]: Cannot resolve mesh artifact handle.");
+        LOG_WARNING(std::to_string(meshHandle.Get()));
+        return nullptr;
+    }
+
+    EnsureSourceAssetLoaded(*artifact);
+    return Object::Get<gns::Mesh>(meshHandle);
+}
+
+gns::Material* gns::assets::AssetManager::EnsureMaterialLoaded(Handle materialHandle)
+{
+    if (gns::Material* material = Object::Get<gns::Material>(materialHandle))
+    {
+        return material;
+    }
+
+    const std::optional<AssetArtifactRecord> artifact = FindArtifact(materialHandle);
+    if (!artifact || artifact->type != AssetArtifactType::Material)
+    {
+        LOG_WARNING("[AssetManager]: Cannot resolve material artifact handle.");
+        LOG_WARNING(std::to_string(materialHandle.Get()));
+        return nullptr;
+    }
+
+    EnsureSourceAssetLoaded(*artifact);
+    return Object::Get<gns::Material>(materialHandle);
+}
+
+gns::Texture* gns::assets::AssetManager::EnsureTextureLoaded(Handle textureHandle)
+{
+    if (gns::Texture* texture = Object::Get<gns::Texture>(textureHandle))
+    {
+        return texture;
+    }
+
+    const std::optional<AssetArtifactRecord> artifact = FindArtifact(textureHandle);
+    if (artifact)
+    {
+        const std::string artifactPath = artifact->artifactPath.generic_string();
+        const bool isEmbeddedTexture = artifactPath.find("::embedded_texture_") != std::string::npos;
+        if (artifact->type == AssetArtifactType::Texture && !artifact->artifactPath.empty() && !isEmbeddedTexture)
+        {
+            std::unordered_map<std::string, gns::Texture*> textureCache;
+            return LoadTextureFromFile(ResolveProjectPath(artifact->artifactPath), textureCache);
+        }
+
+        EnsureSourceAssetLoaded(*artifact);
+        return Object::Get<gns::Texture>(textureHandle);
+    }
+
+    LOG_WARNING("[AssetManager]: Cannot resolve texture artifact handle.");
+    LOG_WARNING(std::to_string(textureHandle.Get()));
+    return nullptr;
+}
+
+gns::Handle gns::assets::AssetManager::GetModelAssetHandle(const std::filesystem::path& sourcePath)
+{
+    return gns::Handle::CreateFromString("asset:" + sourcePath.generic_string());
+}
+
+gns::Handle gns::assets::AssetManager::GetMeshArtifactHandle(
+    const std::filesystem::path& sourcePath,
+    uint32_t meshIndex)
+{
+    return gns::Handle::CreateFromString(
+        "mesh:" + sourcePath.generic_string() + ":" + std::to_string(meshIndex));
+}
+
+gns::Handle gns::assets::AssetManager::GetMaterialArtifactHandle(
+    const std::filesystem::path& sourcePath,
+    uint32_t materialIndex)
+{
+    return gns::Handle::CreateFromString(
+        "material:" + sourcePath.generic_string() + ":" + std::to_string(materialIndex));
+}
+
+gns::Handle gns::assets::AssetManager::GetTextureArtifactHandle(const std::filesystem::path& texturePath)
+{
+    return gns::Handle::CreateFromString("texture:" + texturePath.generic_string());
 }

@@ -34,6 +34,7 @@ namespace gns
         Texture() = default;
         explicit Texture(std::string name);
         Texture(std::string name, std::string path);
+        Texture(Handle handle, std::string name, std::string path);
 
         bool HasPixels() const;
         void SetPixels(
