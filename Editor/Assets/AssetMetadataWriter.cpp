@@ -8,6 +8,9 @@
 #include "../../Engine/Log/Logger.h"
 #include "../../Engine/Utils/Path.h"
 
+
+uint32_t AssetImporterVersion = 1;
+
 namespace
 {
     std::string AssetTypeToString(gns::assets::AssetType assetType)
@@ -47,7 +50,7 @@ bool editor::assets::WriteModelMetaFile(
     emitter << YAML::BeginMap;
     emitter << YAML::Key << "assetType" << YAML::Value << AssetTypeToString(gns::assets::Mesh);
     emitter << YAML::Key << "sourcePath" << YAML::Value << sourcePath;
-    emitter << YAML::Key << "importerVersion" << YAML::Value << 1;
+    emitter << YAML::Key << "importerVersion" << YAML::Value << AssetImporterVersion;
     emitter << YAML::Key << "importOptions" << YAML::Value << YAML::BeginMap;
     emitter << YAML::Key << "flattenHierarchy" << YAML::Value << loadOptions.flattenHierarchy;
     emitter << YAML::Key << "importSkeleton" << YAML::Value << loadOptions.importSkeleton;
@@ -72,4 +75,23 @@ bool editor::assets::WriteModelMetaFile(
     LOG_INFO("[AssetMetadataWriter]: Wrote model meta file.");
     LOG_INFO(metaPath.string());
     return true;
+}
+
+
+void editor::assets::ReadMetadataFromFile(std::filesystem::path metaPath, gns::assets::AssetLoadOptions& options)
+{
+    YAML::Node root = YAML::LoadFile(metaPath.string());
+    
+    uint32_t version = root["importerVersion"].as<uint32_t>();
+    if (version != AssetImporterVersion)
+    {
+        LOG_WARNING("[AssetMetadataWriter]: Importer version mismatch! \n \t Asset may load incorrectly!");
+    }
+    std::filesystem::path sourcePath = root["sourcePath"].as<std::string>();
+    YAML::Node importOptions = root["importOptions"];
+    
+    options.flattenHierarchy = importOptions["flattenHierarchy"].as<bool>();
+    options.importSkeleton = importOptions["importSkeleton"].as<bool>();
+    options.importMaterials = importOptions["importMaterials"].as<bool>();
+    options.importTextures = importOptions["importTextures"].as<bool>();
 }

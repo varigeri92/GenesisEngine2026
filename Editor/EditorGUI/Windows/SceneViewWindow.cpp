@@ -69,7 +69,14 @@ void SceneViewWindow::AcceptSceneAssetDrop()
 			}
 			else
 			{
+				std::filesystem::path metaPath= assetPayload->path;
+				metaPath+= ".meta";
 				m_modelImportController.Begin(assetPayload->path);
+				if (gns::path::Exists(metaPath))
+				{
+					LOG_INFO("Asset already imported!");
+					m_modelImportController.LoadModel(metaPath);
+				}
 			}
 		}
 	}

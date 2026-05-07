@@ -12,4 +12,7 @@ namespace editor::assets
     bool WriteModelMetaFile(
         const std::filesystem::path& modelPath,
         const gns::assets::AssetLoadOptions& loadOptions);
+    void ReadMetadataFromFile(
+        std::filesystem::path metaPath, 
+        gns::assets::AssetLoadOptions& options);
 }

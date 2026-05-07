@@ -122,3 +122,20 @@ bool editor::assets::ModelImportController::Complete()
     Cancel();
     return true;
 }
+
+bool editor::assets::ModelImportController::LoadModel(std::filesystem::path& metaPath)
+{
+    
+    ReadMetadataFromFile(metaPath, m_loadOptions);
+
+    gns::RenderSystem* renderSystem = gns::core::SystemsManager::GetSystem<gns::RenderSystem>();
+    if (!gns::SceneAssetImporter::LoadMeshAssetIntoScene(
+    m_pendingModelImportPath,
+    m_loadOptions,
+    *renderSystem))
+    {
+        m_error = "Model import failed.";
+        return false;
+    }
+    m_shouldOpenPopup = false;
+}

@@ -12,6 +12,7 @@ namespace editor::assets
     public:
         void Begin(const std::filesystem::path& assetPath);
         void DrawPopup();
+        bool LoadModel(std::filesystem::path& metaPath);
 
     private:
         std::filesystem::path m_pendingModelImportPath = {};
@@ -23,5 +24,6 @@ namespace editor::assets
 
         void Cancel();
         bool Complete();
+        
     };
 }
