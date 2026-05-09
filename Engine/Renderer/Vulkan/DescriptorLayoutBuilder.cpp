@@ -165,17 +165,28 @@ namespace gns::rendering
 
 	void gns::rendering::DescriptorWriter::UpdateSet(VkDevice device, VkDescriptorSet set)
 	{
+		if (set == VK_NULL_HANDLE)
+		{
+			LOG_ERROR("[DescriptorWriter]: Cannot update a null descriptor set.");
+			return;
+		}
+
 		for (VkWriteDescriptorSet& write : writes) {
 			write.dstSet = set;
 		}
 		vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);
 	}
-    void DescriptorLayoutBuilder::AddBinding(uint32_t binding, VkDescriptorType type)
+    void DescriptorLayoutBuilder::AddBinding(
+        uint32_t binding,
+        VkDescriptorType type,
+        uint32_t descriptorCount,
+        VkShaderStageFlags shaderStages)
     {
         VkDescriptorSetLayoutBinding newbind {};
         newbind.binding = binding;
-        newbind.descriptorCount = 1;
+        newbind.descriptorCount = descriptorCount;
         newbind.descriptorType = type;
+        newbind.stageFlags = shaderStages;
 
         bindings.push_back(newbind);
     }

@@ -2,11 +2,13 @@
 #include "ShaderUtils.h"
 
 #include <fstream>
+#include <map>
 #include <sstream>
 
 #include <spirv_reflect.h>
 
 #include "../../Utils/Path.h"
+#include "DescriptorLayoutBuilder.h"
 
 namespace gns::rendering
 {
@@ -173,6 +175,13 @@ namespace gns::rendering
             file.read(reinterpret_cast<char*>(outCode.data()), fileSize);
             return true;
         }
+
+        struct ReflectedDescriptorBinding
+        {
+            VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_MAX_ENUM;
+            uint32_t descriptorCount = 1;
+            VkShaderStageFlags stageFlags = 0;
+        };
     }
 
     std::string ShaderUtils::ResolveCompiledShaderPath(const std::string& shaderPath)
@@ -326,6 +335,111 @@ namespace gns::rendering
 
         spvReflectDestroyShaderModule(&module);
         return true;
+    }
+
+    bool ShaderUtils::CreateDescriptorSetLayouts(
+        VkDevice device,
+        const std::vector<ShaderReflectionData>& reflections,
+        std::vector<VkDescriptorSetLayout>& outLayouts)
+    {
+        outLayouts.clear();
+
+        std::map<uint32_t, std::map<uint32_t, ReflectedDescriptorBinding>> reflectedSets;
+        uint32_t maxSet = 0;
+        bool hasDescriptor = false;
+
+        for (const ShaderReflectionData& reflection : reflections)
+        {
+            for (const ShaderResourceInfo& descriptor : reflection.descriptors)
+            {
+                hasDescriptor = true;
+                maxSet = std::max(maxSet, descriptor.set);
+
+                ReflectedDescriptorBinding& binding =
+                    reflectedSets[descriptor.set][descriptor.binding];
+                if (binding.descriptorType == VK_DESCRIPTOR_TYPE_MAX_ENUM)
+                {
+                    binding.descriptorType = descriptor.descriptorType;
+                    binding.descriptorCount = descriptor.count;
+                }
+                else if (binding.descriptorType != descriptor.descriptorType ||
+                    binding.descriptorCount != descriptor.count)
+                {
+                    std::stringstream message;
+                    message
+                        << "[ShaderUtils]: Conflicting reflected descriptor binding at set "
+                        << descriptor.set
+                        << ", binding "
+                        << descriptor.binding;
+                    LOG_ERROR(message.str());
+                    return false;
+                }
+
+                binding.stageFlags |= descriptor.stageFlags;
+            }
+        }
+
+        if (!hasDescriptor)
+        {
+            return true;
+        }
+
+        outLayouts.reserve(maxSet + 1);
+        for (uint32_t setIndex = 0; setIndex <= maxSet; ++setIndex)
+        {
+            DescriptorLayoutBuilder builder;
+
+            if (const auto set = reflectedSets.find(setIndex); set != reflectedSets.end())
+            {
+                for (const auto& [bindingIndex, binding] : set->second)
+                {
+                    builder.AddBinding(
+                        bindingIndex,
+                        binding.descriptorType,
+                        binding.descriptorCount,
+                        binding.stageFlags);
+                }
+            }
+
+            outLayouts.emplace_back(builder.Build(device, 0));
+        }
+
+        return true;
+    }
+
+    std::vector<VkPushConstantRange> ShaderUtils::BuildPushConstantRanges(
+        const std::vector<ShaderReflectionData>& reflections)
+    {
+        std::vector<VkPushConstantRange> ranges;
+
+        for (const ShaderReflectionData& reflection : reflections)
+        {
+            for (const ShaderResourceInfo& pushConstant : reflection.pushConstants)
+            {
+                auto existingRange = std::find_if(
+                    ranges.begin(),
+                    ranges.end(),
+                    [&](const VkPushConstantRange& range)
+                    {
+                        return range.offset == pushConstant.offset &&
+                            range.size == pushConstant.size;
+                    });
+
+                if (existingRange != ranges.end())
+                {
+                    existingRange->stageFlags |= pushConstant.stageFlags;
+                    continue;
+                }
+
+                VkPushConstantRange range{};
+                range.offset = pushConstant.offset;
+                range.size = pushConstant.size;
+                range.stageFlags = pushConstant.stageFlags;
+                ranges.emplace_back(range);
+            }
+        }
+
+        return ranges;
     }
 
     void ShaderUtils::PrintReflection(const ShaderReflectionData& reflection)

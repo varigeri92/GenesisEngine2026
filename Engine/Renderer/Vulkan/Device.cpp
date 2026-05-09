@@ -330,13 +330,13 @@ void gns::rendering::Device::InitSyncStructs()
 void gns::rendering::Device::InitDescriptors()
 {
 	//create a descriptor pool that will hold 10 sets with 1 image each
-	std::vector<DescriptorAllocator::PoolSizeRatio> sizes =
+	std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes =
 	{
 		{.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .ratio = 1 },
 		{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .ratio = 8 }
 	};
 
-	m_descriptorAllocator.InitPool(m_device, 32, sizes);
+	m_descriptorAllocator.Init(m_device, 32, sizes);
 
 	//make the descriptor set layout for our compute draw
 	{
@@ -367,7 +367,7 @@ void gns::rendering::Device::InitDescriptors()
 			vkDestroySampler(m_device, _renderTargetSampler, nullptr);
 			_renderTargetSampler = VK_NULL_HANDLE;
 		}
-		m_descriptorAllocator.DestroyPool(m_device);
+		m_descriptorAllocator.DestroyPools(m_device);
 		if (_drawImageDescriptorLayout != VK_NULL_HANDLE)
 		{
 			vkDestroyDescriptorSetLayout(m_device, _drawImageDescriptorLayout, nullptr);
@@ -684,38 +684,72 @@ void gns::rendering::Device::InitBackgroundResources()
 
 void gns::rendering::Device::CreateBackgroundPipeline()
 {
-	VkPipelineLayoutCreateInfo computeLayout{};
-	computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	computeLayout.pNext = nullptr;
-	computeLayout.pSetLayouts = &_drawImageDescriptorLayout;
-	computeLayout.setLayoutCount = 1;
-
-	VkPushConstantRange pushConstant{};
-	pushConstant.offset = 0;
-	pushConstant.size = sizeof(ComputePushConstants) ;
-	pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-	computeLayout.pPushConstantRanges = &pushConstant;
-	computeLayout.pushConstantRangeCount = 1;
-	
-	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &m_backgroundPipelineLayout));
-	
-	VkShaderModule backgroundShader = VK_NULL_HANDLE;
 	std::string shaderPath =
 		gns::path::Resolve(gns::path::Root::EditorResources, BackgroundComputeShaderPath).string();
-
+	std::vector<ShaderReflectionData> shaderReflections;
 	ShaderReflectionData computeReflection;
 	if (ShaderUtils::ReflectShaderFile(shaderPath, computeReflection))
 	{
 		ShaderUtils::PrintReflection(computeReflection);
+		shaderReflections.emplace_back(computeReflection);
 	}
 
+	m_backgroundDescriptorSetLayouts.clear();
+	if (!ShaderUtils::CreateDescriptorSetLayouts(
+		m_device,
+		shaderReflections,
+		m_backgroundDescriptorSetLayouts))
+	{
+		LOG_ERROR("[Device]: Failed to build background descriptor set layouts from shader reflection.");
+		return;
+	}
+
+	std::vector<VkPushConstantRange> pushConstantRanges =
+		ShaderUtils::BuildPushConstantRanges(shaderReflections);
+	VkPushConstantRange defaultPushConstant{};
+	if (pushConstantRanges.empty())
+	{
+		defaultPushConstant.offset = 0;
+		defaultPushConstant.size = sizeof(ComputePushConstants);
+		defaultPushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		pushConstantRanges.emplace_back(defaultPushConstant);
+	}
+
+	VkPipelineLayoutCreateInfo computeLayout{};
+	computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	computeLayout.pNext = nullptr;
+	computeLayout.pSetLayouts = m_backgroundDescriptorSetLayouts.empty()
+		? &_drawImageDescriptorLayout
+		: m_backgroundDescriptorSetLayouts.data();
+	computeLayout.setLayoutCount = m_backgroundDescriptorSetLayouts.empty()
+		? 1
+		: static_cast<uint32_t>(m_backgroundDescriptorSetLayouts.size());
+
+	computeLayout.pPushConstantRanges = pushConstantRanges.data();
+	computeLayout.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+	
+	VK_CHECK(vkCreatePipelineLayout(m_device, &computeLayout, nullptr, &m_backgroundPipelineLayout));
+	if (!m_backgroundDescriptorSetLayouts.empty())
+	{
+		_drawImageDescriptors = m_descriptorAllocator.Allocate(m_device, m_backgroundDescriptorSetLayouts[0]);
+		UpdateDrawImageDescriptor();
+	}
+	
+	VkShaderModule backgroundShader = VK_NULL_HANDLE;
 	if (!utils::LoadShaderModule(shaderPath, m_device, &backgroundShader))
 	{
 		LOG_ERROR("[Device]: Failed to load background compute shader.");
 		LOG_ERROR(shaderPath);
 		vkDestroyPipelineLayout(m_device, m_backgroundPipelineLayout, nullptr);
 		m_backgroundPipelineLayout = VK_NULL_HANDLE;
+		for (VkDescriptorSetLayout descriptorSetLayout : m_backgroundDescriptorSetLayouts)
+		{
+			if (descriptorSetLayout != VK_NULL_HANDLE)
+			{
+				vkDestroyDescriptorSetLayout(m_device, descriptorSetLayout, nullptr);
+			}
+		}
+		m_backgroundDescriptorSetLayouts.clear();
 		return;
 	}
 
@@ -753,6 +787,14 @@ void gns::rendering::Device::CreateBackgroundPipeline()
 			vkDestroyPipelineLayout(m_device, m_backgroundPipelineLayout, nullptr);
 			m_backgroundPipelineLayout = VK_NULL_HANDLE;
 		}
+		for (VkDescriptorSetLayout descriptorSetLayout : m_backgroundDescriptorSetLayouts)
+		{
+			if (descriptorSetLayout != VK_NULL_HANDLE)
+			{
+				vkDestroyDescriptorSetLayout(m_device, descriptorSetLayout, nullptr);
+			}
+		}
+		m_backgroundDescriptorSetLayouts.clear();
 		});
 }
 
@@ -788,12 +830,18 @@ void gns::rendering::Device::DestroyShader(VulkanShader& vk_shader) const
 		vkDestroyPipelineLayout(m_device, vk_shader.m_pipelineLayout, nullptr);
 	if (vk_shader.m_pipeline != VK_NULL_HANDLE)
 		vkDestroyPipeline(m_device, vk_shader.m_pipeline, nullptr);
-	if (vk_shader.m_descriptorSetLayout != VK_NULL_HANDLE)
-		vkDestroyDescriptorSetLayout(m_device, vk_shader.m_descriptorSetLayout, nullptr);
+	for (VkDescriptorSetLayout descriptorSetLayout : vk_shader.m_descriptorSetLayouts)
+	{
+		if (descriptorSetLayout != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorSetLayout(m_device, descriptorSetLayout, nullptr);
+		}
+	}
 	
 	vk_shader.m_pipelineLayout = VK_NULL_HANDLE;
 	vk_shader.m_pipeline = VK_NULL_HANDLE;
 	vk_shader.m_descriptorSetLayout = VK_NULL_HANDLE;
+	vk_shader.m_descriptorSetLayouts.clear();
 	
 }
 

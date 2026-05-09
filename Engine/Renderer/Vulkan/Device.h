@@ -202,11 +202,12 @@ namespace gns::rendering
 
 		size_t m_currentFrame = {};
 		
-		DescriptorAllocator m_descriptorAllocator = {};
+		DescriptorAllocatorGrowable m_descriptorAllocator = {};
 		VkDescriptorSet _drawImageDescriptors = VK_NULL_HANDLE;
 		VkDescriptorSet _renderTargetDescriptor = VK_NULL_HANDLE;
 		VkDescriptorSetLayout _drawImageDescriptorLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout _textureDescriptorLayout = VK_NULL_HANDLE;
+		std::vector<VkDescriptorSetLayout> m_backgroundDescriptorSetLayouts;
 		VkSampler _renderTargetSampler = VK_NULL_HANDLE;
 		VulkanDefaultTextureHandles m_defaultTextures = {};
 		

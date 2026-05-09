@@ -358,6 +358,7 @@ gns::Handle gns::rendering::Renderer::ApplyTexture(Texture& texture)
 gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 {
 	VulkanShader& vkShader = *m_device.CreateResource<VulkanShader>();
+	std::vector<ShaderReflectionData> shaderReflections;
 
 	ShaderReflectionData vertexReflection;
 	if (ShaderUtils::ReflectShaderFile(
@@ -365,6 +366,7 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 		vertexReflection))
 	{
 		ShaderUtils::PrintReflection(vertexReflection);
+		shaderReflections.emplace_back(vertexReflection);
 	}
 
 	ShaderReflectionData fragmentReflection;
@@ -373,30 +375,49 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 		fragmentReflection))
 	{
 		ShaderUtils::PrintReflection(fragmentReflection);
+		shaderReflections.emplace_back(fragmentReflection);
+	}
+
+	if (shaderReflections.empty())
+	{
+		LOG_ERROR("[Renderer]: Cannot create shader pipeline without SPIR-V reflection data.");
+		LOG_ERROR(shader.GetName());
+		return {};
 	}
 	
-	VkPushConstantRange bufferRange{};
-	bufferRange.offset = 0;
-	bufferRange.size = sizeof(GPUDrawPushConstants);
-	bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	std::vector<VkPushConstantRange> pushConstantRanges =
+		ShaderUtils::BuildPushConstantRanges(shaderReflections);
+	if (pushConstantRanges.empty())
 	{
-		DescriptorLayoutBuilder builder;
-		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		vkShader.m_descriptorSetLayout =
-			builder.Build(m_device.GetDevice(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+		VkPushConstantRange defaultPushConstant{};
+		defaultPushConstant.offset = 0;
+		defaultPushConstant.size = sizeof(GPUDrawPushConstants);
+		defaultPushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRanges.emplace_back(defaultPushConstant);
+	}
+
+	if (!ShaderUtils::CreateDescriptorSetLayouts(
+		m_device.GetDevice(),
+		shaderReflections,
+		vkShader.m_descriptorSetLayouts))
+	{
+		LOG_ERROR("[Renderer]: Failed to build descriptor set layouts from shader reflection.");
+		return {};
+	}
+
+	if (!vkShader.m_descriptorSetLayouts.empty())
+	{
+		vkShader.m_descriptorSetLayout = vkShader.m_descriptorSetLayouts[0];
 		_gpuSceneDataDescriptorLayout = vkShader.m_descriptorSetLayout;
 	}
-	
+
 	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
-	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts =
-	{
-		vkShader.m_descriptorSetLayout,
-		m_device.GetTextureDescriptorLayout()
-	};
-	pipeline_layout_info.pPushConstantRanges = &bufferRange;
-	pipeline_layout_info.pushConstantRangeCount = 1;
-	pipeline_layout_info.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-	pipeline_layout_info.pSetLayouts = descriptorSetLayouts.data();
+	pipeline_layout_info.pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data();
+	pipeline_layout_info.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+	pipeline_layout_info.setLayoutCount = static_cast<uint32_t>(vkShader.m_descriptorSetLayouts.size());
+	pipeline_layout_info.pSetLayouts = vkShader.m_descriptorSetLayouts.empty()
+		? nullptr
+		: vkShader.m_descriptorSetLayouts.data();
 	VK_CHECK(vkCreatePipelineLayout(m_device.GetDevice(), &pipeline_layout_info, nullptr, &vkShader.m_pipelineLayout));
 	
 	
@@ -407,7 +428,7 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	//filled triangles
 	builder.SetPolygonMode(VK_POLYGON_MODE_FILL);
 	//no backface culling
-	builder.SetCullMode(VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_CLOCKWISE);
+	builder.SetCullMode(VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
 	//no multisampling
 	builder.SetMultisampling();
 	//no blending

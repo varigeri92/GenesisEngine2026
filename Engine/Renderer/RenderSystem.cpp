@@ -340,6 +340,7 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 
 		material->shader_ref = shader->Ref<Shader>();
 		material->albedo_color = glm::vec4(0.5f, 1.0f, 0.0f, 1.0f);
+		material->SetVec4("albedo_color", material->albedo_color);
 		material->albedo_texture = Reference<Texture>(GetDefaultTextureHandle(DefaultTexture::ErrorCheckerboard));
 		ApplyMaterial(*material);
 		m_defaultMeshMaterial = material->GetHandle();

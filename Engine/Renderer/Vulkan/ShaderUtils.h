@@ -63,6 +63,12 @@ namespace gns::rendering
     public:
         GNS_API static std::string ResolveCompiledShaderPath(const std::string& shaderPath);
         GNS_API static bool ReflectShaderFile(const std::string& shaderPath, ShaderReflectionData& outReflection);
+        GNS_API static bool CreateDescriptorSetLayouts(
+            VkDevice device,
+            const std::vector<ShaderReflectionData>& reflections,
+            std::vector<VkDescriptorSetLayout>& outLayouts);
+        GNS_API static std::vector<VkPushConstantRange> BuildPushConstantRanges(
+            const std::vector<ShaderReflectionData>& reflections);
         GNS_API static void PrintReflection(const ShaderReflectionData& reflection);
 
         GNS_API static const char* ToString(ShaderResourceKind kind);
