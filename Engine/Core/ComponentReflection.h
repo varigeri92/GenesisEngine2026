@@ -83,10 +83,10 @@ namespace gns::reflection
     };
 
     template<typename Component>
-    struct ReflectedComponent
+    void RegisterFields(ComponentMeta& componentMeta)
     {
-        using _GnsComponentType = Component;
-    };
+        (void)componentMeta;
+    }
 
     template<typename T>
     std::string TypeName()
@@ -162,27 +162,29 @@ namespace gns::reflection
         static ComponentMeta& RegisterComponent()
         {
             const std::string componentName = TypeName<Component>();
-            return RegisterComponentInternal(
+            ComponentMeta& componentMeta = RegisterComponentInternal(
                 Handle::CreateFromString(componentName),
                 componentName,
                 sizeof(Component),
                 &HasComponent<Component>,
                 &GetComponent<Component>,
                 &EnsureComponent<Component>);
+
+            RegisterFields<Component>(componentMeta);
+            return componentMeta;
         }
 
         template<typename Component, typename Field>
         static void RegisterField(
+            ComponentMeta& componentMeta,
             const char* fieldName,
             Field Component::* member,
-            FieldFlags flags)
+            FieldFlags flags = FieldFlags::None)
         {
             using FieldType = std::remove_cv_t<Field>;
             static_assert(
                 FieldKindResolver<FieldType>::Supported,
-                "GNS_FIELD used with an unsupported field type.");
-
-            ComponentMeta& componentMeta = RegisterComponent<Component>();
+                "RegisterField used with an unsupported field type.");
 
             FieldMeta fieldMeta;
             fieldMeta.name = fieldName;
@@ -277,40 +279,7 @@ namespace gns::reflection
         GNS_API static void RegisterFieldInternal(Handle componentTypeId, FieldMeta fieldMeta);
     };
 
-    template<typename Component, typename Field>
-    struct FieldRegistrar
-    {
-        FieldRegistrar(const char* fieldName, Field Component::* member, FieldFlags flags)
-        {
-            ComponentRegistry::RegisterField<Component, Field>(fieldName, member, flags);
-        }
-    };
 }
 
 #define GNS_HIDDEN ::gns::reflection::FieldFlags::Hidden
 #define GNS_EDITOR_READONLY ::gns::reflection::FieldFlags::EditorReadOnly
-
-#define GNS_CMP(ComponentType) ComponentType : public ::gns::reflection::ReflectedComponent<ComponentType>
-
-#define GNS_FIELD_NOFLAGS(FieldType, FieldName) \
-    FieldType FieldName; \
-private: \
-    inline static const ::gns::reflection::FieldRegistrar<_GnsComponentType, FieldType> \
-        _gns_reflection_field_##FieldName{ \
-            #FieldName, \
-            &_GnsComponentType::FieldName, \
-            ::gns::reflection::FieldFlags::None}; \
-public:
-
-#define GNS_FIELD_FLAGS(FieldType, FieldName, Flags) \
-    FieldType FieldName; \
-private: \
-    inline static const ::gns::reflection::FieldRegistrar<_GnsComponentType, FieldType> \
-        _gns_reflection_field_##FieldName{ \
-            #FieldName, \
-            &_GnsComponentType::FieldName, \
-            Flags}; \
-public:
-
-#define GNS_GET_FIELD_MACRO(_1, _2, _3, NAME, ...) NAME
-#define GNS_FIELD(...) GNS_GET_FIELD_MACRO(__VA_ARGS__, GNS_FIELD_FLAGS, GNS_FIELD_NOFLAGS)(__VA_ARGS__)

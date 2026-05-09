@@ -15,38 +15,38 @@ namespace gns
     struct Shader;
 }
 
-struct GNS_CMP(EntityComponent)
+struct EntityComponent
 {
-    GNS_FIELD(gns::entityHandle, entity_handle, GNS_EDITOR_READONLY);
-    GNS_FIELD(std::string, name);
+    gns::entityHandle entity_handle;
+    std::string name;
 
     EntityComponent() : entity_handle(entt::null), name() {}
 };
 
-struct GNS_CMP(SceneRootComponent)
+struct SceneRootComponent
 {
-    GNS_FIELD(gns::Handle, scene_handle, GNS_HIDDEN | GNS_EDITOR_READONLY);
+    gns::Handle scene_handle;
 };
 
-struct GNS_CMP(SceneMemberComponent)
+struct SceneMemberComponent
 {
-    GNS_FIELD(gns::Handle, scene_handle, GNS_HIDDEN | GNS_EDITOR_READONLY);
+    gns::Handle scene_handle;
 };
 
-struct GNS_CMP(HierarchyComponent)
+struct HierarchyComponent
 {
-    GNS_FIELD(gns::entityHandle, parent, GNS_HIDDEN | GNS_EDITOR_READONLY);
+    gns::entityHandle parent;
     std::vector<gns::entityHandle> children;
 
     HierarchyComponent() : parent(entt::null), children() {}
 };
 
-struct GNS_CMP(Transform)
+struct Transform
 {
     glm::mat4 matrix;
-    GNS_FIELD(glm::vec3, position);
-    GNS_FIELD(glm::vec3, rotation);
-    GNS_FIELD(glm::vec3, scale);
+    glm::vec3 position;
+    glm::vec3 rotation;
+    glm::vec3 scale;
 
     Transform() :
         matrix(glm::mat4(1.0f)),
@@ -56,24 +56,24 @@ struct GNS_CMP(Transform)
     {}
 };
 
-struct GNS_CMP(MeshComponent)
+struct MeshComponent
 {
-    GNS_FIELD(gns::Reference<gns::Mesh>, mesh);
-    GNS_FIELD(gns::Reference<gns::Material>, material, GNS_EDITOR_READONLY);
-    GNS_FIELD(gns::Reference<gns::Shader>, shader, GNS_HIDDEN);
+    gns::Reference<gns::Mesh> mesh;
+    gns::Reference<gns::Material> material;
+    gns::Reference<gns::Shader> shader;
 };
 
-struct GNS_CMP(AmbientLightComponent)
+struct AmbientLightComponent
 {
-    GNS_FIELD(glm::vec4, color);
+    glm::vec4 color;
 
     AmbientLightComponent() : color{1.0f, 1.0f, 1.0f, 1.0f} {}
 };
 
-struct GNS_CMP(DirectionalLightComponent)
+struct DirectionalLightComponent
 {
-    GNS_FIELD(glm::vec4, direction);
-    GNS_FIELD(glm::vec4, color);
+    glm::vec4 direction;
+    glm::vec4 color;
 
     DirectionalLightComponent() :
         direction{1.0f, 1.0f, 1.0f, 1.0f},

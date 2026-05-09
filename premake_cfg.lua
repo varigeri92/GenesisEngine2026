@@ -7,6 +7,7 @@ SolutionRoot = os.getcwd()
 
 Paths = {
     Vulkan_Include = VULKAN_SDK .. "/Include",
+    Vulkan_SpirvReflect = VULKAN_SDK .. "/Source/SPIRV-Reflect",
     Vulkan_Lib     = VULKAN_SDK .. "/Lib",
     SDL_Include    = VULKAN_SDK .. "/Include/SDL2",
     OutputDir      = "bin/%{cfg.buildcfg}",
@@ -50,7 +51,7 @@ IncludeDir = {
     VKBootstrap    = Submodules.VKBootstrap .. "/src",
     EnTT           = Submodules.EnTT .. "/single_include",
     YAML           = Submodules.YAMLCPP .. "/include",
-    SpirvReflect   = Submodules.SpirvReflect
+    SpirvReflect   = Paths.Vulkan_SpirvReflect
 }
 
 ---------------------------------------

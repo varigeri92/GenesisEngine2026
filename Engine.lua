@@ -41,6 +41,7 @@ project "Engine"
     includedirs {
         IncludeDir.Vulkan,
         IncludeDir.SDL,
+        IncludeDir.SpirvReflect,
         IncludeDir.Engine_API,
         IncludeDir.Engine_Include,
         IncludeDir.Engine_pch,

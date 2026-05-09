@@ -4,6 +4,7 @@
 #include <VkBootstrap.h>
 #include "vkutils.h"
 #include "Pipelines.h"
+#include "ShaderUtils.h"
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
@@ -702,6 +703,13 @@ void gns::rendering::Device::CreateBackgroundPipeline()
 	VkShaderModule backgroundShader = VK_NULL_HANDLE;
 	std::string shaderPath =
 		gns::path::Resolve(gns::path::Root::EditorResources, BackgroundComputeShaderPath).string();
+
+	ShaderReflectionData computeReflection;
+	if (ShaderUtils::ReflectShaderFile(shaderPath, computeReflection))
+	{
+		ShaderUtils::PrintReflection(computeReflection);
+	}
+
 	if (!utils::LoadShaderModule(shaderPath, m_device, &backgroundShader))
 	{
 		LOG_ERROR("[Device]: Failed to load background compute shader.");

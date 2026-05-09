@@ -4,6 +4,7 @@
 #include "../Object/Mesh.h"
 #include "../Object/Texture.h"
 #include "Vulkan/PipelineBuilder.h"
+#include "Vulkan/ShaderUtils.h"
 #include "Vulkan/vkutils.h"
 #include "Vulkan/vulkan_log.h"
 #include "Resources/VulkanShader.h"
@@ -357,6 +358,22 @@ gns::Handle gns::rendering::Renderer::ApplyTexture(Texture& texture)
 gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 {
 	VulkanShader& vkShader = *m_device.CreateResource<VulkanShader>();
+
+	ShaderReflectionData vertexReflection;
+	if (ShaderUtils::ReflectShaderFile(
+		ShaderUtils::ResolveCompiledShaderPath(shader.GetVertexShaderPath()),
+		vertexReflection))
+	{
+		ShaderUtils::PrintReflection(vertexReflection);
+	}
+
+	ShaderReflectionData fragmentReflection;
+	if (ShaderUtils::ReflectShaderFile(
+		ShaderUtils::ResolveCompiledShaderPath(shader.GetFragmentShaderPath()),
+		fragmentReflection))
+	{
+		ShaderUtils::PrintReflection(fragmentReflection);
+	}
 	
 	VkPushConstantRange bufferRange{};
 	bufferRange.offset = 0;
@@ -390,7 +407,7 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	//filled triangles
 	builder.SetPolygonMode(VK_POLYGON_MODE_FILL);
 	//no backface culling
-	builder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+	builder.SetCullMode(VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_CLOCKWISE);
 	//no multisampling
 	builder.SetMultisampling();
 	//no blending
