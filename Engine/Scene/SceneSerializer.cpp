@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include <entt/entt.hpp>
@@ -418,6 +419,10 @@ namespace
 
             const gns::Handle value = gns::Handle::Create(fieldNode["handle"].as<uint64_t>());
             field.set_reference_handle(fieldValue, value.Get());
+            if (fieldNode["typeId"] && field.set_reference_type_id != nullptr)
+            {
+                field.set_reference_type_id(fieldValue, fieldNode["typeId"].as<size_t>());
+            }
             EnsureReferencedAsset(field.reference_type_name, value);
             return true;
         }
@@ -567,6 +572,44 @@ namespace
         return fallback;
     }
 
+    bool ParentChainCreatesCycle(
+        const YAML::Node& entitiesNode,
+        size_t entityIndex,
+        int64_t parentIndex)
+    {
+        std::unordered_set<size_t> visited;
+        while (parentIndex != NoParentIndex)
+        {
+            if (parentIndex < 0 || static_cast<size_t>(parentIndex) >= entitiesNode.size())
+            {
+                return false;
+            }
+
+            const size_t currentParentIndex = static_cast<size_t>(parentIndex);
+            if (currentParentIndex == entityIndex)
+            {
+                return true;
+            }
+
+            if (!visited.insert(currentParentIndex).second)
+            {
+                return true;
+            }
+
+            try
+            {
+                const YAML::Node parentNode = entitiesNode[currentParentIndex]["parent"];
+                parentIndex = parentNode ? parentNode.as<int64_t>() : NoParentIndex;
+            }
+            catch (const YAML::Exception&)
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
     void RestoreParents(
         const YAML::Node& entitiesNode,
         std::vector<gns::Entity>& entities,
@@ -597,6 +640,13 @@ namespace
                 static_cast<size_t>(parentIndex) == index)
             {
                 LOG_WARNING("[SceneSerializer]: Parent index out of range. Entity remains under scene root.");
+                LOG_WARNING(std::to_string(parentIndex));
+                continue;
+            }
+
+            if (ParentChainCreatesCycle(entitiesNode, index, parentIndex))
+            {
+                LOG_WARNING("[SceneSerializer]: Parent index would create a hierarchy cycle. Entity remains under scene root.");
                 LOG_WARNING(std::to_string(parentIndex));
                 continue;
             }

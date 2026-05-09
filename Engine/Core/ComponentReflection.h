@@ -65,6 +65,7 @@ namespace gns::reflection
         std::function<uint64_t(void*)> get_reference_handle;
         std::function<void(void*, uint64_t)> set_reference_handle;
         std::function<size_t(void*)> get_reference_type_id;
+        std::function<void(void*, size_t)> set_reference_type_id;
 
         bool IsHidden() const { return HasFlag(flags, FieldFlags::Hidden); }
         bool IsEditorReadOnly() const { return HasFlag(flags, FieldFlags::EditorReadOnly); }
@@ -217,6 +218,10 @@ namespace gns::reflection
                 fieldMeta.get_reference_type_id = [](void* field) -> size_t
                 {
                     return static_cast<FieldType*>(field)->typeID;
+                };
+                fieldMeta.set_reference_type_id = [](void* field, size_t typeId)
+                {
+                    static_cast<FieldType*>(field)->typeID = typeId;
                 };
             }
 

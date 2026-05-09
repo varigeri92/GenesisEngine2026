@@ -143,9 +143,21 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 		!m_resourceCache.textures.contains(material.albedo_texture.m_handle))
 	{
 		Texture* albedoTexture = Object::Get<Texture>(material.albedo_texture.m_handle);
+		if (albedoTexture == nullptr)
+		{
+			albedoTexture = assets::AssetManager::EnsureTextureLoaded(material.albedo_texture.m_handle);
+		}
+
 		if (albedoTexture != nullptr)
 		{
-			ApplyTexture(*albedoTexture);
+			if (!ApplyTexture(*albedoTexture).IsValid())
+			{
+				return {};
+			}
+		}
+		else
+		{
+			return {};
 		}
 	}
 
