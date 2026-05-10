@@ -319,6 +319,11 @@ void gns::Material::SetLayout(const MaterialLayout& layout, bool preserveValues)
     }
 }
 
+const gns::MaterialLayout& gns::Material::GetLayout() const
+{
+    return m_layout;
+}
+
 void gns::Material::SetFloat(const std::string& name, float value)
 {
     SetValue(*this, name, MaterialPropertyType::Float, value);
@@ -537,6 +542,106 @@ glm::mat4 gns::Material::GetMat4(const std::string& name, const glm::mat4& fallb
 {
     glm::mat4 value = fallback;
     return TryGetMat4(name, value) ? value : fallback;
+}
+
+float* gns::Material::GetFloatPtr(const std::string& name)
+{
+    return GetValuePtr<float>(name);
+}
+
+int32_t* gns::Material::GetIntPtr(const std::string& name)
+{
+    return GetValuePtr<int32_t>(name);
+}
+
+uint32_t* gns::Material::GetUIntPtr(const std::string& name)
+{
+    return GetValuePtr<uint32_t>(name);
+}
+
+glm::vec2* gns::Material::GetVec2Ptr(const std::string& name)
+{
+    return GetValuePtr<glm::vec2>(name);
+}
+
+glm::vec3* gns::Material::GetVec3Ptr(const std::string& name)
+{
+    return GetValuePtr<glm::vec3>(name);
+}
+
+glm::vec4* gns::Material::GetVec4Ptr(const std::string& name)
+{
+    return GetValuePtr<glm::vec4>(name);
+}
+
+glm::vec3* gns::Material::GetColor3Ptr(const std::string& name)
+{
+    return GetValuePtr<glm::vec3>(name);
+}
+
+glm::vec4* gns::Material::GetColor4Ptr(const std::string& name)
+{
+    return GetValuePtr<glm::vec4>(name);
+}
+
+glm::mat4* gns::Material::GetMat4Ptr(const std::string& name)
+{
+    return GetValuePtr<glm::mat4>(name);
+}
+
+const float* gns::Material::GetFloatPtr(const std::string& name) const
+{
+    return GetValuePtr<float>(name);
+}
+
+const int32_t* gns::Material::GetIntPtr(const std::string& name) const
+{
+    return GetValuePtr<int32_t>(name);
+}
+
+const uint32_t* gns::Material::GetUIntPtr(const std::string& name) const
+{
+    return GetValuePtr<uint32_t>(name);
+}
+
+const glm::vec2* gns::Material::GetVec2Ptr(const std::string& name) const
+{
+    return GetValuePtr<glm::vec2>(name);
+}
+
+const glm::vec3* gns::Material::GetVec3Ptr(const std::string& name) const
+{
+    return GetValuePtr<glm::vec3>(name);
+}
+
+const glm::vec4* gns::Material::GetVec4Ptr(const std::string& name) const
+{
+    return GetValuePtr<glm::vec4>(name);
+}
+
+const glm::vec3* gns::Material::GetColor3Ptr(const std::string& name) const
+{
+    return GetValuePtr<glm::vec3>(name);
+}
+
+const glm::vec4* gns::Material::GetColor4Ptr(const std::string& name) const
+{
+    return GetValuePtr<glm::vec4>(name);
+}
+
+const glm::mat4* gns::Material::GetMat4Ptr(const std::string& name) const
+{
+    return GetValuePtr<glm::mat4>(name);
+}
+
+const std::vector<gns::MaterialPropertyInfo>& gns::Material::GetProperties() const
+{
+    return m_layout.GetProperties();
+}
+
+gns::MaterialDataBlob gns::Material::GetDataBlob() const
+{
+    return { m_dataBlob.data(), m_dataBlob.size() };
 }
 
 const void* gns::Material::GetPropertyData(const MaterialPropertyInfo& property) const

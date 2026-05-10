@@ -54,11 +54,11 @@ namespace gns
 
     struct MaterialLayout
     {
-        bool AddProperty(
+        GNS_API bool AddProperty(
             const std::string& name,
             MaterialPropertyType type,
             uint32_t elementCount = 1);
-        bool AddPropertyAtOffset(
+        GNS_API bool AddPropertyAtOffset(
             const std::string& name,
             MaterialPropertyType type,
             size_t offset,
@@ -67,13 +67,13 @@ namespace gns
             size_t elementStride = 0,
             size_t alignment = 0);
 
-        void Clear();
-        void SetSize(size_t size);
+        GNS_API void Clear();
+        GNS_API void SetSize(size_t size);
         bool IsValid() const { return m_size > 0; }
-        bool IsCompatibleWith(const MaterialLayout& other) const;
+        GNS_API bool IsCompatibleWith(const MaterialLayout& other) const;
         size_t GetSize() const { return m_size; }
         const std::vector<MaterialPropertyInfo>& GetProperties() const { return m_properties; }
-        const MaterialPropertyInfo* FindProperty(const std::string& name) const;
+        GNS_API const MaterialPropertyInfo* FindProperty(const std::string& name) const;
 
     private:
         std::vector<MaterialPropertyInfo> m_properties;
@@ -138,72 +138,72 @@ namespace gns
         glm::vec4 albedo_color = glm::vec4(1.0f);
         Reference<gns::Texture> albedo_texture;
 
-        Material();
-        explicit Material(std::string name);
-        Material(Handle handle, std::string name);
+        GNS_API Material();
+        GNS_API explicit Material(std::string name);
+        GNS_API Material(Handle handle, std::string name);
 
-        void SetLayout(const MaterialLayout& layout, bool preserveValues = true);
-        const MaterialLayout& GetLayout() const { return m_layout; }
+        GNS_API void SetLayout(const MaterialLayout& layout, bool preserveValues = true);
+        GNS_API const MaterialLayout& GetLayout() const;
 
-        void SetFloat(const std::string& name, float value);
-        void SetInt(const std::string& name, int32_t value);
-        void SetUInt(const std::string& name, uint32_t value);
-        void SetVec2(const std::string& name, const glm::vec2& value);
-        void SetVec3(const std::string& name, const glm::vec3& value);
-        void SetVec4(const std::string& name, const glm::vec4& value);
-        void SetColor3(const std::string& name, const glm::vec3& value);
-        void SetColor4(const std::string& name, const glm::vec4& value);
-        void SetMat4(const std::string& name, const glm::mat4& value);
-        void SetFloatArray(const std::string& name, std::span<const float> values);
-        void SetIntArray(const std::string& name, std::span<const int32_t> values);
-        void SetUIntArray(const std::string& name, std::span<const uint32_t> values);
-        void SetBytes(
+        GNS_API void SetFloat(const std::string& name, float value);
+        GNS_API void SetInt(const std::string& name, int32_t value);
+        GNS_API void SetUInt(const std::string& name, uint32_t value);
+        GNS_API void SetVec2(const std::string& name, const glm::vec2& value);
+        GNS_API void SetVec3(const std::string& name, const glm::vec3& value);
+        GNS_API void SetVec4(const std::string& name, const glm::vec4& value);
+        GNS_API void SetColor3(const std::string& name, const glm::vec3& value);
+        GNS_API void SetColor4(const std::string& name, const glm::vec4& value);
+        GNS_API void SetMat4(const std::string& name, const glm::mat4& value);
+        GNS_API void SetFloatArray(const std::string& name, std::span<const float> values);
+        GNS_API void SetIntArray(const std::string& name, std::span<const int32_t> values);
+        GNS_API void SetUIntArray(const std::string& name, std::span<const uint32_t> values);
+        GNS_API void SetBytes(
             const std::string& name,
             MaterialPropertyType type,
             const void* data,
             size_t size,
             uint32_t elementCount = 1);
 
-        bool TryGetProperty(const std::string& name, MaterialPropertyInfo& outInfo) const;
-        bool TryGetFloat(const std::string& name, float& outValue) const;
-        bool TryGetInt(const std::string& name, int32_t& outValue) const;
-        bool TryGetUInt(const std::string& name, uint32_t& outValue) const;
-        bool TryGetVec2(const std::string& name, glm::vec2& outValue) const;
-        bool TryGetVec3(const std::string& name, glm::vec3& outValue) const;
-        bool TryGetVec4(const std::string& name, glm::vec4& outValue) const;
-        bool TryGetColor3(const std::string& name, glm::vec3& outValue) const;
-        bool TryGetColor4(const std::string& name, glm::vec4& outValue) const;
-        bool TryGetMat4(const std::string& name, glm::mat4& outValue) const;
+        GNS_API bool TryGetProperty(const std::string& name, MaterialPropertyInfo& outInfo) const;
+        GNS_API bool TryGetFloat(const std::string& name, float& outValue) const;
+        GNS_API bool TryGetInt(const std::string& name, int32_t& outValue) const;
+        GNS_API bool TryGetUInt(const std::string& name, uint32_t& outValue) const;
+        GNS_API bool TryGetVec2(const std::string& name, glm::vec2& outValue) const;
+        GNS_API bool TryGetVec3(const std::string& name, glm::vec3& outValue) const;
+        GNS_API bool TryGetVec4(const std::string& name, glm::vec4& outValue) const;
+        GNS_API bool TryGetColor3(const std::string& name, glm::vec3& outValue) const;
+        GNS_API bool TryGetColor4(const std::string& name, glm::vec4& outValue) const;
+        GNS_API bool TryGetMat4(const std::string& name, glm::mat4& outValue) const;
 
-        float GetFloat(const std::string& name, float fallback = 0.0f) const;
-        int32_t GetInt(const std::string& name, int32_t fallback = 0) const;
-        uint32_t GetUInt(const std::string& name, uint32_t fallback = 0) const;
-        glm::vec2 GetVec2(const std::string& name, const glm::vec2& fallback = glm::vec2(0.0f)) const;
-        glm::vec3 GetVec3(const std::string& name, const glm::vec3& fallback = glm::vec3(0.0f)) const;
-        glm::vec4 GetVec4(const std::string& name, const glm::vec4& fallback = glm::vec4(0.0f)) const;
-        glm::vec3 GetColor3(const std::string& name, const glm::vec3& fallback = glm::vec3(0.0f)) const;
-        glm::vec4 GetColor4(const std::string& name, const glm::vec4& fallback = glm::vec4(0.0f)) const;
-        glm::mat4 GetMat4(const std::string& name, const glm::mat4& fallback = glm::mat4(1.0f)) const;
+        GNS_API float GetFloat(const std::string& name, float fallback = 0.0f) const;
+        GNS_API int32_t GetInt(const std::string& name, int32_t fallback = 0) const;
+        GNS_API uint32_t GetUInt(const std::string& name, uint32_t fallback = 0) const;
+        GNS_API glm::vec2 GetVec2(const std::string& name, const glm::vec2& fallback = glm::vec2(0.0f)) const;
+        GNS_API glm::vec3 GetVec3(const std::string& name, const glm::vec3& fallback = glm::vec3(0.0f)) const;
+        GNS_API glm::vec4 GetVec4(const std::string& name, const glm::vec4& fallback = glm::vec4(0.0f)) const;
+        GNS_API glm::vec3 GetColor3(const std::string& name, const glm::vec3& fallback = glm::vec3(0.0f)) const;
+        GNS_API glm::vec4 GetColor4(const std::string& name, const glm::vec4& fallback = glm::vec4(0.0f)) const;
+        GNS_API glm::mat4 GetMat4(const std::string& name, const glm::mat4& fallback = glm::mat4(1.0f)) const;
 
-        float* GetFloatPtr(const std::string& name) { return GetValuePtr<float>(name); }
-        int32_t* GetIntPtr(const std::string& name) { return GetValuePtr<int32_t>(name); }
-        uint32_t* GetUIntPtr(const std::string& name) { return GetValuePtr<uint32_t>(name); }
-        glm::vec2* GetVec2Ptr(const std::string& name) { return GetValuePtr<glm::vec2>(name); }
-        glm::vec3* GetVec3Ptr(const std::string& name) { return GetValuePtr<glm::vec3>(name); }
-        glm::vec4* GetVec4Ptr(const std::string& name) { return GetValuePtr<glm::vec4>(name); }
-        glm::vec3* GetColor3Ptr(const std::string& name) { return GetValuePtr<glm::vec3>(name); }
-        glm::vec4* GetColor4Ptr(const std::string& name) { return GetValuePtr<glm::vec4>(name); }
-        glm::mat4* GetMat4Ptr(const std::string& name) { return GetValuePtr<glm::mat4>(name); }
+        GNS_API float* GetFloatPtr(const std::string& name);
+        GNS_API int32_t* GetIntPtr(const std::string& name);
+        GNS_API uint32_t* GetUIntPtr(const std::string& name);
+        GNS_API glm::vec2* GetVec2Ptr(const std::string& name);
+        GNS_API glm::vec3* GetVec3Ptr(const std::string& name);
+        GNS_API glm::vec4* GetVec4Ptr(const std::string& name);
+        GNS_API glm::vec3* GetColor3Ptr(const std::string& name);
+        GNS_API glm::vec4* GetColor4Ptr(const std::string& name);
+        GNS_API glm::mat4* GetMat4Ptr(const std::string& name);
 
-        const float* GetFloatPtr(const std::string& name) const { return GetValuePtr<float>(name); }
-        const int32_t* GetIntPtr(const std::string& name) const { return GetValuePtr<int32_t>(name); }
-        const uint32_t* GetUIntPtr(const std::string& name) const { return GetValuePtr<uint32_t>(name); }
-        const glm::vec2* GetVec2Ptr(const std::string& name) const { return GetValuePtr<glm::vec2>(name); }
-        const glm::vec3* GetVec3Ptr(const std::string& name) const { return GetValuePtr<glm::vec3>(name); }
-        const glm::vec4* GetVec4Ptr(const std::string& name) const { return GetValuePtr<glm::vec4>(name); }
-        const glm::vec3* GetColor3Ptr(const std::string& name) const { return GetValuePtr<glm::vec3>(name); }
-        const glm::vec4* GetColor4Ptr(const std::string& name) const { return GetValuePtr<glm::vec4>(name); }
-        const glm::mat4* GetMat4Ptr(const std::string& name) const { return GetValuePtr<glm::mat4>(name); }
+        GNS_API const float* GetFloatPtr(const std::string& name) const;
+        GNS_API const int32_t* GetIntPtr(const std::string& name) const;
+        GNS_API const uint32_t* GetUIntPtr(const std::string& name) const;
+        GNS_API const glm::vec2* GetVec2Ptr(const std::string& name) const;
+        GNS_API const glm::vec3* GetVec3Ptr(const std::string& name) const;
+        GNS_API const glm::vec4* GetVec4Ptr(const std::string& name) const;
+        GNS_API const glm::vec3* GetColor3Ptr(const std::string& name) const;
+        GNS_API const glm::vec4* GetColor4Ptr(const std::string& name) const;
+        GNS_API const glm::mat4* GetMat4Ptr(const std::string& name) const;
 
         template<typename T>
         T* GetValuePtr(const std::string& name)
@@ -239,11 +239,11 @@ namespace gns
             return static_cast<const T*>(GetPropertyData(property));
         }
 
-        const std::vector<MaterialPropertyInfo>& GetProperties() const { return m_layout.GetProperties(); }
-        MaterialDataBlob GetDataBlob() const { return { m_dataBlob.data(), m_dataBlob.size() }; }
-        const void* GetPropertyData(const MaterialPropertyInfo& property) const;
+        GNS_API const std::vector<MaterialPropertyInfo>& GetProperties() const;
+        GNS_API MaterialDataBlob GetDataBlob() const;
+        GNS_API const void* GetPropertyData(const MaterialPropertyInfo& property) const;
 
-        void ClearProperties();
+        GNS_API void ClearProperties();
 
     private:
         MaterialLayout m_layout;
@@ -253,6 +253,6 @@ namespace gns
             const std::string& name,
             MaterialPropertyType type,
             uint32_t elementCount);
-        void* GetMutablePropertyData(const MaterialPropertyInfo& property);
+        GNS_API void* GetMutablePropertyData(const MaterialPropertyInfo& property);
     };
 }
