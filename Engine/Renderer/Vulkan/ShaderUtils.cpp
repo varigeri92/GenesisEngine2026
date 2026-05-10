@@ -1,6 +1,8 @@
 #include "gnspch.h"
 #include "ShaderUtils.h"
 
+#include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -110,6 +112,106 @@ namespace gns::rendering
             return count;
         }
 
+        uint32_t BlockVariableArrayCount(const SpvReflectBlockVariable& variable)
+        {
+            if (variable.array.dims_count == 0)
+            {
+                return 1;
+            }
+
+            uint32_t count = 1;
+            for (uint32_t i = 0; i < variable.array.dims_count; ++i)
+            {
+                count *= variable.array.dims[i];
+            }
+            return count;
+        }
+
+        std::string ToLower(std::string value)
+        {
+            std::transform(
+                value.begin(),
+                value.end(),
+                value.begin(),
+                [](unsigned char c)
+                {
+                    return static_cast<char>(std::tolower(c));
+                });
+            return value;
+        }
+
+        gns::MaterialPropertyType MaterialPropertyTypeFromShaderType(
+            const ShaderBlockMemberInfo& member)
+        {
+            const std::string type = ToLower(member.type);
+            const bool isArray = member.elementCount > 1;
+
+            if (type == "float")
+            {
+                return isArray ? gns::MaterialPropertyType::FloatArray : gns::MaterialPropertyType::Float;
+            }
+            if (type == "int" || type == "int32_t")
+            {
+                return isArray ? gns::MaterialPropertyType::IntArray : gns::MaterialPropertyType::Int;
+            }
+            if (type == "uint" || type == "uint32_t")
+            {
+                return isArray ? gns::MaterialPropertyType::UIntArray : gns::MaterialPropertyType::UInt;
+            }
+            if (!isArray && (type == "vec2" || type == "fvec2"))
+            {
+                return gns::MaterialPropertyType::Vec2;
+            }
+            if (!isArray && (type == "vec3" || type == "fvec3"))
+            {
+                return gns::MaterialPropertyType::Vec3;
+            }
+            if (!isArray && (type == "vec4" || type == "fvec4"))
+            {
+                return gns::MaterialPropertyType::Vec4;
+            }
+            if (!isArray && (type == "mat4" || type == "mat4x4"))
+            {
+                return gns::MaterialPropertyType::Mat4;
+            }
+
+            return gns::MaterialPropertyType::Bytes;
+        }
+
+        void AddMaterialLayoutMembers(
+            const std::vector<ShaderBlockMemberInfo>& members,
+            const std::string& prefix,
+            uint32_t baseOffset,
+            gns::MaterialLayout& outLayout)
+        {
+            for (const ShaderBlockMemberInfo& member : members)
+            {
+                const std::string memberName = prefix.empty()
+                    ? member.name
+                    : prefix + "." + member.name;
+                const uint32_t memberOffset = baseOffset + member.offset;
+
+                if (!member.members.empty())
+                {
+                    AddMaterialLayoutMembers(member.members, memberName, memberOffset, outLayout);
+                    continue;
+                }
+
+                if (outLayout.FindProperty(memberName) != nullptr)
+                {
+                    continue;
+                }
+
+                outLayout.AddPropertyAtOffset(
+                    memberName,
+                    MaterialPropertyTypeFromShaderType(member),
+                    memberOffset,
+                    member.size,
+                    member.elementCount,
+                    member.elementStride);
+            }
+        }
+
         void AddBlockMembers(
             const SpvReflectBlockVariable& block,
             std::vector<ShaderBlockMemberInfo>& outMembers)
@@ -124,6 +226,8 @@ namespace gns::rendering
                 memberInfo.type = TypeName(member);
                 memberInfo.offset = member.offset;
                 memberInfo.size = member.size;
+                memberInfo.elementCount = BlockVariableArrayCount(member);
+                memberInfo.elementStride = member.array.stride;
 
                 AddBlockMembers(member, memberInfo.members);
                 outMembers.emplace_back(std::move(memberInfo));
@@ -147,7 +251,9 @@ namespace gns::rendering
                     << " stage=" << ShaderUtils::ToString(stage)
                     << " type=\"" << member.type << "\""
                     << " offset=" << member.offset
-                    << " size=" << member.size;
+                    << " size=" << member.size
+                    << " count=" << member.elementCount
+                    << " stride=" << member.elementStride;
                 LOG_INFO(message.str());
 
                 PrintBlockMembers(member.members, fieldName, stage);
@@ -440,6 +546,42 @@ namespace gns::rendering
         }
 
         return ranges;
+    }
+
+    gns::MaterialLayout ShaderUtils::BuildMaterialLayout(
+        const std::vector<ShaderReflectionData>& reflections,
+        uint32_t materialSet,
+        uint32_t materialBinding)
+    {
+        gns::MaterialLayout layout;
+        for (const ShaderReflectionData& reflection : reflections)
+        {
+            for (const ShaderResourceInfo& descriptor : reflection.descriptors)
+            {
+                if (descriptor.set != materialSet ||
+                    descriptor.binding != materialBinding ||
+                    (descriptor.kind != ShaderResourceKind::UniformBuffer &&
+                        descriptor.kind != ShaderResourceKind::StorageBuffer))
+                {
+                    continue;
+                }
+
+                if (descriptor.members.size() == 1 &&
+                    !descriptor.members.front().members.empty() &&
+                    descriptor.members.front().elementStride > 0)
+                {
+                    const ShaderBlockMemberInfo& arrayMember = descriptor.members.front();
+                    AddMaterialLayoutMembers(arrayMember.members, "", arrayMember.offset, layout);
+                    layout.SetSize(arrayMember.elementStride);
+                    continue;
+                }
+
+                AddMaterialLayoutMembers(descriptor.members, "", 0, layout);
+                layout.SetSize(descriptor.size);
+            }
+        }
+
+        return layout;
     }
 
     void ShaderUtils::PrintReflection(const ShaderReflectionData& reflection)

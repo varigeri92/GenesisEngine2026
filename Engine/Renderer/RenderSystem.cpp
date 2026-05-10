@@ -453,6 +453,13 @@ void gns::RenderSystem::BuildDrawData()
 			return;
 		}
 
+		const MaterialLayout& shaderMaterialLayout = vulkanShader->GetMaterialLayout();
+		if (shaderMaterialLayout.IsValid() &&
+			!material->GetLayout().IsCompatibleWith(shaderMaterialLayout))
+		{
+			material->SetLayout(shaderMaterialLayout, true);
+		}
+
 		Handle albedoTextureHandle = material->albedo_texture.m_handle;
 		if (!albedoTextureHandle.IsValid())
 		{

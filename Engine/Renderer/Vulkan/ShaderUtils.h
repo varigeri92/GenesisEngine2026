@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 
 #include "../../API/API.h"
+#include "../../Object/Material.h"
 
 namespace gns::rendering
 {
@@ -28,6 +29,8 @@ namespace gns::rendering
         std::string type;
         uint32_t offset = 0;
         uint32_t size = 0;
+        uint32_t elementCount = 1;
+        uint32_t elementStride = 0;
         std::vector<ShaderBlockMemberInfo> members;
     };
 
@@ -69,6 +72,10 @@ namespace gns::rendering
             std::vector<VkDescriptorSetLayout>& outLayouts);
         GNS_API static std::vector<VkPushConstantRange> BuildPushConstantRanges(
             const std::vector<ShaderReflectionData>& reflections);
+        GNS_API static gns::MaterialLayout BuildMaterialLayout(
+            const std::vector<ShaderReflectionData>& reflections,
+            uint32_t materialSet = 1,
+            uint32_t materialBinding = 0);
         GNS_API static void PrintReflection(const ShaderReflectionData& reflection);
 
         GNS_API static const char* ToString(ShaderResourceKind kind);

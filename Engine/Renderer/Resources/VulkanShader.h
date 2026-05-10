@@ -3,6 +3,7 @@
 #include <vulkan/vulkan_core.h>
 #include "VulkanResource.h"
 #include "../../Object/IObject.h"
+#include "../../Object/Material.h"
 
 
 namespace gns
@@ -22,6 +23,7 @@ namespace gns::rendering
         VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
         VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
         std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
+        gns::MaterialLayout m_materialLayout;
         VkPipeline GetPipeline() { return m_pipeline; }
         VkPipelineLayout GetPipelineLayout() { return m_pipelineLayout; }
         VkDescriptorSetLayout GetDescriptorSetLayout() { return m_descriptorSetLayout; }
@@ -31,6 +33,7 @@ namespace gns::rendering
                 ? m_descriptorSetLayouts[setIndex]
                 : VK_NULL_HANDLE;
         }
+        const gns::MaterialLayout& GetMaterialLayout() const { return m_materialLayout; }
         
         void Destroy() override;
     };

@@ -399,6 +399,7 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	{
 		vkShader.m_descriptorSetLayout = vkShader.m_descriptorSetLayouts[0];
 	}
+	vkShader.m_materialLayout = ShaderUtils::BuildMaterialLayout(shaderReflections);
 
 	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
 	pipeline_layout_info.pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data();
