@@ -364,7 +364,17 @@ void gns::RenderSystem::BuildDrawData()
 	const size_t previousDrawCount = m_drawData.size();
 	m_drawData.clear();
 	m_drawData.reserve(previousDrawCount);
-	EnsureDefaultMeshResources();
+	if (!EnsureDefaultMeshResources())
+	{
+		return;
+	}
+
+	Shader* defaultShader = Object::Get<Shader>(m_defaultMeshShader);
+	if (defaultShader == nullptr)
+	{
+		LOG_ERROR("[RenderSystem]: Cannot build draw data because default mesh shader is missing.");
+		return;
+	}
 
 	auto view = core::SystemsManager::GetRegistry().view<EntityComponent, SceneMemberComponent, Transform, MeshComponent>();
 	view.each([&](
@@ -379,18 +389,9 @@ void gns::RenderSystem::BuildDrawData()
 		}
 
 		if (!meshComp.mesh.m_handle.IsValid() ||
-			!meshComp.material.m_handle.IsValid() ||
-			!meshComp.shader.m_handle.IsValid())
+			!meshComp.material.m_handle.IsValid())
 		{
 			return;
-		}
-
-		if (!m_resourceCache.shaders.contains(meshComp.shader.m_handle))
-		{
-			if (Shader* shader = Object::Get<Shader>(meshComp.shader.m_handle))
-			{
-				ApplyShader(*shader);
-			}
 		}
 
 		if (!m_resourceCache.meshes.contains(meshComp.mesh.m_handle))
@@ -401,21 +402,44 @@ void gns::RenderSystem::BuildDrawData()
 			}
 		}
 
+		Material* material = Object::Get<Material>(meshComp.material.m_handle);
+		if (material == nullptr)
+		{
+			material = assets::AssetManager::EnsureMaterialLoaded(meshComp.material.m_handle);
+		}
+
+		if (material == nullptr)
+		{
+			return;
+		}
+
+		Shader* shader = nullptr;
+		if (material->shader_ref.m_handle.IsValid())
+		{
+			shader = Object::Get<Shader>(material->shader_ref.m_handle);
+		}
+
+		if (shader == nullptr)
+		{
+			material->shader_ref = defaultShader->Ref<Shader>();
+			shader = defaultShader;
+		}
+
+		const Handle shaderHandle = shader->GetHandle();
+		if (!m_resourceCache.shaders.contains(shaderHandle))
+		{
+			ApplyShader(*shader);
+		}
+
 		if (!m_resourceCache.materials.contains(meshComp.material.m_handle))
 		{
-			Material* material = Object::Get<Material>(meshComp.material.m_handle);
-			if (material == nullptr)
+			if (!ApplyMaterial(*material).IsValid())
 			{
-				material = assets::AssetManager::EnsureMaterialLoaded(meshComp.material.m_handle);
-			}
-
-			if (material != nullptr)
-			{
-				ApplyMaterial(*material);
+				return;
 			}
 		}
 
-		const Handle renderShaderHandle = GetRenderShaderHandle(meshComp.shader.m_handle);
+		const Handle renderShaderHandle = GetRenderShaderHandle(shaderHandle);
 		const Handle renderMeshHandle = GetRenderMeshHandle(meshComp.mesh.m_handle);
 		if (!renderShaderHandle.IsValid() || !renderMeshHandle.IsValid())
 		{
@@ -425,12 +449,6 @@ void gns::RenderSystem::BuildDrawData()
 		rendering::VulkanShader* vulkanShader = m_renderer.GetVulkanShader(renderShaderHandle);
 		VulkanMesh* vulkanMesh = m_renderer.GetVulkanMesh(renderMeshHandle);
 		if (vulkanShader == nullptr || vulkanMesh == nullptr)
-		{
-			return;
-		}
-
-		Material* material = Object::Get<Material>(meshComp.material.m_handle);
-		if (material == nullptr)
 		{
 			return;
 		}

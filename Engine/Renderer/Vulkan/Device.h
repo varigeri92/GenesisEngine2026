@@ -2,6 +2,7 @@
 #include <functional>
 #include <vulkan/vulkan.h>
 #include <vma/vk_mem_alloc.h>
+#include <unordered_map>
 #include <vector>
 #include "Swapchain.h"
 #include <SDL2/SDL.h>
@@ -44,7 +45,8 @@ namespace gns::rendering
 			  _renderFence(other._renderFence),
 			  _swapchain(other._swapchain),
 			  _swapchainImageIndex(other._swapchainImageIndex),
-			  _sceneDataDescriptors(other._sceneDataDescriptors)
+			  _sceneDataDescriptors(other._sceneDataDescriptors),
+			  _sceneDataBufferUpdated(other._sceneDataBufferUpdated)
 		{}
 
 		FrameData& operator=(const FrameData& other)
@@ -59,6 +61,7 @@ namespace gns::rendering
 				_swapchain = other._swapchain;
 				_swapchainImageIndex = other._swapchainImageIndex;
 				_sceneDataDescriptors = other._sceneDataDescriptors;
+				_sceneDataBufferUpdated = other._sceneDataBufferUpdated;
 			}
 			return *this;
 		}
@@ -76,7 +79,8 @@ namespace gns::rendering
 		uint32_t _swapchainImageIndex;
 		DescriptorAllocatorGrowable _frameDescriptors;
 		VulkanBuffer _gpuSceneDataBuffer;
-		VkDescriptorSet _sceneDataDescriptors = VK_NULL_HANDLE;
+		std::unordered_map<VkDescriptorSetLayout, VkDescriptorSet> _sceneDataDescriptors;
+		bool _sceneDataBufferUpdated = false;
 	};
 	class Device
 	{
@@ -137,7 +141,10 @@ namespace gns::rendering
 		void TransitionDrawImage(VkCommandBuffer cmd, VkImageLayout newLayout);
 		void TransitionDepthImage(VkCommandBuffer cmd, VkImageLayout newLayout);
 		void* GetMappedDataFromAllocation(VmaAllocation allocation);
-		void DrawMesh(VkCommandBuffer cmd, DrawData drawData);
+		void DrawMesh(
+			VkCommandBuffer cmd,
+			DrawData drawData,
+			const GpuDataDescriptor* sceneDataDescriptor);
 		
 		void DestroyShader(VulkanShader& vk_shader) const;
 		void DestroyMesh(VulkanMesh& vk_mesh) const;
@@ -145,7 +152,7 @@ namespace gns::rendering
 		void CreateTextureDescriptor(VulkanTexture& texture);
 		bool m_resizeRequest = false;
 		void ResizeSwapchain();
-		void UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
+		VkDescriptorSet UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
 	private:
 		gns::VulkanResourceRegistry m_resourceRegistry;
 		CleanupQueue m_cleanupQueue;

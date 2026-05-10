@@ -24,8 +24,8 @@ namespace gns::rendering {
 		std::vector<DrawData> m_drawData;
 		CameraBackend m_cameraBackend;
 		Screen m_screen;
+		const GpuDataDescriptor* m_frameSceneDataDescriptor = nullptr;
 		bool m_copySceneToSwapchain = false;
-		VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
 		VkDescriptorSetLayout _singleImageDescriptorLayout;
 	public:
 

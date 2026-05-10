@@ -90,7 +90,6 @@ bool gns::SceneAssetImporter::LoadMeshAssetIntoScene(
 
         MeshComponent& meshComp = entity.AddComponent<MeshComponent>();
         meshComp.mesh = mesh->Ref<Mesh>();
-        meshComp.shader = shaderRef;
         meshComp.material = meshMaterial;
         LOG_INFO(name);
         createdAny = true;

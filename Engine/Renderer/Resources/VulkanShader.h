@@ -25,6 +25,12 @@ namespace gns::rendering
         VkPipeline GetPipeline() { return m_pipeline; }
         VkPipelineLayout GetPipelineLayout() { return m_pipelineLayout; }
         VkDescriptorSetLayout GetDescriptorSetLayout() { return m_descriptorSetLayout; }
+        VkDescriptorSetLayout GetDescriptorSetLayout(uint32_t setIndex) const
+        {
+            return setIndex < m_descriptorSetLayouts.size()
+                ? m_descriptorSetLayouts[setIndex]
+                : VK_NULL_HANDLE;
+        }
         
         void Destroy() override;
     };

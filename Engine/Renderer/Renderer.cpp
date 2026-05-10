@@ -87,7 +87,7 @@ void gns::rendering::Renderer::AddGeometryPass()
 		m_device.DrawGeometry(cmd);
 		for (auto& drawData : m_drawData)
 		{
-			m_device.DrawMesh(cmd, drawData);
+			m_device.DrawMesh(cmd, drawData, m_frameSceneDataDescriptor);
 		}
 		m_device.EndRendering(cmd);
 		return true;
@@ -205,19 +205,9 @@ void gns::rendering::Renderer::DrawFrame(
     if (m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData))
 	{
 		m_drawData = drawData;
-		if (sceneDataDescriptor != nullptr && !m_drawData.empty())
-		{
-			if (_gpuSceneDataDescriptorLayout == VK_NULL_HANDLE)
-			{
-				LOG_WARNING("[Renderer]: Cannot update scene data descriptor because layout is null.");
-				m_drawData.clear();
-			}
-			else
-			{
-				m_device.UpdateDescriptorSet(*sceneDataDescriptor, _gpuSceneDataDescriptorLayout);
-			}
-		}
+		m_frameSceneDataDescriptor = m_drawData.empty() ? nullptr : sceneDataDescriptor;
 		m_renderGraph.Execute(cmd, frameData);
+		m_frameSceneDataDescriptor = nullptr;
 		//depth prepass
 		//Shadows prepass
 		//culling pass
@@ -408,7 +398,6 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	if (!vkShader.m_descriptorSetLayouts.empty())
 	{
 		vkShader.m_descriptorSetLayout = vkShader.m_descriptorSetLayouts[0];
-		_gpuSceneDataDescriptorLayout = vkShader.m_descriptorSetLayout;
 	}
 
 	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();

@@ -264,22 +264,43 @@ void gns::rendering::Device::ResizeSwapchain()
 	}
 }
 
-void gns::rendering::Device::UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout)
+VkDescriptorSet gns::rendering::Device::UpdateDescriptorSet(
+	GpuDataDescriptor dataDescriptor,
+	VkDescriptorSetLayout setlayout)
 {
 	if (setlayout == VK_NULL_HANDLE)
 	{
 		LOG_WARNING("[Device]: Cannot update descriptor set because layout is null.");
-		return;
+		return VK_NULL_HANDLE;
 	}
 
 	FrameData& frame = GetCurrentFrame();
-	void* mappedBufferData = frame._gpuSceneDataBuffer.allocation->GetMappedData();
-	memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);
+	if (const auto descriptor = frame._sceneDataDescriptors.find(setlayout);
+		descriptor != frame._sceneDataDescriptors.end())
+	{
+		return descriptor->second;
+	}
+
+	if (frame._gpuSceneDataBuffer.allocation == VK_NULL_HANDLE ||
+		frame._gpuSceneDataBuffer.buffer == VK_NULL_HANDLE)
+	{
+		LOG_WARNING("[Device]: Cannot update scene descriptor because scene buffer is missing.");
+		return VK_NULL_HANDLE;
+	}
+
+	if (!frame._sceneDataBufferUpdated)
+	{
+		void* mappedBufferData = frame._gpuSceneDataBuffer.allocation->GetMappedData();
+		memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);
+		frame._sceneDataBufferUpdated = true;
+	}
 	
-	frame._sceneDataDescriptors = frame._frameDescriptors.Allocate(m_device, setlayout);
+	VkDescriptorSet sceneDataDescriptor = frame._frameDescriptors.Allocate(m_device, setlayout);
 	DescriptorWriter writer;
 	writer.WriteBuffer(0, frame._gpuSceneDataBuffer.buffer, dataDescriptor.size, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	writer.UpdateSet(m_device, frame._sceneDataDescriptors);
+	writer.UpdateSet(m_device, sceneDataDescriptor);
+	frame._sceneDataDescriptors[setlayout] = sceneDataDescriptor;
+	return sceneDataDescriptor;
 }
 
 void gns::rendering::Device::InitCommands()
@@ -526,7 +547,8 @@ bool gns::rendering::Device::BeginFrame(
 	VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame()._renderFence));
 	GetCurrentFrame()._frameDescriptors.ClearPools(m_device);
 	GetCurrentFrame()._gpuSceneDataBuffer.reset();
-	GetCurrentFrame()._sceneDataDescriptors = VK_NULL_HANDLE;
+	GetCurrentFrame()._sceneDataDescriptors.clear();
+	GetCurrentFrame()._sceneDataBufferUpdated = false;
 	GetCurrentFrame()._cleanupQueue.Flush();
 	
 	VkResult e = vkAcquireNextImageKHR(m_device, m_swapchain.GetSwapchain(), 
@@ -606,7 +628,8 @@ void gns::rendering::Device::Cleanup()
 	{
 		m_frames[i]._frameDescriptors.ClearPools(m_device);
 		m_frames[i]._gpuSceneDataBuffer.reset();
-		m_frames[i]._sceneDataDescriptors = VK_NULL_HANDLE;
+		m_frames[i]._sceneDataDescriptors.clear();
+		m_frames[i]._sceneDataBufferUpdated = false;
 		
 		vkDestroyFence(m_device, m_frames[i]._renderFence, nullptr);
 		vkDestroySemaphore(m_device, m_frames[i]._swapchainSemaphore, nullptr);
@@ -798,14 +821,34 @@ void gns::rendering::Device::CreateBackgroundPipeline()
 		});
 }
 
-void gns::rendering::Device::DrawMesh(VkCommandBuffer cmd, DrawData draw_data)
+void gns::rendering::Device::DrawMesh(
+	VkCommandBuffer cmd,
+	DrawData draw_data,
+	const GpuDataDescriptor* sceneDataDescriptor)
 {
 	VkPipeline pipeline = draw_data.vkShader->GetPipeline();
 	VkPipelineLayout layout = draw_data.vkShader->GetPipelineLayout();
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-	vkCmdBindDescriptorSets(cmd, 
-		VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &GetCurrentFrame()._sceneDataDescriptors, 0, nullptr);
+	if (sceneDataDescriptor != nullptr)
+	{
+		const VkDescriptorSetLayout sceneDataLayout = draw_data.vkShader->GetDescriptorSetLayout(0);
+		const VkDescriptorSet sceneDataSet = UpdateDescriptorSet(*sceneDataDescriptor, sceneDataLayout);
+		if (sceneDataSet == VK_NULL_HANDLE)
+		{
+			return;
+		}
+
+		vkCmdBindDescriptorSets(
+			cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			layout,
+			0,
+			1,
+			&sceneDataSet,
+			0,
+			nullptr);
+	}
 
 	if (draw_data.albedoTextureDescriptor != 0)
 	{

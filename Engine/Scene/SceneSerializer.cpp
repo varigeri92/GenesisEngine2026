@@ -446,6 +446,14 @@ namespace
         return field != component.fields.end() ? &(*field) : nullptr;
     }
 
+    bool IsIgnoredLegacyField(
+        const std::string& componentName,
+        const std::string& fieldName)
+    {
+        return componentName == gns::reflection::TypeName<MeshComponent>() &&
+            fieldName == "shader";
+    }
+
     void RestoreRuntimeSceneComponents(
         entt::registry& registry,
         gns::Scene& scene,
@@ -527,6 +535,11 @@ namespace
             const gns::reflection::FieldMeta* field = FindField(*component, fieldName);
             if (field == nullptr)
             {
+                if (IsIgnoredLegacyField(componentName, fieldName))
+                {
+                    continue;
+                }
+
                 LOG_WARNING("[SceneSerializer]: Unknown field in scene file.");
                 LOG_WARNING(componentName + "." + fieldName);
                 continue;

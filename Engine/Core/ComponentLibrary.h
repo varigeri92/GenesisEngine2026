@@ -12,7 +12,6 @@ namespace gns
 {
     struct Material;
     struct Mesh;
-    struct Shader;
 }
 
 struct EntityComponent
@@ -60,7 +59,6 @@ struct MeshComponent
 {
     gns::Reference<gns::Mesh> mesh;
     gns::Reference<gns::Material> material;
-    gns::Reference<gns::Shader> shader;
 };
 
 struct AmbientLightComponent

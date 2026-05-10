@@ -47,7 +47,6 @@ namespace gns::reflection
     {
         GNS_REGISTER_FIELD(MeshComponent, mesh);
         GNS_REGISTER_FIELD_FLAGS(MeshComponent, material, GNS_EDITOR_READONLY);
-        GNS_REGISTER_FIELD_FLAGS(MeshComponent, shader, GNS_HIDDEN);
     }
 
     template<>
