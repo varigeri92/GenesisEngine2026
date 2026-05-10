@@ -7,7 +7,6 @@
 #include "../Core/ComponentLibrary.h"
 #include "../Scene/SceneManager.h"
 #include "SystemsManager.h"
-#include "entt/entt.hpp"
 
 namespace
 {
@@ -35,7 +34,6 @@ void TransformSystem::OnEnable()
 
 void TransformSystem::OnUpdate(float deltaTime)
 {
-    auto& registry = gns::core::SystemsManager::GetRegistry();
     const auto& scenes = gns::SceneManager::GetLoadedScenes();
 
     m_traversalStack.clear();
@@ -61,25 +59,20 @@ void TransformSystem::OnUpdate(float deltaTime)
             const TransformTraversalNode node = m_traversalStack.back();
             m_traversalStack.pop_back();
 
-            if (!registry.valid(node.entity))
+            gns::Entity entity(node.entity);
+            if (!entity.IsValid())
             {
                 continue;
             }
 
             glm::mat4 worldMatrix = node.parentMatrix;
-            if (Transform* transform = registry.try_get<Transform>(node.entity))
+            if (Transform* transform = entity.TryGetComponent<Transform>())
             {
                 worldMatrix = node.parentMatrix * BuildLocalTransformMatrix(*transform);
                 transform->matrix = worldMatrix;
             }
 
-            const auto* hierarchy = registry.try_get<HierarchyComponent>(node.entity);
-            if (hierarchy == nullptr)
-            {
-                continue;
-            }
-
-            for (gns::entityHandle child : hierarchy->children)
+            for (gns::entityHandle child : entity.Children())
             {
                 m_traversalStack.push_back({
                     .entity = child,

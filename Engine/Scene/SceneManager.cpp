@@ -9,25 +9,6 @@ gns::Scene* gns::SceneManager::ActiveScene = nullptr;
 
 namespace
 {
-    void DestroyEntityTree(entt::registry& registry, gns::entityHandle entity)
-    {
-        if (!registry.valid(entity))
-        {
-            return;
-        }
-
-        if (const auto* hierarchy = registry.try_get<HierarchyComponent>(entity))
-        {
-            const std::vector<gns::entityHandle> children = hierarchy->children;
-            for (gns::entityHandle child : children)
-            {
-                DestroyEntityTree(registry, child);
-            }
-        }
-
-        registry.destroy(entity);
-    }
-
     void CreateDefaultSceneEntities(gns::Scene& scene)
     {
         gns::Entity ambient = gns::Entity::CreateEntity("Ambient Light", scene.handle, scene.root.entity_handle);
@@ -88,21 +69,7 @@ gns::Scene& gns::SceneManager::CreateScene(const std::string& name, bool createD
     scene->handle = Handle::New();
     scene->name = name;
 
-    auto& registry = core::SystemsManager::GetRegistry();
-    const entt::entity rootEntity = registry.create();
-    scene->root = Entity(rootEntity);
-
-    auto& entityComponent = registry.emplace<EntityComponent>(rootEntity);
-    entityComponent.entity_handle = rootEntity;
-    entityComponent.name = name;
-
-    auto& rootComponent = registry.emplace<SceneRootComponent>(rootEntity);
-    rootComponent.scene_handle = scene->handle;
-
-    auto& memberComponent = registry.emplace<SceneMemberComponent>(rootEntity);
-    memberComponent.scene_handle = scene->handle;
-
-    registry.emplace<HierarchyComponent>(rootEntity);
+    scene->root = Entity::CreateSceneRoot(name, scene->handle);
 
     Scene& createdScene = *scene;
     ScenesList.emplace_back(std::move(scene));
@@ -130,8 +97,7 @@ bool gns::SceneManager::DestroyScene(Handle sceneHandle)
             continue;
         }
 
-        auto& registry = core::SystemsManager::GetRegistry();
-        DestroyEntityTree(registry, scene->root.entity_handle);
+        Entity::DestroyTree(scene->root.entity_handle, true);
 
         if (ActiveScene == scene)
         {
@@ -169,12 +135,11 @@ bool gns::SceneManager::IsSceneLoaded(Handle sceneHandle)
 
 void gns::SceneManager::Clear()
 {
-    auto& registry = core::SystemsManager::GetRegistry();
     for (const auto& scene : ScenesList)
     {
         if (scene != nullptr)
         {
-            DestroyEntityTree(registry, scene->root.entity_handle);
+            Entity::DestroyTree(scene->root.entity_handle, true);
         }
     }
 

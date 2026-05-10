@@ -19,7 +19,7 @@ struct EntityComponent
     gns::entityHandle entity_handle;
     std::string name;
 
-    EntityComponent() : entity_handle(entt::null), name() {}
+    EntityComponent() : entity_handle(gns::NullEntity), name() {}
 };
 
 struct SceneRootComponent
@@ -37,7 +37,7 @@ struct HierarchyComponent
     gns::entityHandle parent;
     std::vector<gns::entityHandle> children;
 
-    HierarchyComponent() : parent(entt::null), children() {}
+    HierarchyComponent() : parent(gns::NullEntity), children() {}
 };
 
 struct Transform

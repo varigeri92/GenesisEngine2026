@@ -65,6 +65,11 @@ void gns::core::SystemsManager::Clear()
 	Systems.clear();
 }
 
+bool gns::core::SystemsManager::IsEntityValid(gns::entityHandle entity)
+{
+	return entity != gns::NullEntity && Registry.valid(entity);
+}
+
 entt::registry& gns::core::SystemsManager::GetRegistry()
 {
 	return SystemsManager::Registry;

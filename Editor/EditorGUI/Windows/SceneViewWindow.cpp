@@ -92,13 +92,13 @@ void SceneViewWindow::DrawTransformGizmo(const ImVec2& scenePosition, const ImVe
 	}
 
 	const gns::entityHandle selectedEntity = EditorSelection::GetSelectedEntity();
-	auto& registry = gns::core::SystemsManager::GetRegistry();
-	if (selectedEntity == entt::null || !registry.valid(selectedEntity))
+	gns::Entity entity(selectedEntity);
+	if (!entity.IsValid())
 	{
 		return;
 	}
 
-	Transform* transform = registry.try_get<Transform>(selectedEntity);
+	Transform* transform = entity.TryGetComponent<Transform>();
 	if (transform == nullptr)
 	{
 		return;

@@ -6,6 +6,8 @@
 
 namespace
 {
+    const std::string EmptyEntityName = {};
+
     void RemoveChild(HierarchyComponent& hierarchy, gns::entityHandle child)
     {
         hierarchy.children.erase(
@@ -14,43 +16,80 @@ namespace
     }
 }
 
+gns::entityHandle gns::Entity::GetHandle() const
+{
+    return entity_handle;
+}
+
+uint32_t gns::Entity::GetDebugId() const
+{
+    return static_cast<uint32_t>(entt::to_integral(entity_handle));
+}
+
 bool gns::Entity::IsValid() const
 {
-    return entity_handle != entt::null && core::SystemsManager::GetRegistry().valid(entity_handle);
+    return entity_handle != NullEntity && core::SystemsManager::GetRegistry().valid(entity_handle);
 }
 
 void gns::Entity::Delete()
 {
-    auto& registry = core::SystemsManager::GetRegistry();
     if (!IsValid())
     {
         return;
     }
 
-    if (registry.any_of<SceneRootComponent>(entity_handle))
+    if (IsSceneRoot())
     {
         LOG_WARNING("[Entity]: Scene root entities cannot be deleted through Entity::Delete.");
         return;
     }
 
-    if (auto* hierarchy = registry.try_get<HierarchyComponent>(entity_handle))
+    DestroyTree(entity_handle, false);
+}
+
+void gns::Entity::DestroyTree(entityHandle entity, bool allowSceneRoot)
+{
+    auto& registry = core::SystemsManager::GetRegistry();
+    Entity wrappedEntity(entity);
+    if (!wrappedEntity.IsValid())
+    {
+        return;
+    }
+
+    if (!allowSceneRoot && wrappedEntity.IsSceneRoot())
+    {
+        LOG_WARNING("[Entity]: Scene root entities cannot be deleted through Entity::DestroyTree without allowSceneRoot.");
+        return;
+    }
+
+    if (auto* hierarchy = registry.try_get<HierarchyComponent>(entity))
     {
         const std::vector<gns::entityHandle> children = hierarchy->children;
         for (gns::entityHandle child : children)
         {
-            Entity(child).Delete();
+            DestroyTree(child, allowSceneRoot);
         }
 
-        if (hierarchy->parent != entt::null && registry.valid(hierarchy->parent))
+        if (hierarchy->parent != NullEntity && registry.valid(hierarchy->parent))
         {
             if (auto* parentHierarchy = registry.try_get<HierarchyComponent>(hierarchy->parent))
             {
-                RemoveChild(*parentHierarchy, entity_handle);
+                RemoveChild(*parentHierarchy, entity);
             }
         }
     }
 
-    registry.destroy(entity_handle);
+    registry.destroy(entity);
+}
+
+gns::entityHandle gns::Entity::InvalidHandle()
+{
+    return NullEntity;
+}
+
+bool gns::Entity::IsValidHandle(entityHandle entity)
+{
+    return Entity(entity).IsValid();
 }
 
 gns::Entity gns::Entity::CreateEntity(const std::string& entityName)
@@ -72,7 +111,7 @@ gns::Entity gns::Entity::CreateEntity(
         sceneHandle = scene->handle;
     }
 
-    if (parent == entt::null)
+    if (parent == NullEntity)
     {
         parent = scene->root.entity_handle;
     }
@@ -91,7 +130,7 @@ gns::Entity gns::Entity::CreateEntity(
         parent = scene->root.entity_handle;
     }
 
-    entt::entity entity = registry.create();
+    entityHandle entity = registry.create();
     
     auto& entityComponent = registry.emplace<EntityComponent>(entity);
     entityComponent.entity_handle = entity;
@@ -107,6 +146,68 @@ gns::Entity gns::Entity::CreateEntity(
     Entity wrappedEntity(entity);
     wrappedEntity.SetParent(parent);
     return wrappedEntity;
+}
+
+gns::Entity gns::Entity::CreateSceneRoot(const std::string& entityName, Handle sceneHandle)
+{
+    auto& registry = core::SystemsManager::GetRegistry();
+    const entityHandle entity = registry.create();
+
+    auto& entityComponent = registry.emplace<EntityComponent>(entity);
+    entityComponent.entity_handle = entity;
+    entityComponent.name = entityName;
+
+    auto& rootComponent = registry.emplace<SceneRootComponent>(entity);
+    rootComponent.scene_handle = sceneHandle;
+
+    auto& memberComponent = registry.emplace<SceneMemberComponent>(entity);
+    memberComponent.scene_handle = sceneHandle;
+
+    registry.emplace<HierarchyComponent>(entity);
+    return Entity(entity);
+}
+
+const std::string& gns::Entity::Name() const
+{
+    if (!IsValid())
+    {
+        return EmptyEntityName;
+    }
+
+    const auto& registry = core::SystemsManager::GetRegistry();
+    const auto* entityComponent = registry.try_get<EntityComponent>(entity_handle);
+    return entityComponent != nullptr ? entityComponent->name : EmptyEntityName;
+}
+
+void gns::Entity::SetName(const std::string& newName)
+{
+    if (!IsValid())
+    {
+        return;
+    }
+
+    auto& registry = core::SystemsManager::GetRegistry();
+    if (auto* entityComponent = registry.try_get<EntityComponent>(entity_handle))
+    {
+        entityComponent->name = newName;
+    }
+}
+
+gns::Handle gns::Entity::SceneHandle() const
+{
+    if (!IsValid())
+    {
+        return {};
+    }
+
+    const auto& registry = core::SystemsManager::GetRegistry();
+    const auto* sceneMember = registry.try_get<SceneMemberComponent>(entity_handle);
+    return sceneMember != nullptr ? sceneMember->scene_handle : Handle();
+}
+
+bool gns::Entity::IsSceneRoot() const
+{
+    return HasComponent<SceneRootComponent>();
 }
 
 gns::Entity gns::Entity::Parent() const
@@ -159,7 +260,7 @@ void gns::Entity::SetParent(entityHandle parent)
         return;
     }
 
-    if (parent == entity_handle || parent == entt::null || !registry.valid(parent))
+    if (parent == entity_handle || parent == NullEntity || !registry.valid(parent))
     {
         return;
     }
@@ -180,7 +281,7 @@ void gns::Entity::SetParent(entityHandle parent)
         return;
     }
 
-    if (hierarchy->parent != entt::null && registry.valid(hierarchy->parent))
+    if (hierarchy->parent != NullEntity && registry.valid(hierarchy->parent))
     {
         if (auto* previousParentHierarchy = registry.try_get<HierarchyComponent>(hierarchy->parent))
         {

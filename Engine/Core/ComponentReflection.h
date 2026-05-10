@@ -7,9 +7,9 @@
 #include <utility>
 #include <vector>
 
-#include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
+#include "Entity.h"
 #include "Handles.h"
 
 namespace gns::reflection
@@ -46,9 +46,9 @@ namespace gns::reflection
         return (static_cast<uint32_t>(flags) & static_cast<uint32_t>(flag)) != 0;
     }
 
-    using ComponentHasFn = bool (*)(entt::registry& registry, entt::entity entity);
-    using ComponentGetFn = void* (*)(entt::registry& registry, entt::entity entity);
-    using ComponentEnsureFn = void* (*)(entt::registry& registry, entt::entity entity);
+    using ComponentHasFn = bool (*)(Entity entity);
+    using ComponentGetFn = void* (*)(Entity entity);
+    using ComponentEnsureFn = void* (*)(Entity entity);
 
     struct FieldMeta
     {
@@ -137,7 +137,7 @@ namespace gns::reflection
     template<> struct FieldKindResolver<glm::vec3> { static constexpr bool Supported = true; static constexpr FieldKind Kind = FieldKind::Vec3; };
     template<> struct FieldKindResolver<glm::vec4> { static constexpr bool Supported = true; static constexpr FieldKind Kind = FieldKind::Vec4; };
     template<> struct FieldKindResolver<gns::Handle> { static constexpr bool Supported = true; static constexpr FieldKind Kind = FieldKind::Handle; };
-    template<> struct FieldKindResolver<entt::entity> { static constexpr bool Supported = true; static constexpr FieldKind Kind = FieldKind::EntityHandle; };
+    template<> struct FieldKindResolver<gns::entityHandle> { static constexpr bool Supported = true; static constexpr FieldKind Kind = FieldKind::EntityHandle; };
 
     template<typename T>
     struct IsReference : std::false_type {};
@@ -236,36 +236,26 @@ namespace gns::reflection
 
     private:
         template<typename Component>
-        static bool HasComponent(entt::registry& registry, entt::entity entity)
+        static bool HasComponent(Entity entity)
         {
-            return registry.valid(entity) && registry.any_of<Component>(entity);
+            return entity.HasComponent<Component>();
         }
 
         template<typename Component>
-        static void* GetComponent(entt::registry& registry, entt::entity entity)
+        static void* GetComponent(Entity entity)
         {
-            if (!registry.valid(entity))
+            return entity.TryGetComponent<Component>();
+        }
+
+        template<typename Component>
+        static void* EnsureComponent(Entity entity)
+        {
+            if (!entity.IsValid())
             {
                 return nullptr;
             }
 
-            return registry.try_get<Component>(entity);
-        }
-
-        template<typename Component>
-        static void* EnsureComponent(entt::registry& registry, entt::entity entity)
-        {
-            if (!registry.valid(entity))
-            {
-                return nullptr;
-            }
-
-            if (Component* component = registry.try_get<Component>(entity))
-            {
-                return component;
-            }
-
-            return &registry.emplace<Component>(entity);
+            return &entity.EnsureComponent<Component>();
         }
 
         GNS_API static ComponentMeta& RegisterComponentInternal(

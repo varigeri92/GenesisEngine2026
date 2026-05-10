@@ -7,7 +7,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include <entt/entt.hpp>
 #include <glm/glm.hpp>
 #include <yaml-cpp/yaml.h>
 
@@ -28,7 +27,7 @@ namespace
 
     struct SerializedEntity
     {
-        gns::entityHandle entity = entt::null;
+        gns::entityHandle entity = gns::NullEntity;
         int64_t parentIndex = NoParentIndex;
     };
 
@@ -47,15 +46,15 @@ namespace
         emitter << YAML::Flow << YAML::BeginSeq << value.x << value.y << value.z << value.w << YAML::EndSeq;
     }
 
-    std::string GetEntityName(entt::registry& registry, gns::entityHandle entity)
+    std::string GetEntityName(gns::Entity entity)
     {
-        const auto* entityComponent = registry.try_get<EntityComponent>(entity);
-        if (entityComponent == nullptr)
+        const std::string& name = entity.Name();
+        if (name.empty())
         {
             return "Entity";
         }
 
-        return entityComponent->name;
+        return name;
     }
 
     bool ShouldEmitField(
@@ -168,8 +167,7 @@ namespace
 
     void EmitEntityComponents(
         YAML::Emitter& emitter,
-        entt::registry& registry,
-        gns::entityHandle entity)
+        gns::Entity entity)
     {
         emitter << YAML::BeginMap;
 
@@ -178,12 +176,12 @@ namespace
         {
             if (component.has_component == nullptr ||
                 component.get_component == nullptr ||
-                !component.has_component(registry, entity))
+                !component.has_component(entity))
             {
                 continue;
             }
 
-            void* componentValue = component.get_component(registry, entity);
+            void* componentValue = component.get_component(entity);
             if (componentValue == nullptr)
             {
                 continue;
@@ -198,23 +196,22 @@ namespace
 
     void EmitEntity(
         YAML::Emitter& emitter,
-        entt::registry& registry,
         const SerializedEntity& serializedEntity)
     {
-        const gns::entityHandle entity = serializedEntity.entity;
+        const gns::Entity entity(serializedEntity.entity);
 
         emitter << YAML::BeginMap;
-        emitter << YAML::Key << "name" << YAML::Value << GetEntityName(registry, entity);
+        emitter << YAML::Key << "name" << YAML::Value << GetEntityName(entity);
         emitter << YAML::Key << "parent" << YAML::Value << serializedEntity.parentIndex;
         emitter << YAML::Key << "components" << YAML::Value;
-        EmitEntityComponents(emitter, registry, entity);
+        EmitEntityComponents(emitter, entity);
         emitter << YAML::EndMap;
     }
 
-    std::vector<SerializedEntity> CollectEntities(entt::registry& registry, gns::entityHandle root)
+    std::vector<SerializedEntity> CollectEntities(gns::entityHandle root)
     {
         std::vector<SerializedEntity> entities;
-        if (!registry.valid(root))
+        if (!gns::Entity(root).IsValid())
         {
             return entities;
         }
@@ -227,7 +224,8 @@ namespace
             const SerializedEntity current = stack.back();
             stack.pop_back();
 
-            if (!registry.valid(current.entity))
+            const gns::Entity entity(current.entity);
+            if (!entity.IsValid())
             {
                 continue;
             }
@@ -235,15 +233,15 @@ namespace
             const int64_t currentIndex = static_cast<int64_t>(entities.size());
             entities.push_back(current);
 
-            const auto* hierarchy = registry.try_get<HierarchyComponent>(current.entity);
-            if (hierarchy == nullptr || hierarchy->children.empty())
+            const std::vector<gns::entityHandle>& children = entity.Children();
+            if (children.empty())
             {
                 continue;
             }
 
-            for (auto it = hierarchy->children.rbegin(); it != hierarchy->children.rend(); ++it)
+            for (auto it = children.rbegin(); it != children.rend(); ++it)
             {
-                if (registry.valid(*it))
+                if (gns::Entity(*it).IsValid())
                 {
                     stack.push_back({ *it, currentIndex });
                 }
@@ -255,13 +253,12 @@ namespace
 
     void EmitEntities(
         YAML::Emitter& emitter,
-        entt::registry& registry,
         const std::vector<SerializedEntity>& entities)
     {
         emitter << YAML::BeginSeq;
         for (const SerializedEntity& entity : entities)
         {
-            EmitEntity(emitter, registry, entity);
+            EmitEntity(emitter, entity);
         }
         emitter << YAML::EndSeq;
     }
@@ -455,31 +452,30 @@ namespace
     }
 
     void RestoreRuntimeSceneComponents(
-        entt::registry& registry,
         gns::Scene& scene,
-        gns::entityHandle entity,
+        gns::entityHandle entityHandle,
         bool isRoot)
     {
-        if (auto* entityComponent = registry.try_get<EntityComponent>(entity))
+        gns::Entity entity(entityHandle);
+        if (auto* entityComponent = entity.TryGetComponent<EntityComponent>())
         {
-            entityComponent->entity_handle = entity;
+            entityComponent->entity_handle = entityHandle;
         }
 
         if (isRoot)
         {
-            auto& rootComponent = registry.get_or_emplace<SceneRootComponent>(entity);
+            auto& rootComponent = entity.EnsureComponent<SceneRootComponent>();
             rootComponent.scene_handle = scene.handle;
         }
 
-        auto& memberComponent = registry.get_or_emplace<SceneMemberComponent>(entity);
+        auto& memberComponent = entity.EnsureComponent<SceneMemberComponent>();
         memberComponent.scene_handle = scene.handle;
-        (void)registry.get_or_emplace<HierarchyComponent>(entity);
+        (void)entity.EnsureComponent<HierarchyComponent>();
     }
 
     void RestoreComponentFields(
-        entt::registry& registry,
         gns::Scene& scene,
-        gns::entityHandle entity,
+        gns::entityHandle entityHandle,
         const std::string& componentName,
         const YAML::Node& componentNode,
         bool isRoot)
@@ -495,13 +491,13 @@ namespace
             {
                 LOG_WARNING("[SceneSerializer]: Ignoring SceneRootComponent on non-root entity.");
             }
-            RestoreRuntimeSceneComponents(registry, scene, entity, isRoot);
+            RestoreRuntimeSceneComponents(scene, entityHandle, isRoot);
             return;
         }
 
         if (componentName == gns::reflection::TypeName<SceneMemberComponent>())
         {
-            RestoreRuntimeSceneComponents(registry, scene, entity, isRoot);
+            RestoreRuntimeSceneComponents(scene, entityHandle, isRoot);
             return;
         }
 
@@ -514,7 +510,8 @@ namespace
             return;
         }
 
-        void* componentValue = component->ensure_component(registry, entity);
+        gns::Entity entity(entityHandle);
+        void* componentValue = component->ensure_component(entity);
         if (componentValue == nullptr)
         {
             LOG_WARNING("[SceneSerializer]: Failed to create component while loading scene.");
@@ -563,10 +560,10 @@ namespace
 
         if (componentName == gns::reflection::TypeName<EntityComponent>())
         {
-            static_cast<EntityComponent*>(componentValue)->entity_handle = entity;
+            static_cast<EntityComponent*>(componentValue)->entity_handle = entityHandle;
         }
 
-        RestoreRuntimeSceneComponents(registry, scene, entity, isRoot);
+        RestoreRuntimeSceneComponents(scene, entityHandle, isRoot);
     }
 
     std::string ReadEntityName(const YAML::Node& entityNode, const std::string& fallback)
@@ -667,11 +664,7 @@ namespace
             entities[index].SetParent(entities[static_cast<size_t>(parentIndex)].entity_handle);
         }
 
-        RestoreRuntimeSceneComponents(
-            gns::core::SystemsManager::GetRegistry(),
-            scene,
-            scene.root.entity_handle,
-            true);
+        RestoreRuntimeSceneComponents(scene, scene.root.entity_handle, true);
     }
 
     void RestoreComponents(
@@ -679,13 +672,12 @@ namespace
         const std::vector<gns::Entity>& entities,
         gns::Scene& scene)
     {
-        auto& registry = gns::core::SystemsManager::GetRegistry();
         for (size_t index = 0; index < entities.size(); ++index)
         {
             const YAML::Node componentsNode = entitiesNode[index]["components"];
             if (!componentsNode || !componentsNode.IsMap())
             {
-                RestoreRuntimeSceneComponents(registry, scene, entities[index].entity_handle, index == 0);
+                RestoreRuntimeSceneComponents(scene, entities[index].entity_handle, index == 0);
                 continue;
             }
 
@@ -694,7 +686,6 @@ namespace
                 try
                 {
                     RestoreComponentFields(
-                        registry,
                         scene,
                         entities[index].entity_handle,
                         componentNode.first.as<std::string>(),
@@ -708,7 +699,7 @@ namespace
                 }
             }
 
-            RestoreRuntimeSceneComponents(registry, scene, entities[index].entity_handle, index == 0);
+            RestoreRuntimeSceneComponents(scene, entities[index].entity_handle, index == 0);
         }
     }
 }
@@ -796,8 +787,7 @@ gns::Scene* gns::SceneSerializer::LoadScene(const std::filesystem::path& scenePa
     loadedEntities.reserve(entitiesNode.size() > 0 ? entitiesNode.size() : 1);
     loadedEntities.push_back(scene.root);
 
-    auto& registry = core::SystemsManager::GetRegistry();
-    if (auto* entityComponent = registry.try_get<EntityComponent>(scene.root.entity_handle))
+    if (auto* entityComponent = scene.root.TryGetComponent<EntityComponent>())
     {
         entityComponent->name = entitiesNode.size() > 0
             ? ReadEntityName(entitiesNode[0], scene.name)
@@ -820,7 +810,7 @@ gns::Scene* gns::SceneSerializer::LoadScene(const std::filesystem::path& scenePa
     }
     else
     {
-        RestoreRuntimeSceneComponents(registry, scene, scene.root.entity_handle, true);
+        RestoreRuntimeSceneComponents(scene, scene.root.entity_handle, true);
     }
 
     LOG_INFO("[SceneSerializer]: Loaded scene.");
@@ -830,22 +820,21 @@ gns::Scene* gns::SceneSerializer::LoadScene(const std::filesystem::path& scenePa
 
 bool gns::SceneSerializer::SaveScene(const Scene& scene)
 {
-    auto& registry = core::SystemsManager::GetRegistry();
-    if (!registry.valid(scene.root.entity_handle))
+    if (!scene.root.IsValid())
     {
         LOG_ERROR("[SceneSerializer]: Cannot save scene with invalid root entity.");
         LOG_ERROR(scene.name);
         return false;
     }
 
-    const std::vector<SerializedEntity> entities = CollectEntities(registry, scene.root.entity_handle);
+    const std::vector<SerializedEntity> entities = CollectEntities(scene.root.entity_handle);
 
     YAML::Emitter emitter;
     emitter << YAML::BeginMap;
     emitter << YAML::Key << "scene" << YAML::Value << scene.name;
     emitter << YAML::Key << "serializerVersion" << YAML::Value << SerializerVersion;
     emitter << YAML::Key << "entities" << YAML::Value;
-    EmitEntities(emitter, registry, entities);
+    EmitEntities(emitter, entities);
     emitter << YAML::EndMap;
 
     if (!emitter.good())

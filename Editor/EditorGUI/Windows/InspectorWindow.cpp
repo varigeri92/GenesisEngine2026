@@ -63,11 +63,11 @@ namespace
         }
         case gns::reflection::FieldKind::EntityHandle:
         {
-            auto* entity = static_cast<entt::entity*>(fieldValue);
-            auto value = entt::to_integral(*entity);
+            auto* entity = static_cast<gns::entityHandle*>(fieldValue);
+            uint32_t value = gns::Entity(*entity).GetDebugId();
             if (ImGui::InputScalar("##value", ImGuiDataType_U32, &value))
             {
-                *entity = static_cast<entt::entity>(value);
+                *entity = static_cast<gns::entityHandle>(value);
             }
             break;
         }
@@ -557,11 +557,10 @@ namespace
     }
 
     void DrawSelectedEntityMaterial(
-        entt::registry& registry,
         gns::entityHandle selectedEntity,
         bool debugView)
     {
-        MeshComponent* meshComponent = registry.try_get<MeshComponent>(selectedEntity);
+        MeshComponent* meshComponent = gns::Entity(selectedEntity).TryGetComponent<MeshComponent>();
         if (meshComponent == nullptr || !meshComponent->material.m_handle.IsValid())
         {
             return;
@@ -585,26 +584,26 @@ void InspectorWindow::OnDraw()
     ImGui::Separator();
 
     const gns::entityHandle selectedEntity = EditorSelection::GetSelectedEntity();
-    auto& registry = gns::core::SystemsManager::GetRegistry();
-    if (selectedEntity == entt::null || !registry.valid(selectedEntity))
+    gns::Entity entity(selectedEntity);
+    if (!entity.IsValid())
     {
         ImGui::TextDisabled("No entity selected");
         return;
     }
 
-    ImGui::Text("Entity: %u", entt::to_integral(selectedEntity));
+    ImGui::Text("Entity: %u", entity.GetDebugId());
 
     const auto& components = gns::reflection::ComponentRegistry::GetComponents();
     for (const gns::reflection::ComponentMeta& component : components)
     {
         if (component.has_component == nullptr ||
             component.get_component == nullptr ||
-            !component.has_component(registry, selectedEntity))
+            !component.has_component(entity))
         {
             continue;
         }
 
-        void* componentValue = component.get_component(registry, selectedEntity);
+        void* componentValue = component.get_component(entity);
         if (componentValue == nullptr)
         {
             continue;
@@ -613,5 +612,5 @@ void InspectorWindow::OnDraw()
         DrawComponent(component, componentValue, debugView);
     }
 
-    DrawSelectedEntityMaterial(registry, selectedEntity, debugView);
+    DrawSelectedEntityMaterial(selectedEntity, debugView);
 }

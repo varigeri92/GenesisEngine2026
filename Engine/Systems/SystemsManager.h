@@ -1,8 +1,13 @@
 #pragma once
-#include <vector>
-#include "system.h"
+#include <functional>
 #include <memory>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+#include "system.h"
 #include <entt/entt.hpp>
+#include "../Core/EntityHandle.h"
 
 namespace gns::core
 {
@@ -42,6 +47,28 @@ namespace gns::core
 		}
 		static void Run(float deltaTime);
 		static void Clear();
+
+		GNS_API static bool IsEntityValid(gns::entityHandle entity);
+
+		template<typename... Component_T, typename Func>
+		static void ForEach(Func&& func)
+		{
+			auto view = Registry.view<Component_T...>();
+			for (gns::entityHandle entity : view)
+			{
+				if constexpr (std::is_invocable_v<Func&, gns::entityHandle, Component_T&...>)
+				{
+					std::invoke(func, entity, view.template get<Component_T>(entity)...);
+				}
+				else
+				{
+					static_assert(
+						std::is_invocable_v<Func&, Component_T&...>,
+						"SystemsManager::ForEach callback must accept either (entityHandle, components...) or (components...).");
+					std::invoke(func, view.template get<Component_T>(entity)...);
+				}
+			}
+		}
 		
 		GNS_API static entt::registry& GetRegistry();
 	private:

@@ -376,9 +376,7 @@ void gns::RenderSystem::BuildDrawData()
 		return;
 	}
 
-	auto view = core::SystemsManager::GetRegistry().view<EntityComponent, SceneMemberComponent, Transform, MeshComponent>();
-	view.each([&](
-		EntityComponent& entityComp,
+	core::SystemsManager::ForEach<SceneMemberComponent, Transform, MeshComponent>([&](
 		SceneMemberComponent& sceneMember,
 		Transform& transform,
 		MeshComponent& meshComp)
@@ -489,9 +487,7 @@ void gns::RenderSystem::BuildSceneDataDescriptor()
 	m_sceneData = SceneData();
 
 	bool hasAmbientLight = false;
-	auto ambientLightView = core::SystemsManager::GetRegistry()
-		.view<SceneMemberComponent, AmbientLightComponent>();
-	ambientLightView.each([&](
+	core::SystemsManager::ForEach<SceneMemberComponent, AmbientLightComponent>([&](
 		SceneMemberComponent& sceneMember,
 		AmbientLightComponent& ambientLight)
 	{
@@ -505,9 +501,7 @@ void gns::RenderSystem::BuildSceneDataDescriptor()
 	});
 
 	bool hasDirectionalLight = false;
-	auto directionalLightView = core::SystemsManager::GetRegistry()
-		.view<SceneMemberComponent, DirectionalLightComponent>();
-	directionalLightView.each([&](
+	core::SystemsManager::ForEach<SceneMemberComponent, DirectionalLightComponent>([&](
 		SceneMemberComponent& sceneMember,
 		DirectionalLightComponent& directionalLight)
 	{

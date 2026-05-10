@@ -26,7 +26,7 @@ public:
 private:
     struct TransformTraversalNode
     {
-        gns::entityHandle entity = entt::null;
+        gns::entityHandle entity = gns::NullEntity;
         glm::mat4 parentMatrix = glm::mat4(1.0f);
     };
 

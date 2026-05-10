@@ -1,6 +1,6 @@
 #include "EditorSelection.h"
 
-gns::entityHandle EditorSelection::SelectedEntity = entt::null;
+gns::entityHandle EditorSelection::SelectedEntity = gns::NullEntity;
 std::filesystem::path EditorSelection::SelectedFile = {};
 EditorSelection::Type EditorSelection::SelectionType = EditorSelection::Type::None;
 
@@ -8,7 +8,7 @@ void EditorSelection::SelectEntity(gns::entityHandle entity)
 {
     SelectedEntity = entity;
     SelectedFile.clear();
-    SelectionType = entity == entt::null ? Type::None : Type::Entity;
+    SelectionType = entity == gns::NullEntity ? Type::None : Type::Entity;
 }
 
 gns::entityHandle EditorSelection::GetSelectedEntity()
@@ -23,7 +23,7 @@ bool EditorSelection::IsSelected(gns::entityHandle entity)
 
 void EditorSelection::SelectFile(const std::filesystem::path& filePath)
 {
-    SelectedEntity = entt::null;
+    SelectedEntity = gns::NullEntity;
     SelectedFile = filePath.lexically_normal();
     SelectionType = SelectedFile.empty() ? Type::None : Type::File;
 }
@@ -45,7 +45,7 @@ EditorSelection::Type EditorSelection::GetSelectionType()
 
 void EditorSelection::Clear()
 {
-    SelectedEntity = entt::null;
+    SelectedEntity = gns::NullEntity;
     SelectedFile.clear();
     SelectionType = Type::None;
 }

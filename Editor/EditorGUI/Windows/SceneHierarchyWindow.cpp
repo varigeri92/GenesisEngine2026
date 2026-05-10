@@ -10,19 +10,8 @@
 
 namespace
 {
-    std::string GetEntityName(entt::registry& registry, gns::entityHandle entity)
-    {
-        const auto* entityComponent = registry.try_get<EntityComponent>(entity);
-        if (entityComponent == nullptr)
-        {
-            return "Entity";
-        }
-
-        return entityComponent->name;
-    }
-
     ImGuiTreeNodeFlags GetTreeFlags(
-        gns::entityHandle entity,
+        gns::Entity entity,
         const HierarchyComponent* hierarchy,
         bool isRoot)
     {
@@ -40,7 +29,7 @@ namespace
             flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         }
 
-        if (EditorSelection::IsSelected(entity))
+        if (EditorSelection::IsSelected(entity.GetHandle()))
         {
             flags |= ImGuiTreeNodeFlags_Selected;
         }
@@ -48,20 +37,22 @@ namespace
         return flags;
     }
 
-    void DrawEntityNode(entt::registry& registry, gns::entityHandle entity, bool isRoot)
+    void DrawEntityNode(gns::entityHandle entityHandle, bool isRoot)
     {
-        if (!registry.valid(entity))
+        const gns::Entity entity(entityHandle);
+        if (!entity.IsValid())
         {
             return;
         }
 
-        const auto* hierarchy = registry.try_get<HierarchyComponent>(entity);
-        const std::string name = GetEntityName(registry, entity);
+        const auto* hierarchy = entity.TryGetComponent<HierarchyComponent>();
+        const std::string& entityName = entity.Name();
+        const std::string name = entityName.empty() ? "Entity" : entityName;
         const std::string label = isRoot
             ? std::string(ICON_MD_ACCOUNT_TREE " ") + name + " " ICON_MD_LOCK
             : std::string(ICON_MD_ARTICLE " ") + name;
         const ImGuiTreeNodeFlags flags = GetTreeFlags(entity, hierarchy, isRoot);
-        const auto treeId = static_cast<uintptr_t>(entt::to_integral(entity)) + 1u;
+        const auto treeId = static_cast<uintptr_t>(entity.GetDebugId()) + 1u;
 
         const bool open = ImGui::TreeNodeEx(
             reinterpret_cast<void*>(treeId),
@@ -71,7 +62,7 @@ namespace
 
         if (ImGui::IsItemClicked())
         {
-            EditorSelection::SelectEntity(entity);
+            EditorSelection::SelectEntity(entity.GetHandle());
         }
 
         if ((flags & ImGuiTreeNodeFlags_NoTreePushOnOpen) != 0)
@@ -81,10 +72,10 @@ namespace
 
         if (open && hierarchy != nullptr)
         {
-            const std::vector<gns::entityHandle> children = hierarchy->children;
+            const std::vector<gns::entityHandle> children = entity.Children();
             for (gns::entityHandle child : children)
             {
-                DrawEntityNode(registry, child, false);
+                DrawEntityNode(child, false);
             }
 
             ImGui::TreePop();
@@ -101,7 +92,6 @@ void SceneHierarchyWindow::OnDraw()
         return;
     }
 
-    auto& registry = gns::core::SystemsManager::GetRegistry();
     for (const auto& scene : scenes)
     {
         if (scene == nullptr)
@@ -109,6 +99,6 @@ void SceneHierarchyWindow::OnDraw()
             continue;
         }
 
-        DrawEntityNode(registry, scene->root.entity_handle, true);
+        DrawEntityNode(scene->root.entity_handle, true);
     }
 }
