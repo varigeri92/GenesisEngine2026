@@ -53,14 +53,52 @@ layout(std430, set = 0, binding = 3) readonly buffer SpotLights
 	SpotLight lights[MAX_LIGHTS];
 } spotLights;
 
+layout(std140, set = 1, binding = 0) uniform MaterialData
+{
+	vec4 albedo_color;
+	vec4 emissive_color;
+	vec4 texture_tiling_offset;
+	float metallic;
+	float roughness;
+	float ambient_occlusion;
+	float alpha;
+	float normal_strength;
+	float emissive_strength;
+	float alpha_cutoff;
+	float padding0;
+} materialData;
+
 layout(set = 2, binding = 0) uniform sampler2D albedo_texture;
+layout(set = 2, binding = 1) uniform sampler2D normal_map;
+layout(set = 2, binding = 2) uniform sampler2D metallic_map;
+layout(set = 2, binding = 3) uniform sampler2D roughness_map;
+layout(set = 2, binding = 4) uniform sampler2D ambient_occlusion_map;
+layout(set = 2, binding = 5) uniform sampler2D emissive_map;
 
 //output write
 layout (location = 0) out vec4 outFragColor;
 
 void main() 
 {
-	vec4 baseColor = texture(albedo_texture, inUV);
+	vec4 baseColor = texture(albedo_texture, inUV) * materialData.albedo_color;
+	if (materialData.alpha < -1.0f)
+	{
+		baseColor *= materialData.albedo_color;
+		baseColor.rgb += materialData.emissive_color.rgb * materialData.emissive_strength;
+		baseColor.a *= materialData.alpha;
+		baseColor.rgb *= vec3(
+			materialData.metallic,
+			materialData.roughness,
+			materialData.ambient_occlusion);
+		baseColor.rg += materialData.texture_tiling_offset.xy + materialData.texture_tiling_offset.zw;
+		baseColor.b += materialData.normal_strength + materialData.alpha_cutoff + materialData.padding0;
+		baseColor.rgb += texture(normal_map, inUV).rgb;
+		baseColor.r += texture(metallic_map, inUV).r;
+		baseColor.g += texture(roughness_map, inUV).r;
+		baseColor.b += texture(ambient_occlusion_map, inUV).r;
+		baseColor.rgb += texture(emissive_map, inUV).rgb;
+	}
+
 	vec3 normal = normalize(inWorldNormal);
 	vec3 lighting = sceneData.ambientColor.rgb * sceneData.ambientColor.a;
 

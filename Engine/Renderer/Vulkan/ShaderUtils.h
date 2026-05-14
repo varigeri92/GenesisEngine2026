@@ -31,6 +31,12 @@ namespace gns::rendering
         uint32_t size = 0;
         uint32_t elementCount = 1;
         uint32_t elementStride = 0;
+        uint32_t typeFlags = 0;
+        uint32_t scalarWidth = 0;
+        uint32_t scalarSignedness = 0;
+        uint32_t vectorComponentCount = 0;
+        uint32_t matrixColumnCount = 0;
+        uint32_t matrixRowCount = 0;
         std::vector<ShaderBlockMemberInfo> members;
     };
 

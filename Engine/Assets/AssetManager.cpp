@@ -54,21 +54,10 @@ namespace
         uint32_t index = 0;
     };
 
-    struct ImportedMaterialDefaults
-    {
-        gns::Handle baseColorTexture;
-    };
-
     std::unordered_map<gns::Handle, AssetArtifactRecord>& ArtifactRegistry()
     {
         static std::unordered_map<gns::Handle, AssetArtifactRecord> artifacts;
         return artifacts;
-    }
-
-    std::unordered_map<gns::Handle, ImportedMaterialDefaults>& ImportedMaterialDefaultRegistry()
-    {
-        static std::unordered_map<gns::Handle, ImportedMaterialDefaults> defaults;
-        return defaults;
     }
 
     std::filesystem::path ArtifactDirectory()
@@ -117,6 +106,21 @@ namespace
         {
             ArtifactRegistry()[artifact.handle] = artifact;
         }
+    }
+
+    bool IsEmbeddedTextureArtifactPath(const std::filesystem::path& path)
+    {
+        return path.generic_string().find("::embedded_texture_") != std::string::npos;
+    }
+
+    bool IsMaterialAssetPath(const std::filesystem::path& path)
+    {
+        return path.extension() == ".gnsmaterial";
+    }
+
+    bool IsModelMetaPath(const std::filesystem::path& path)
+    {
+        return path.extension() == ".meta";
     }
 
     gns::assets::AssetLoadOptions ReadLoadOptions(const YAML::Node& node)
@@ -245,15 +249,28 @@ namespace
             return false;
         }
 
-        const std::filesystem::path metaPath = ResolveProjectPath(metaPathText);
-        if (!LoadModelMetaFile(metaPath))
+        const std::filesystem::path targetPath = metaPathText;
+        if (IsModelMetaPath(targetPath))
         {
-            LOG_WARNING("[AssetManager]: Artifact link points to unreadable metadata.");
-            LOG_WARNING(metaPath.string());
-            return false;
+            const std::filesystem::path metaPath = ResolveProjectPath(targetPath);
+            if (!LoadModelMetaFile(metaPath))
+            {
+                LOG_WARNING("[AssetManager]: Artifact link points to unreadable metadata.");
+                LOG_WARNING(metaPath.string());
+                return false;
+            }
+
+            return ArtifactRegistry().contains(handle);
         }
 
-        return ArtifactRegistry().contains(handle);
+        AssetArtifactRecord artifact;
+        artifact.handle = handle;
+        artifact.artifactPath = targetPath;
+        artifact.type = IsMaterialAssetPath(targetPath)
+            ? gns::assets::AssetArtifactType::Material
+            : gns::assets::AssetArtifactType::Texture;
+        RegisterArtifact(artifact);
+        return true;
     }
 
     void LoadAssetRegistry()
@@ -317,6 +334,38 @@ namespace
         if (!artifact.sourcePath.empty())
         {
             gns::assets::AssetManager::LoadAsset(ResolveProjectPath(artifact.sourcePath).string(), artifact.loadOptions);
+        }
+    }
+
+    gns::Material* LoadMaterialAssetFile(const AssetArtifactRecord& artifact)
+    {
+        if (artifact.artifactPath.empty())
+        {
+            return nullptr;
+        }
+
+        const std::filesystem::path materialPath = ResolveProjectPath(artifact.artifactPath);
+        if (!gns::path::IsRegularFile(materialPath))
+        {
+            LOG_WARNING("[AssetManager]: Material artifact path is not a file.");
+            LOG_WARNING(materialPath.string());
+            return nullptr;
+        }
+
+        try
+        {
+            const YAML::Node root = YAML::LoadFile(materialPath.string());
+            const std::string materialName = root["name"]
+                ? root["name"].as<std::string>()
+                : gns::path::FileStem(materialPath);
+            return gns::Object::Create<gns::Material>(artifact.handle, materialName);
+        }
+        catch (const std::exception& exception)
+        {
+            LOG_WARNING("[AssetManager]: Failed to load material asset file.");
+            LOG_WARNING(materialPath.string());
+            LOG_WARNING(exception.what());
+            return nullptr;
         }
     }
 
@@ -629,11 +678,6 @@ namespace
                     textureCache);
             }
 
-            if (texture.texture != nullptr)
-            {
-                ImportedMaterialDefaultRegistry()[materialHandle].baseColorTexture = texture.texture->GetHandle();
-            }
-
             if (texture.failed)
             {
                 LOG_WARNING("[AssetManager]: Failed to load material texture.");
@@ -894,6 +938,11 @@ gns::Material* gns::assets::AssetManager::EnsureMaterialLoaded(Handle materialHa
         return nullptr;
     }
 
+    if (!artifact->artifactPath.empty() && IsMaterialAssetPath(artifact->artifactPath))
+    {
+        return LoadMaterialAssetFile(*artifact);
+    }
+
     EnsureSourceAssetLoaded(*artifact);
     return Object::Get<gns::Material>(materialHandle);
 }
@@ -909,11 +958,22 @@ gns::Texture* gns::assets::AssetManager::EnsureTextureLoaded(Handle textureHandl
     if (artifact)
     {
         const std::string artifactPath = artifact->artifactPath.generic_string();
-        const bool isEmbeddedTexture = artifactPath.find("::embedded_texture_") != std::string::npos;
+        const bool isEmbeddedTexture = IsEmbeddedTextureArtifactPath(artifact->artifactPath);
         if (artifact->type == AssetArtifactType::Texture && !artifact->artifactPath.empty() && !isEmbeddedTexture)
         {
             std::unordered_map<std::string, gns::Texture*> textureCache;
             return LoadTextureFromFile(ResolveProjectPath(artifact->artifactPath), textureCache);
+        }
+
+        if (artifact->type == AssetArtifactType::Texture && isEmbeddedTexture)
+        {
+            const size_t embeddedMarker = artifactPath.find("::embedded_texture_");
+            if (embeddedMarker != std::string::npos)
+            {
+                const std::filesystem::path sourcePath = artifactPath.substr(0, embeddedMarker);
+                gns::assets::AssetManager::LoadAsset(ResolveProjectPath(sourcePath).string(), artifact->loadOptions);
+                return Object::Get<gns::Texture>(textureHandle);
+            }
         }
 
         EnsureSourceAssetLoaded(*artifact);
@@ -927,38 +987,63 @@ gns::Texture* gns::assets::AssetManager::EnsureTextureLoaded(Handle textureHandl
 
 bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& material)
 {
-    const auto defaults = ImportedMaterialDefaultRegistry().find(material.GetHandle());
-    if (defaults == ImportedMaterialDefaultRegistry().end())
+    const std::optional<AssetArtifactRecord> artifact = FindArtifact(material.GetHandle());
+    if (!artifact || artifact->type != AssetArtifactType::Material || artifact->artifactPath.empty())
     {
         return false;
     }
 
-    constexpr std::array<const char*, 4> baseColorTextureNames =
-    {
-        "albedo_texture",
-        "albedoTexture",
-        "base_color_texture",
-        "baseColorTexture"
-    };
-
-    if (!defaults->second.baseColorTexture.IsValid())
+    const std::filesystem::path materialPath = ResolveProjectPath(artifact->artifactPath);
+    if (!gns::path::IsRegularFile(materialPath))
     {
         return false;
     }
 
-    for (const char* propertyName : baseColorTextureNames)
+    YAML::Node root;
+    try
     {
+        root = YAML::LoadFile(materialPath.string());
+    }
+    catch (const std::exception& exception)
+    {
+        LOG_WARNING("[AssetManager]: Failed to read material asset.");
+        LOG_WARNING(materialPath.string());
+        LOG_WARNING(exception.what());
+        return false;
+    }
+
+    const YAML::Node textures = root["textures"];
+    if (!textures || !textures.IsMap())
+    {
+        return false;
+    }
+
+    bool appliedAny = false;
+    for (YAML::const_iterator texture = textures.begin(); texture != textures.end(); ++texture)
+    {
+        const std::string propertyName = texture->first.as<std::string>();
+        const gns::Handle textureHandle = gns::Handle::Create(texture->second.as<uint64_t>());
+        if (!textureHandle.IsValid())
+        {
+            continue;
+        }
+
         MaterialPropertyInfo property;
         if (!material.TryGetProperty(propertyName, property) || property.type != MaterialPropertyType::Texture2D)
         {
             continue;
         }
 
-        material.SetTexture(propertyName, defaults->second.baseColorTexture);
-        return true;
+        if (EnsureTextureLoaded(textureHandle) == nullptr)
+        {
+            continue;
+        }
+
+        material.SetTexture(propertyName, textureHandle);
+        appliedAny = true;
     }
 
-    return false;
+    return appliedAny;
 }
 
 gns::Handle gns::assets::AssetManager::GetModelAssetHandle(const std::filesystem::path& sourcePath)

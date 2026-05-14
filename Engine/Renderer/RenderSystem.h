@@ -23,6 +23,7 @@ namespace gns {
 		White,
 		Grey,
 		Black,
+		Normal,
 		ErrorCheckerboard
 	};
 
@@ -49,6 +50,7 @@ namespace gns {
 		Handle white;
 		Handle grey;
 		Handle black;
+		Handle normal;
 		Handle errorCheckerboard;
 	};
 

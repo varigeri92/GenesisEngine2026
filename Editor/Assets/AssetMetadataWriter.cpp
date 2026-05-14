@@ -1,6 +1,9 @@
 #include "AssetMetadataWriter.h"
 
+#include <array>
+#include <cstring>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -32,6 +35,18 @@ namespace
         uint32_t materialIndex = 0;
         std::string name;
         std::string path;
+        gns::Handle albedoTexture;
+        gns::Handle normalMap;
+        gns::Handle metallicMap;
+        gns::Handle roughnessMap;
+        gns::Handle ambientOcclusionMap;
+        gns::Handle emissiveMap;
+    };
+
+    struct MaterialTextureSlot
+    {
+        aiTextureType type = aiTextureType_NONE;
+        uint32_t index = 0;
     };
 
     std::string AssetTypeToString(gns::assets::AssetType assetType)
@@ -82,26 +97,71 @@ namespace
         return "Material_" + std::to_string(materialIndex);
     }
 
-    bool TryGetMaterialTexturePath(
-        const aiMaterial* material,
-        aiTextureType textureType,
-        aiString& texturePath)
+    std::optional<MaterialTextureSlot> FindFirstMaterialTextureSlot(const aiMaterial* material)
     {
-        return material != nullptr &&
-            material->GetTextureCount(textureType) > 0 &&
-            material->GetTexture(textureType, 0, &texturePath) == AI_SUCCESS &&
-            texturePath.length > 0;
+        if (material == nullptr)
+        {
+            return std::nullopt;
+        }
+
+        constexpr std::array<aiTextureType, 2> preferredTextureTypes =
+        {
+            aiTextureType_BASE_COLOR,
+            aiTextureType_DIFFUSE
+        };
+
+        for (const aiTextureType textureType : preferredTextureTypes)
+        {
+            if (material->GetTextureCount(textureType) > 0)
+            {
+                return MaterialTextureSlot{ textureType, 0 };
+            }
+        }
+
+        for (uint32_t propertyIndex = 0; propertyIndex < material->mNumProperties; ++propertyIndex)
+        {
+            const aiMaterialProperty* property = material->mProperties[propertyIndex];
+            if (property == nullptr || std::strcmp(property->mKey.C_Str(), "$tex.file") != 0)
+            {
+                continue;
+            }
+
+            const aiTextureType textureType = static_cast<aiTextureType>(property->mSemantic);
+            if (textureType == aiTextureType_NONE)
+            {
+                continue;
+            }
+
+            return MaterialTextureSlot{ textureType, property->mIndex };
+        }
+
+        return std::nullopt;
     }
 
-    gns::Handle CollectAlbedoTexture(
+    std::optional<MaterialTextureSlot> FindMaterialTextureSlot(
         const aiMaterial* material,
+        aiTextureType textureType,
+        uint32_t textureIndex = 0)
+    {
+        if (material == nullptr || material->GetTextureCount(textureType) <= textureIndex)
+        {
+            return std::nullopt;
+        }
+
+        return MaterialTextureSlot{ textureType, textureIndex };
+    }
+
+    gns::Handle CollectTexture(
+        const aiMaterial* material,
+        const MaterialTextureSlot& textureSlot,
         const std::filesystem::path& assetDirectory,
         const std::string& sourcePath,
         std::vector<TextureArtifact>& textureArtifacts)
     {
         aiString texturePath;
-        if (!TryGetMaterialTexturePath(material, aiTextureType_BASE_COLOR, texturePath) &&
-            !TryGetMaterialTexturePath(material, aiTextureType_DIFFUSE, texturePath))
+        if (material == nullptr ||
+            material->GetTexture(textureSlot.type, textureSlot.index, &texturePath) != AI_SUCCESS ||
+            texturePath.length == 0)
         {
             return {};
         }
@@ -137,6 +197,18 @@ namespace
         return textureHandle;
     }
 
+    gns::Handle CollectOptionalTexture(
+        const aiMaterial* material,
+        std::optional<MaterialTextureSlot> textureSlot,
+        const std::filesystem::path& assetDirectory,
+        const std::string& sourcePath,
+        std::vector<TextureArtifact>& textureArtifacts)
+    {
+        return textureSlot
+            ? CollectTexture(material, *textureSlot, assetDirectory, sourcePath, textureArtifacts)
+            : gns::Handle{};
+    }
+
     std::filesystem::path MaterialFilePath(
         const std::filesystem::path& modelPath,
         uint32_t materialIndex)
@@ -162,6 +234,32 @@ namespace
         emitter << YAML::Key << "assetType" << YAML::Value << "Material";
         emitter << YAML::Key << "handle" << YAML::Value << material.handle.Get();
         emitter << YAML::Key << "name" << YAML::Value << material.name;
+        emitter << YAML::Key << "textures" << YAML::Value << YAML::BeginMap;
+        if (material.albedoTexture.IsValid())
+        {
+            emitter << YAML::Key << "albedo_texture" << YAML::Value << material.albedoTexture.Get();
+        }
+        if (material.normalMap.IsValid())
+        {
+            emitter << YAML::Key << "normal_map" << YAML::Value << material.normalMap.Get();
+        }
+        if (material.metallicMap.IsValid())
+        {
+            emitter << YAML::Key << "metallic_map" << YAML::Value << material.metallicMap.Get();
+        }
+        if (material.roughnessMap.IsValid())
+        {
+            emitter << YAML::Key << "roughness_map" << YAML::Value << material.roughnessMap.Get();
+        }
+        if (material.ambientOcclusionMap.IsValid())
+        {
+            emitter << YAML::Key << "ambient_occlusion_map" << YAML::Value << material.ambientOcclusionMap.Get();
+        }
+        if (material.emissiveMap.IsValid())
+        {
+            emitter << YAML::Key << "emissive_map" << YAML::Value << material.emissiveMap.Get();
+        }
+        emitter << YAML::EndMap;
         emitter << YAML::EndMap;
 
         return emitter.good() && gns::path::WriteTextFile(materialPath, emitter.c_str());
@@ -172,7 +270,7 @@ namespace
         return gns::path::Resolve(gns::path::Root::ProjectLibrary, "Artifacts");
     }
 
-    bool WriteArtifactLink(gns::Handle handle, const std::filesystem::path& metaPath)
+    bool WriteArtifactLink(gns::Handle handle, const std::filesystem::path& targetPath)
     {
         if (!handle.IsValid())
         {
@@ -190,7 +288,10 @@ namespace
         }
 
         const std::filesystem::path linkPath = artifactDirectory / std::to_string(handle.Get());
-        if (!gns::path::WriteTextFile(linkPath, ToProjectRelativeString(metaPath)))
+        const std::string targetText = targetPath.is_absolute()
+            ? ToProjectRelativeString(targetPath)
+            : targetPath.generic_string();
+        if (!gns::path::WriteTextFile(linkPath, targetText))
         {
             LOG_WARNING("[AssetMetadataWriter]: Failed to write artifact link.");
             LOG_WARNING(linkPath.string());
@@ -216,12 +317,12 @@ namespace
 
         for (const MaterialArtifact& material : materialArtifacts)
         {
-            WriteArtifactLink(material.handle, metaPath);
+            WriteArtifactLink(material.handle, material.path);
         }
 
         for (const TextureArtifact& texture : textureArtifacts)
         {
-            WriteArtifactLink(texture.handle, metaPath);
+            WriteArtifactLink(texture.handle, texture.path);
         }
     }
 }
@@ -274,7 +375,42 @@ bool editor::assets::WriteModelMetaFile(
 
             if (loadOptions.importTextures)
             {
-                (void)CollectAlbedoTexture(assimpMaterial, assetDirectory, sourcePath, textureArtifacts);
+                material.albedoTexture = CollectOptionalTexture(
+                    assimpMaterial,
+                    FindFirstMaterialTextureSlot(assimpMaterial),
+                    assetDirectory,
+                    sourcePath,
+                    textureArtifacts);
+                material.normalMap = CollectOptionalTexture(
+                    assimpMaterial,
+                    FindMaterialTextureSlot(assimpMaterial, aiTextureType_NORMALS),
+                    assetDirectory,
+                    sourcePath,
+                    textureArtifacts);
+                material.metallicMap = CollectOptionalTexture(
+                    assimpMaterial,
+                    FindMaterialTextureSlot(assimpMaterial, aiTextureType_METALNESS),
+                    assetDirectory,
+                    sourcePath,
+                    textureArtifacts);
+                material.roughnessMap = CollectOptionalTexture(
+                    assimpMaterial,
+                    FindMaterialTextureSlot(assimpMaterial, aiTextureType_DIFFUSE_ROUGHNESS),
+                    assetDirectory,
+                    sourcePath,
+                    textureArtifacts);
+                material.ambientOcclusionMap = CollectOptionalTexture(
+                    assimpMaterial,
+                    FindMaterialTextureSlot(assimpMaterial, aiTextureType_LIGHTMAP),
+                    assetDirectory,
+                    sourcePath,
+                    textureArtifacts);
+                material.emissiveMap = CollectOptionalTexture(
+                    assimpMaterial,
+                    FindMaterialTextureSlot(assimpMaterial, aiTextureType_EMISSIVE),
+                    assetDirectory,
+                    sourcePath,
+                    textureArtifacts);
             }
 
             if (loadOptions.importMaterials && !WriteMaterialFile(materialPath, material))

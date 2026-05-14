@@ -24,6 +24,50 @@ namespace
         return (value + alignment - 1) & ~(alignment - 1);
     }
 
+    template<typename T>
+    void WriteDefaultValue(
+        const gns::MaterialPropertyInfo& property,
+        std::vector<uint8_t>& dataBlob,
+        const T& value)
+    {
+        if (property.offset + sizeof(T) > dataBlob.size() ||
+            property.size < sizeof(T))
+        {
+            return;
+        }
+
+        std::memcpy(dataBlob.data() + property.offset, &value, sizeof(T));
+    }
+
+    void ApplyDefaultMaterialValue(
+        const gns::MaterialPropertyInfo& property,
+        std::vector<uint8_t>& dataBlob)
+    {
+        if (property.name == "albedo_color")
+        {
+            WriteDefaultValue(property, dataBlob, glm::vec4(1.0f));
+        }
+        else if (property.name == "emissive_color")
+        {
+            WriteDefaultValue(property, dataBlob, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+        }
+        else if (property.name == "texture_tiling_offset")
+        {
+            WriteDefaultValue(property, dataBlob, glm::vec4(1.0f, 1.0f, 0.0f, 0.0f));
+        }
+        else if (property.name == "roughness" ||
+            property.name == "ambient_occlusion" ||
+            property.name == "alpha" ||
+            property.name == "normal_strength")
+        {
+            WriteDefaultValue(property, dataBlob, 1.0f);
+        }
+        else if (property.name == "alpha_cutoff")
+        {
+            WriteDefaultValue(property, dataBlob, 0.5f);
+        }
+    }
+
     GpuLayoutInfo GetStd430LayoutInfo(gns::MaterialPropertyType type)
     {
         switch (type)
@@ -383,6 +427,10 @@ void gns::Material::SetLayout(const MaterialLayout& layout, bool preserveValues)
     m_layout = layout;
     m_dataBlob.assign(m_layout.GetSize(), 0);
     RebuildTextureSlots(preserveValues ? &oldTextures : nullptr);
+    for (const MaterialPropertyInfo& property : m_layout.GetProperties())
+    {
+        ApplyDefaultMaterialValue(property, m_dataBlob);
+    }
 
     if (!preserveValues)
     {

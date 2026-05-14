@@ -151,36 +151,55 @@ namespace gns::rendering
         {
             const std::string type = ToLower(member.type);
             const bool isArray = member.elementCount > 1;
+            const bool isFloat =
+                (member.typeFlags & SPV_REFLECT_TYPE_FLAG_FLOAT) != 0 ||
+                type == "float";
+            const bool isInt =
+                (member.typeFlags & SPV_REFLECT_TYPE_FLAG_INT) != 0 ||
+                type == "int" ||
+                type == "int32_t" ||
+                type == "uint" ||
+                type == "uint32_t";
+            const bool isSignedInt =
+                type == "int" ||
+                type == "int32_t" ||
+                (isInt && member.scalarSignedness != 0);
+            const bool isUnsignedInt =
+                type == "uint" ||
+                type == "uint32_t" ||
+                (isInt && member.scalarSignedness == 0);
+            const uint32_t vectorComponentCount = member.vectorComponentCount;
 
-            if (type == "float")
+            if (isFloat && vectorComponentCount <= 1 && member.matrixColumnCount <= 1)
             {
                 return isArray ? gns::MaterialPropertyType::FloatArray : gns::MaterialPropertyType::Float;
             }
-            if (type == "int" || type == "int32_t")
+            if (isSignedInt && vectorComponentCount <= 1 && member.matrixColumnCount <= 1)
             {
                 return isArray ? gns::MaterialPropertyType::IntArray : gns::MaterialPropertyType::Int;
             }
-            if (type == "uint" || type == "uint32_t")
+            if (isUnsignedInt && vectorComponentCount <= 1 && member.matrixColumnCount <= 1)
             {
                 return isArray ? gns::MaterialPropertyType::UIntArray : gns::MaterialPropertyType::UInt;
             }
-            if (!isArray && (type == "vec2" || type == "fvec2"))
+            if (!isArray && (type == "vec2" || type == "fvec2" || (isFloat && vectorComponentCount == 2)))
             {
                 return gns::MaterialPropertyType::Vec2;
             }
-            if (!isArray && (type == "vec3" || type == "fvec3" || member.size == sizeof(glm::vec3)))
+            if (!isArray && (type == "vec3" || type == "fvec3" || (isFloat && vectorComponentCount == 3) || member.size == sizeof(glm::vec3)))
             {
                 return IsColorPropertyName(propertyName)
                     ? gns::MaterialPropertyType::Color3
                     : gns::MaterialPropertyType::Vec3;
             }
-            if (!isArray && (type == "vec4" || type == "fvec4" || member.size == sizeof(glm::vec4)))
+            if (!isArray && (type == "vec4" || type == "fvec4" || (isFloat && vectorComponentCount == 4) || member.size == sizeof(glm::vec4)))
             {
                 return IsColorPropertyName(propertyName)
                     ? gns::MaterialPropertyType::Color4
                     : gns::MaterialPropertyType::Vec4;
             }
-            if (!isArray && (type == "mat4" || type == "mat4x4"))
+            if (!isArray && (type == "mat4" || type == "mat4x4" ||
+                (isFloat && member.matrixColumnCount == 4 && member.matrixRowCount == 4)))
             {
                 return gns::MaterialPropertyType::Mat4;
             }
@@ -276,6 +295,15 @@ namespace gns::rendering
                 memberInfo.size = member.size;
                 memberInfo.elementCount = BlockVariableArrayCount(member);
                 memberInfo.elementStride = member.array.stride;
+                if (member.type_description != nullptr)
+                {
+                    memberInfo.typeFlags = member.type_description->type_flags;
+                }
+                memberInfo.scalarWidth = member.numeric.scalar.width;
+                memberInfo.scalarSignedness = member.numeric.scalar.signedness;
+                memberInfo.vectorComponentCount = member.numeric.vector.component_count;
+                memberInfo.matrixColumnCount = member.numeric.matrix.column_count;
+                memberInfo.matrixRowCount = member.numeric.matrix.row_count;
 
                 AddBlockMembers(member, memberInfo.members);
                 outMembers.emplace_back(std::move(memberInfo));

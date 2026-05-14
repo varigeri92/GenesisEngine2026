@@ -26,6 +26,7 @@ namespace gns::rendering
 		Handle white;
 		Handle grey;
 		Handle black;
+		Handle normal;
 		Handle errorCheckerboard;
 	};
 	

@@ -873,6 +873,7 @@ void gns::rendering::Device::InitDefaultTextures()
 	const uint32_t white = glm::packUnorm4x8(glm::vec4(1.f, 1.f, 1.f, 1.f));
 	const uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1.f));
 	const uint32_t black = glm::packUnorm4x8(glm::vec4(0.f, 0.f, 0.f, 1.f));
+	const uint32_t normal = glm::packUnorm4x8(glm::vec4(0.5f, 0.5f, 1.f, 1.f));
 	const uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.f, 0.f, 1.f, 1.f));
 
 	m_defaultTextures.white = CreateDefaultTexture(
@@ -881,6 +882,8 @@ void gns::rendering::Device::InitDefaultTextures()
 		&grey, VkExtent3D{1, 1, 1}, VK_FILTER_LINEAR);
 	m_defaultTextures.black = CreateDefaultTexture(
 		&black, VkExtent3D{1, 1, 1}, VK_FILTER_LINEAR);
+	m_defaultTextures.normal = CreateDefaultTexture(
+		&normal, VkExtent3D{1, 1, 1}, VK_FILTER_LINEAR);
 
 	std::array<uint32_t, 16 * 16> pixels = {};
 	for (uint32_t y = 0; y < 16; ++y)

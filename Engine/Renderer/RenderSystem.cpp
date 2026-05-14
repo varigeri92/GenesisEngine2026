@@ -67,6 +67,22 @@ namespace
 
 		return found;
 	}
+
+	gns::DefaultTexture GetDefaultTextureForMaterialSlot(const std::string& slotName)
+	{
+		if (slotName == "normal_map")
+		{
+			return gns::DefaultTexture::Normal;
+		}
+
+		if (slotName == "metallic_map" ||
+			slotName == "emissive_map")
+		{
+			return gns::DefaultTexture::Black;
+		}
+
+		return gns::DefaultTexture::White;
+	}
 }
 
 gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer()
@@ -304,7 +320,7 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material, rendering::Vulk
 		Handle textureHandle = material.GetTextureHandle(textureIndex);
 		if (!textureHandle.IsValid())
 		{
-			textureHandle = GetDefaultTextureHandle(DefaultTexture::White);
+			textureHandle = GetDefaultTextureHandle(GetDefaultTextureForMaterialSlot(property->name));
 		}
 
 		if (!ensureTextureApplied(textureHandle))
@@ -435,6 +451,8 @@ gns::Handle gns::RenderSystem::GetDefaultTextureHandle(DefaultTexture texture) c
 		return m_defaultTextures.grey;
 	case DefaultTexture::Black:
 		return m_defaultTextures.black;
+	case DefaultTexture::Normal:
+		return m_defaultTextures.normal;
 	case DefaultTexture::ErrorCheckerboard:
 		return m_defaultTextures.errorCheckerboard;
 	default:
@@ -502,6 +520,7 @@ void gns::RenderSystem::CreateDefaultTextureObjects()
 	m_defaultTextures.white = RegisterDefaultTexture(DefaultResourceNames::WhiteTexture, vulkanDefaults.white);
 	m_defaultTextures.grey = RegisterDefaultTexture(DefaultResourceNames::GreyTexture, vulkanDefaults.grey);
 	m_defaultTextures.black = RegisterDefaultTexture(DefaultResourceNames::BlackTexture, vulkanDefaults.black);
+	m_defaultTextures.normal = RegisterDefaultTexture("default_normal_texture", vulkanDefaults.normal);
 	m_defaultTextures.errorCheckerboard = RegisterDefaultTexture(
 		DefaultResourceNames::ErrorCheckerboardTexture,
 		vulkanDefaults.errorCheckerboard);
@@ -663,6 +682,7 @@ void gns::RenderSystem::BuildDrawData()
 		if (materialLayoutChanged)
 		{
 			material->SetLayout(shaderMaterialLayout, true);
+			assets::AssetManager::ApplyImportedMaterialDefaults(*material);
 		}
 
 		const Handle renderMaterialHandle = ApplyMaterial(*material, *vulkanShader);
