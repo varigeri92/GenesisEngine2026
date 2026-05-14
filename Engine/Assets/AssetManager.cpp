@@ -559,25 +559,18 @@ namespace
             return nullptr;
         }
 
-        aiColor4D baseColor;
-        if (aiGetMaterialColor(assimpMaterial, AI_MATKEY_BASE_COLOR, &baseColor) == AI_SUCCESS ||
-            aiGetMaterialColor(assimpMaterial, AI_MATKEY_COLOR_DIFFUSE, &baseColor) == AI_SUCCESS)
-        {
-            material->albedo_color = glm::vec4(baseColor.r, baseColor.g, baseColor.b, baseColor.a);
-        }
-
         if (importTextures)
         {
-            TextureLoadResult albedoTexture = LoadMaterialTexture(
+            TextureLoadResult texture = LoadMaterialTexture(
                 scene,
                 assimpMaterial,
                 aiTextureType_BASE_COLOR,
                 assetDirectory,
                 assetPath,
                 textureCache);
-            if (!albedoTexture.textureSlotExists)
+            if (!texture.textureSlotExists)
             {
-                albedoTexture = LoadMaterialTexture(
+                texture = LoadMaterialTexture(
                     scene,
                     assimpMaterial,
                     aiTextureType_DIFFUSE,
@@ -586,19 +579,11 @@ namespace
                     textureCache);
             }
 
-            if (albedoTexture.texture != nullptr)
+            if (texture.failed)
             {
-                material->albedo_texture = albedoTexture.texture->Ref<gns::Texture>();
+                LOG_WARNING("[AssetManager]: Failed to load material texture.");
+                LOG_WARNING(materialName);
             }
-            else if (albedoTexture.failed)
-            {
-                material->albedo_texture = gns::Reference<gns::Texture>(
-                    gns::Handle::CreateFromString(gns::DefaultResourceNames::ErrorCheckerboardTexture));
-            }
-        }else
-        {
-            material->albedo_texture = gns::Reference<gns::Texture>(
-                    gns::Handle::CreateFromString(gns::DefaultResourceNames::WhiteTexture));
         }
 
         return material;

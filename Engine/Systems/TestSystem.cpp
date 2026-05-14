@@ -28,10 +28,6 @@ void gns::core::TestSystem::OnEnable()
 
 void gns::core::TestSystem::OnUpdate(float deltaTime)
 {
-	if (gns::core::InputBackend::GetKeyUp(SDLK_w))
-	{
-		LOG_INFO("W up");
-	}
 }
 
 void gns::core::TestSystem::OnFixedUpdate()

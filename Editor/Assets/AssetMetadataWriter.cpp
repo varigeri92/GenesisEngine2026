@@ -9,7 +9,6 @@
 #include <assimp/material.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
-#include <glm/glm.hpp>
 #include <yaml-cpp/yaml.h>
 
 #include "../../Engine/Assets/AssetManager.h"
@@ -33,8 +32,6 @@ namespace
         uint32_t materialIndex = 0;
         std::string name;
         std::string path;
-        gns::Handle albedoTexture;
-        glm::vec4 albedoColor = glm::vec4(1.0f);
     };
 
     std::string AssetTypeToString(gns::assets::AssetType assetType)
@@ -83,23 +80,6 @@ namespace
         }
 
         return "Material_" + std::to_string(materialIndex);
-    }
-
-    glm::vec4 ReadAlbedoColor(const aiMaterial* material)
-    {
-        if (material == nullptr)
-        {
-            return glm::vec4(1.0f);
-        }
-
-        aiColor4D baseColor;
-        if (aiGetMaterialColor(material, AI_MATKEY_BASE_COLOR, &baseColor) == AI_SUCCESS ||
-            aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &baseColor) == AI_SUCCESS)
-        {
-            return glm::vec4(baseColor.r, baseColor.g, baseColor.b, baseColor.a);
-        }
-
-        return glm::vec4(1.0f);
     }
 
     bool TryGetMaterialTexturePath(
@@ -182,14 +162,6 @@ namespace
         emitter << YAML::Key << "assetType" << YAML::Value << "Material";
         emitter << YAML::Key << "handle" << YAML::Value << material.handle.Get();
         emitter << YAML::Key << "name" << YAML::Value << material.name;
-        emitter << YAML::Key << "albedoColor" << YAML::Value << YAML::Flow << YAML::BeginSeq
-            << material.albedoColor.r
-            << material.albedoColor.g
-            << material.albedoColor.b
-            << material.albedoColor.a
-            << YAML::EndSeq;
-        emitter << YAML::Key << "albedoTexture" << YAML::Value
-            << (material.albedoTexture.IsValid() ? material.albedoTexture.Get() : gns::Handle::Invalid);
         emitter << YAML::EndMap;
 
         return emitter.good() && gns::path::WriteTextFile(materialPath, emitter.c_str());
@@ -297,10 +269,13 @@ bool editor::assets::WriteModelMetaFile(
                 .handle = gns::assets::AssetManager::GetMaterialArtifactHandle(sourcePath, materialIndex),
                 .materialIndex = materialIndex,
                 .name = MaterialName(assimpMaterial, materialIndex),
-                .path = ToProjectRelativeString(materialPath),
-                .albedoTexture = CollectAlbedoTexture(assimpMaterial, assetDirectory, sourcePath, textureArtifacts),
-                .albedoColor = ReadAlbedoColor(assimpMaterial)
+                .path = ToProjectRelativeString(materialPath)
             };
+
+            if (loadOptions.importTextures)
+            {
+                (void)CollectAlbedoTexture(assimpMaterial, assetDirectory, sourcePath, textureArtifacts);
+            }
 
             if (loadOptions.importMaterials && !WriteMaterialFile(materialPath, material))
             {

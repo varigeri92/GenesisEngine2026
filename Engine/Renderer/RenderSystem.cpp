@@ -214,7 +214,6 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 				if (!material.GetLayout().IsCompatibleWith(shaderMaterialLayout))
 				{
 					material.SetLayout(shaderMaterialLayout, true);
-					material.ApplyImportCompatibilityDefaults();
 				}
 				return ApplyMaterial(material, *vulkanShader);
 			}
@@ -559,8 +558,6 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 		}
 
 		material->shader_ref = shader->Ref<Shader>();
-		material->albedo_color = glm::vec4(1.f, 1.f, 1.f, 1.f);
-		material->albedo_texture = Reference<Texture>(GetDefaultTextureHandle(DefaultTexture::White));
 		m_defaultMeshMaterial = material->GetHandle();
 	}
 
@@ -666,7 +663,6 @@ void gns::RenderSystem::BuildDrawData()
 		if (materialLayoutChanged)
 		{
 			material->SetLayout(shaderMaterialLayout, true);
-			material->ApplyImportCompatibilityDefaults();
 		}
 
 		const Handle renderMaterialHandle = ApplyMaterial(*material, *vulkanShader);

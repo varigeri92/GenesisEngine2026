@@ -166,15 +166,12 @@ namespace gns
     struct Material : public Object
     {
         Reference<gns::Shader> shader_ref;
-        glm::vec4 albedo_color = glm::vec4(1.0f);
-        Reference<gns::Texture> albedo_texture;
 
         GNS_API Material();
         GNS_API explicit Material(std::string name);
         GNS_API Material(Handle handle, std::string name);
 
         GNS_API void SetLayout(const MaterialLayout& layout, bool preserveValues = true);
-        GNS_API void ApplyImportCompatibilityDefaults();
         GNS_API const MaterialLayout& GetLayout() const;
 
         GNS_API void SetFloat(const std::string& name, float value);

@@ -2,28 +2,11 @@
 #include "Material.h"
 
 #include <algorithm>
-#include <array>
 #include <cstring>
 #include <utility>
 
 namespace
 {
-    constexpr std::array<const char*, 4> ImportedBaseColorTextureNames =
-    {
-        "albedoTexture",
-        "albedo_texture",
-        "baseColorTexture",
-        "base_color_texture"
-    };
-
-    constexpr std::array<const char*, 4> ImportedBaseColorNames =
-    {
-        "albedo_color",
-        "baseColor",
-        "base_color",
-        "baseColorFactor"
-    };
-
     struct GpuLayoutInfo
     {
         size_t elementSize = 0;
@@ -172,25 +155,6 @@ namespace
         return (exactType || compatibleVecColor) && property.elementCount == elementCount;
     }
 
-    template<size_t Count>
-    bool TryFindMaterialProperty(
-        const gns::Material& material,
-        const std::array<const char*, Count>& names,
-        gns::MaterialPropertyType type,
-        gns::MaterialPropertyInfo& outProperty)
-    {
-        for (const char* name : names)
-        {
-            gns::MaterialPropertyInfo property;
-            if (material.TryGetProperty(name, property) && property.type == type)
-            {
-                outProperty = property;
-                return true;
-            }
-        }
-
-        return false;
-    }
 }
 
 bool gns::MaterialLayout::AddProperty(
@@ -364,20 +328,17 @@ void gns::MaterialLayout::RebuildLookup()
 }
 
 gns::Material::Material()
-    : Object(Handle::New(), "Material"),
-      albedo_texture(Handle::CreateFromString(DefaultResourceNames::WhiteTexture))
+    : Object(Handle::New(), "Material")
 {
 }
 
 gns::Material::Material(std::string name)
-    : Object(std::move(name)),
-      albedo_texture(Handle::CreateFromString(DefaultResourceNames::WhiteTexture))
+    : Object(std::move(name))
 {
 }
 
 gns::Material::Material(Handle handle, std::string name)
-    : Object(handle, std::move(name)),
-      albedo_texture(Handle::CreateFromString(DefaultResourceNames::WhiteTexture))
+    : Object(handle, std::move(name))
 {
 }
 
@@ -444,64 +405,6 @@ void gns::Material::SetLayout(const MaterialLayout& layout, bool preserveValues)
 const gns::MaterialLayout& gns::Material::GetLayout() const
 {
     return m_layout;
-}
-
-void gns::Material::ApplyImportCompatibilityDefaults()
-{
-    MaterialPropertyInfo property;
-    if (albedo_texture.m_handle.IsValid() &&
-        TryFindMaterialProperty(
-            *this,
-            ImportedBaseColorTextureNames,
-            MaterialPropertyType::Texture2D,
-            property))
-    {
-        Reference<gns::Texture> currentTexture;
-        if (!TryGetTexture(property.name, currentTexture) ||
-            !currentTexture.m_handle.IsValid())
-        {
-            SetTexture(property.name, albedo_texture);
-        }
-    }
-
-    if (TryFindMaterialProperty(
-        *this,
-        ImportedBaseColorNames,
-        MaterialPropertyType::Color4,
-        property))
-    {
-        SetColor4(property.name, albedo_color);
-        return;
-    }
-
-    if (TryFindMaterialProperty(
-        *this,
-        ImportedBaseColorNames,
-        MaterialPropertyType::Vec4,
-        property))
-    {
-        SetVec4(property.name, albedo_color);
-        return;
-    }
-
-    if (TryFindMaterialProperty(
-        *this,
-        ImportedBaseColorNames,
-        MaterialPropertyType::Color3,
-        property))
-    {
-        SetColor3(property.name, glm::vec3(albedo_color));
-        return;
-    }
-
-    if (TryFindMaterialProperty(
-        *this,
-        ImportedBaseColorNames,
-        MaterialPropertyType::Vec3,
-        property))
-    {
-        SetVec3(property.name, glm::vec3(albedo_color));
-    }
 }
 
 void gns::Material::SetFloat(const std::string& name, float value)
