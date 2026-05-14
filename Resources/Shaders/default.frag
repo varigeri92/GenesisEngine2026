@@ -53,12 +53,14 @@ layout(std430, set = 0, binding = 3) readonly buffer SpotLights
 	SpotLight lights[MAX_LIGHTS];
 } spotLights;
 
+layout(set = 2, binding = 0) uniform sampler2D albedo_texture;
+
 //output write
 layout (location = 0) out vec4 outFragColor;
 
 void main() 
 {
-	vec4 baseColor = vec4(1.0f);
+	vec4 baseColor = texture(albedo_texture, inUV);
 	vec3 normal = normalize(inWorldNormal);
 	vec3 lighting = sceneData.ambientColor.rgb * sceneData.ambientColor.a;
 

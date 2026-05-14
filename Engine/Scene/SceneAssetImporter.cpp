@@ -77,6 +77,10 @@ bool gns::SceneAssetImporter::LoadMeshAssetIntoScene(
             {
                 loadedMaterial->shader_ref = shaderRef;
                 renderSystem.ApplyMaterial(*loadedMaterial);
+                if (assets::AssetManager::ApplyImportedMaterialDefaults(*loadedMaterial))
+                {
+                    renderSystem.ApplyMaterial(*loadedMaterial);
+                }
                 meshMaterial = loadedMaterial->Ref<Material>();
             }
         }

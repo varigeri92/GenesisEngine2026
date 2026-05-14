@@ -53,6 +53,7 @@ namespace gns::assets
         GNS_API static gns::Mesh* EnsureMeshLoaded(Handle meshHandle);
         GNS_API static gns::Material* EnsureMaterialLoaded(Handle materialHandle);
         GNS_API static gns::Texture* EnsureTextureLoaded(Handle textureHandle);
+        GNS_API static bool ApplyImportedMaterialDefaults(gns::Material& material);
         GNS_API static Handle GetModelAssetHandle(const std::filesystem::path& sourcePath);
         GNS_API static Handle GetMeshArtifactHandle(const std::filesystem::path& sourcePath, uint32_t meshIndex);
         GNS_API static Handle GetMaterialArtifactHandle(const std::filesystem::path& sourcePath, uint32_t materialIndex);

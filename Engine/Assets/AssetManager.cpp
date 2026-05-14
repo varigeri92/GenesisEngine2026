@@ -12,6 +12,8 @@
 
 #include <cstdlib>
 #include <cstdint>
+#include <array>
+#include <cstring>
 #include <filesystem>
 #include <optional>
 #include <fstream>
@@ -46,10 +48,27 @@ namespace
         glm::vec3 scale = glm::vec3(1.0f);
     };
 
+    struct MaterialTextureSlot
+    {
+        aiTextureType type = aiTextureType_NONE;
+        uint32_t index = 0;
+    };
+
+    struct ImportedMaterialDefaults
+    {
+        gns::Handle baseColorTexture;
+    };
+
     std::unordered_map<gns::Handle, AssetArtifactRecord>& ArtifactRegistry()
     {
         static std::unordered_map<gns::Handle, AssetArtifactRecord> artifacts;
         return artifacts;
+    }
+
+    std::unordered_map<gns::Handle, ImportedMaterialDefaults>& ImportedMaterialDefaultRegistry()
+    {
+        static std::unordered_map<gns::Handle, ImportedMaterialDefaults> defaults;
+        return defaults;
     }
 
     std::filesystem::path ArtifactDirectory()
@@ -501,21 +520,58 @@ namespace
             textureCache);
     }
 
+    std::optional<MaterialTextureSlot> FindFirstMaterialTextureSlot(
+        const aiMaterial* material)
+    {
+        if (material == nullptr)
+        {
+            return std::nullopt;
+        }
+
+        constexpr std::array<aiTextureType, 2> preferredTextureTypes =
+        {
+            aiTextureType_BASE_COLOR,
+            aiTextureType_DIFFUSE
+        };
+
+        for (const aiTextureType textureType : preferredTextureTypes)
+        {
+            if (material->GetTextureCount(textureType) > 0)
+            {
+                return MaterialTextureSlot{ textureType, 0 };
+            }
+        }
+
+        for (uint32_t propertyIndex = 0; propertyIndex < material->mNumProperties; ++propertyIndex)
+        {
+            const aiMaterialProperty* property = material->mProperties[propertyIndex];
+            if (property == nullptr || std::strcmp(property->mKey.C_Str(), "$tex.file") != 0)
+            {
+                continue;
+            }
+
+            const aiTextureType textureType = static_cast<aiTextureType>(property->mSemantic);
+            if (textureType == aiTextureType_NONE)
+            {
+                continue;
+            }
+
+            return MaterialTextureSlot{ textureType, property->mIndex };
+        }
+
+        return std::nullopt;
+    }
+
     TextureLoadResult LoadMaterialTexture(
         const aiScene* scene,
         const aiMaterial* material,
-        aiTextureType textureType,
+        const MaterialTextureSlot& textureSlot,
         const std::filesystem::path& assetDirectory,
         const std::string& assetPath,
         std::unordered_map<std::string, gns::Texture*>& textureCache)
     {
-        if (material->GetTextureCount(textureType) == 0)
-        {
-            return {};
-        }
-
         aiString texturePath;
-        if (material->GetTexture(textureType, 0, &texturePath) != AI_SUCCESS)
+        if (material->GetTexture(textureSlot.type, textureSlot.index, &texturePath) != AI_SUCCESS)
         {
             return { nullptr, true, true };
         }
@@ -561,22 +617,21 @@ namespace
 
         if (importTextures)
         {
-            TextureLoadResult texture = LoadMaterialTexture(
-                scene,
-                assimpMaterial,
-                aiTextureType_BASE_COLOR,
-                assetDirectory,
-                assetPath,
-                textureCache);
-            if (!texture.textureSlotExists)
+            TextureLoadResult texture;
+            if (const std::optional<MaterialTextureSlot> textureSlot = FindFirstMaterialTextureSlot(assimpMaterial))
             {
                 texture = LoadMaterialTexture(
                     scene,
                     assimpMaterial,
-                    aiTextureType_DIFFUSE,
+                    *textureSlot,
                     assetDirectory,
                     assetPath,
                     textureCache);
+            }
+
+            if (texture.texture != nullptr)
+            {
+                ImportedMaterialDefaultRegistry()[materialHandle].baseColorTexture = texture.texture->GetHandle();
             }
 
             if (texture.failed)
@@ -868,6 +923,42 @@ gns::Texture* gns::assets::AssetManager::EnsureTextureLoaded(Handle textureHandl
     LOG_WARNING("[AssetManager]: Cannot resolve texture artifact handle.");
     LOG_WARNING(std::to_string(textureHandle.Get()));
     return nullptr;
+}
+
+bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& material)
+{
+    const auto defaults = ImportedMaterialDefaultRegistry().find(material.GetHandle());
+    if (defaults == ImportedMaterialDefaultRegistry().end())
+    {
+        return false;
+    }
+
+    constexpr std::array<const char*, 4> baseColorTextureNames =
+    {
+        "albedo_texture",
+        "albedoTexture",
+        "base_color_texture",
+        "baseColorTexture"
+    };
+
+    if (!defaults->second.baseColorTexture.IsValid())
+    {
+        return false;
+    }
+
+    for (const char* propertyName : baseColorTextureNames)
+    {
+        MaterialPropertyInfo property;
+        if (!material.TryGetProperty(propertyName, property) || property.type != MaterialPropertyType::Texture2D)
+        {
+            continue;
+        }
+
+        material.SetTexture(propertyName, defaults->second.baseColorTexture);
+        return true;
+    }
+
+    return false;
 }
 
 gns::Handle gns::assets::AssetManager::GetModelAssetHandle(const std::filesystem::path& sourcePath)
