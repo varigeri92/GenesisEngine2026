@@ -72,10 +72,16 @@ namespace gns::rendering
             std::vector<VkDescriptorSetLayout>& outLayouts);
         GNS_API static std::vector<VkPushConstantRange> BuildPushConstantRanges(
             const std::vector<ShaderReflectionData>& reflections);
+        GNS_API static bool ValidateMaterialDescriptorRules(
+            const std::vector<ShaderReflectionData>& reflections,
+            uint32_t materialSet = 1,
+            uint32_t materialBinding = 0,
+            uint32_t materialTextureSet = 2);
         GNS_API static gns::MaterialLayout BuildMaterialLayout(
             const std::vector<ShaderReflectionData>& reflections,
             uint32_t materialSet = 1,
-            uint32_t materialBinding = 0);
+            uint32_t materialBinding = 0,
+            uint32_t materialTextureSet = 2);
         GNS_API static void PrintReflection(const ShaderReflectionData& reflection);
 
         GNS_API static const char* ToString(ShaderResourceKind kind);

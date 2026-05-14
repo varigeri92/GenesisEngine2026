@@ -61,6 +61,25 @@ namespace gns::reflection
         GNS_REGISTER_FIELD(DirectionalLightComponent, direction);
         GNS_REGISTER_FIELD(DirectionalLightComponent, color);
     }
+
+    template<>
+    void RegisterFields<PointLightComponent>(ComponentMeta& componentMeta)
+    {
+        GNS_REGISTER_FIELD(PointLightComponent, color);
+        GNS_REGISTER_FIELD(PointLightComponent, intensity);
+        GNS_REGISTER_FIELD(PointLightComponent, range);
+    }
+
+    template<>
+    void RegisterFields<SpotLightComponent>(ComponentMeta& componentMeta)
+    {
+        GNS_REGISTER_FIELD(SpotLightComponent, direction);
+        GNS_REGISTER_FIELD(SpotLightComponent, color);
+        GNS_REGISTER_FIELD(SpotLightComponent, intensity);
+        GNS_REGISTER_FIELD(SpotLightComponent, range);
+        GNS_REGISTER_FIELD(SpotLightComponent, innerAngle);
+        GNS_REGISTER_FIELD(SpotLightComponent, outerAngle);
+    }
 }
 
 #undef GNS_REGISTER_FIELD
@@ -76,4 +95,6 @@ void gns::RegisterCoreComponentReflection()
     reflection::ComponentRegistry::RegisterComponent<MeshComponent>();
     reflection::ComponentRegistry::RegisterComponent<AmbientLightComponent>();
     reflection::ComponentRegistry::RegisterComponent<DirectionalLightComponent>();
+    reflection::ComponentRegistry::RegisterComponent<PointLightComponent>();
+    reflection::ComponentRegistry::RegisterComponent<SpotLightComponent>();
 }

@@ -79,6 +79,38 @@ struct DirectionalLightComponent
     {}
 };
 
+struct PointLightComponent
+{
+    glm::vec4 color;
+    float intensity;
+    float range;
+
+    PointLightComponent() :
+        color{1.0f, 1.0f, 1.0f, 1.0f},
+        intensity(1.0f),
+        range(10.0f)
+    {}
+};
+
+struct SpotLightComponent
+{
+    glm::vec4 direction;
+    glm::vec4 color;
+    float intensity;
+    float range;
+    float innerAngle;
+    float outerAngle;
+
+    SpotLightComponent() :
+        direction{0.0f, -1.0f, 0.0f, 0.0f},
+        color{1.0f, 1.0f, 1.0f, 1.0f},
+        intensity(1.0f),
+        range(10.0f),
+        innerAngle(15.0f),
+        outerAngle(30.0f)
+    {}
+};
+
 namespace gns
 {
     GNS_API void RegisterCoreComponentReflection();

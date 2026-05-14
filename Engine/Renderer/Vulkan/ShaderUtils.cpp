@@ -140,8 +140,14 @@ namespace gns::rendering
             return value;
         }
 
+        bool IsColorPropertyName(const std::string& name)
+        {
+            return ToLower(name).find("color") != std::string::npos;
+        }
+
         gns::MaterialPropertyType MaterialPropertyTypeFromShaderType(
-            const ShaderBlockMemberInfo& member)
+            const ShaderBlockMemberInfo& member,
+            const std::string& propertyName)
         {
             const std::string type = ToLower(member.type);
             const bool isArray = member.elementCount > 1;
@@ -162,13 +168,17 @@ namespace gns::rendering
             {
                 return gns::MaterialPropertyType::Vec2;
             }
-            if (!isArray && (type == "vec3" || type == "fvec3"))
+            if (!isArray && (type == "vec3" || type == "fvec3" || member.size == sizeof(glm::vec3)))
             {
-                return gns::MaterialPropertyType::Vec3;
+                return IsColorPropertyName(propertyName)
+                    ? gns::MaterialPropertyType::Color3
+                    : gns::MaterialPropertyType::Vec3;
             }
-            if (!isArray && (type == "vec4" || type == "fvec4"))
+            if (!isArray && (type == "vec4" || type == "fvec4" || member.size == sizeof(glm::vec4)))
             {
-                return gns::MaterialPropertyType::Vec4;
+                return IsColorPropertyName(propertyName)
+                    ? gns::MaterialPropertyType::Color4
+                    : gns::MaterialPropertyType::Vec4;
             }
             if (!isArray && (type == "mat4" || type == "mat4x4"))
             {
@@ -182,6 +192,9 @@ namespace gns::rendering
             const std::vector<ShaderBlockMemberInfo>& members,
             const std::string& prefix,
             uint32_t baseOffset,
+            uint32_t descriptorSet,
+            uint32_t descriptorBinding,
+            gns::MaterialDescriptorKind descriptorKind,
             gns::MaterialLayout& outLayout)
         {
             for (const ShaderBlockMemberInfo& member : members)
@@ -193,7 +206,14 @@ namespace gns::rendering
 
                 if (!member.members.empty())
                 {
-                    AddMaterialLayoutMembers(member.members, memberName, memberOffset, outLayout);
+                    AddMaterialLayoutMembers(
+                        member.members,
+                        memberName,
+                        memberOffset,
+                        descriptorSet,
+                        descriptorBinding,
+                        descriptorKind,
+                        outLayout);
                     continue;
                 }
 
@@ -204,12 +224,40 @@ namespace gns::rendering
 
                 outLayout.AddPropertyAtOffset(
                     memberName,
-                    MaterialPropertyTypeFromShaderType(member),
+                    MaterialPropertyTypeFromShaderType(member, memberName),
                     memberOffset,
                     member.size,
                     member.elementCount,
-                    member.elementStride);
+                    member.elementStride,
+                    0,
+                    descriptorSet,
+                    descriptorBinding,
+                    1,
+                    descriptorKind);
             }
+        }
+
+        gns::MaterialDescriptorKind ToMaterialDescriptorKind(ShaderResourceKind kind)
+        {
+            switch (kind)
+            {
+            case ShaderResourceKind::UniformBuffer:
+                return gns::MaterialDescriptorKind::UniformBuffer;
+            case ShaderResourceKind::StorageBuffer:
+                return gns::MaterialDescriptorKind::StorageBuffer;
+            case ShaderResourceKind::Texture:
+                return gns::MaterialDescriptorKind::Texture;
+            default:
+                return gns::MaterialDescriptorKind::None;
+            }
+        }
+
+        bool IsMaterialTextureDescriptor(
+            const ShaderResourceInfo& descriptor,
+            uint32_t materialTextureSet)
+        {
+            return descriptor.set == materialTextureSet &&
+                descriptor.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         }
 
         void AddBlockMembers(
@@ -548,16 +596,97 @@ namespace gns::rendering
         return ranges;
     }
 
+    bool ShaderUtils::ValidateMaterialDescriptorRules(
+        const std::vector<ShaderReflectionData>& reflections,
+        uint32_t materialSet,
+        uint32_t materialBinding,
+        uint32_t materialTextureSet)
+    {
+        bool valid = true;
+
+        for (const ShaderReflectionData& reflection : reflections)
+        {
+            for (const ShaderResourceInfo& descriptor : reflection.descriptors)
+            {
+                if (descriptor.set < materialSet)
+                {
+                    continue;
+                }
+
+                std::stringstream descriptorName;
+                descriptorName
+                    << descriptor.name
+                    << " (set "
+                    << descriptor.set
+                    << ", binding "
+                    << descriptor.binding
+                    << ")";
+
+                if (descriptor.set == materialSet)
+                {
+                    const bool isMaterialBuffer =
+                        descriptor.binding == materialBinding &&
+                        (descriptor.kind == ShaderResourceKind::UniformBuffer ||
+                            descriptor.kind == ShaderResourceKind::StorageBuffer);
+                    if (!isMaterialBuffer)
+                    {
+                        LOG_ERROR("[ShaderUtils]: Material set 1 may only contain MaterialData at binding 0.");
+                        LOG_ERROR(descriptorName.str());
+                        valid = false;
+                    }
+                    continue;
+                }
+
+                if (descriptor.set == materialTextureSet)
+                {
+                    if (!IsMaterialTextureDescriptor(descriptor, materialTextureSet))
+                    {
+                        LOG_ERROR("[ShaderUtils]: Material texture set may only contain sampled textures.");
+                        LOG_ERROR(descriptorName.str());
+                        valid = false;
+                        continue;
+                    }
+
+                    if (descriptor.count != 1)
+                    {
+                        LOG_ERROR("[ShaderUtils]: Material texture descriptor arrays are not supported yet.");
+                        LOG_ERROR(descriptorName.str());
+                        valid = false;
+                    }
+                    continue;
+                }
+
+                LOG_ERROR("[ShaderUtils]: Unsupported material descriptor set. Expected set 1 for MaterialData or set 2 for textures.");
+                LOG_ERROR(descriptorName.str());
+                valid = false;
+            }
+        }
+
+        return valid;
+    }
+
     gns::MaterialLayout ShaderUtils::BuildMaterialLayout(
         const std::vector<ShaderReflectionData>& reflections,
         uint32_t materialSet,
-        uint32_t materialBinding)
+        uint32_t materialBinding,
+        uint32_t materialTextureSet)
     {
         gns::MaterialLayout layout;
         for (const ShaderReflectionData& reflection : reflections)
         {
             for (const ShaderResourceInfo& descriptor : reflection.descriptors)
             {
+                if (IsMaterialTextureDescriptor(descriptor, materialTextureSet) &&
+                    descriptor.count == 1)
+                {
+                    layout.AddTextureProperty(
+                        descriptor.name,
+                        descriptor.set,
+                        descriptor.binding,
+                        descriptor.count);
+                    continue;
+                }
+
                 if (descriptor.set != materialSet ||
                     descriptor.binding != materialBinding ||
                     (descriptor.kind != ShaderResourceKind::UniformBuffer &&
@@ -571,12 +700,26 @@ namespace gns::rendering
                     descriptor.members.front().elementStride > 0)
                 {
                     const ShaderBlockMemberInfo& arrayMember = descriptor.members.front();
-                    AddMaterialLayoutMembers(arrayMember.members, "", arrayMember.offset, layout);
+                    AddMaterialLayoutMembers(
+                        arrayMember.members,
+                        "",
+                        arrayMember.offset,
+                        descriptor.set,
+                        descriptor.binding,
+                        ToMaterialDescriptorKind(descriptor.kind),
+                        layout);
                     layout.SetSize(arrayMember.elementStride);
                     continue;
                 }
 
-                AddMaterialLayoutMembers(descriptor.members, "", 0, layout);
+                AddMaterialLayoutMembers(
+                    descriptor.members,
+                    "",
+                    0,
+                    descriptor.set,
+                    descriptor.binding,
+                    ToMaterialDescriptorKind(descriptor.kind),
+                    layout);
                 layout.SetSize(descriptor.size);
             }
         }

@@ -11,9 +11,58 @@
 #include "../Scene/Scene.h"
 #include "../Scene/SceneManager.h"
 #include "../Systems/SystemsManager.h"
+#include "Resources/VulkanMaterial.h"
 #include "Resources/VulkanShader.h"
 #include "Resources/VulkanTexture.h"
 #include "Vulkan/VulkanMesh.h"
+
+namespace
+{
+	constexpr uint32_t MaterialDataSet = 1;
+	constexpr uint32_t MaterialDataBinding = 0;
+	constexpr uint32_t MaterialTextureSet = 2;
+
+	bool TryFindMaterialDataBinding(
+		const gns::Material& material,
+		gns::MaterialPropertyInfo& outProperty)
+	{
+		bool found = false;
+		for (const gns::MaterialPropertyInfo& property : material.GetProperties())
+		{
+			if (!property.IsBufferBacked() ||
+				property.descriptorKind == gns::MaterialDescriptorKind::None)
+			{
+				continue;
+			}
+
+			if (property.set != MaterialDataSet ||
+				property.binding != MaterialDataBinding ||
+				(property.descriptorKind != gns::MaterialDescriptorKind::UniformBuffer &&
+					property.descriptorKind != gns::MaterialDescriptorKind::StorageBuffer))
+			{
+				LOG_ERROR("[RenderSystem]: Material buffer property violates the material descriptor rules.");
+				LOG_ERROR(property.name);
+				return false;
+			}
+
+			if (!found)
+			{
+				outProperty = property;
+				found = true;
+				continue;
+			}
+
+			if (outProperty.descriptorKind != property.descriptorKind)
+			{
+				LOG_ERROR("[RenderSystem]: Material buffer properties use conflicting descriptor kinds.");
+				LOG_ERROR(property.name);
+				return false;
+			}
+		}
+
+		return found;
+	}
+}
 
 gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(ws), m_renderer()
 {
@@ -139,23 +188,59 @@ gns::Handle gns::RenderSystem::ApplyTexture(Texture& texture)
 gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 {
 	const Handle materialHandle = material.GetHandle();
-	if (material.albedo_texture.m_handle.IsValid() &&
-		!m_resourceCache.textures.contains(material.albedo_texture.m_handle))
+	if (material.shader_ref.m_handle.IsValid())
 	{
-		Texture* albedoTexture = Object::Get<Texture>(material.albedo_texture.m_handle);
-		if (albedoTexture == nullptr)
+		Shader* shader = Object::Get<Shader>(material.shader_ref.m_handle);
+		if (shader != nullptr)
 		{
-			albedoTexture = assets::AssetManager::EnsureTextureLoaded(material.albedo_texture.m_handle);
-		}
-
-		if (albedoTexture != nullptr)
-		{
-			if (!ApplyTexture(*albedoTexture).IsValid())
+			const Handle shaderHandle = shader->GetHandle();
+			if (!m_resourceCache.shaders.contains(shaderHandle))
 			{
-				return {};
+				ApplyShader(*shader);
+			}
+
+			const Handle renderShaderHandle = GetRenderShaderHandle(shaderHandle);
+			rendering::VulkanShader* vulkanShader = renderShaderHandle.IsValid()
+				? m_renderer.GetVulkanShader(renderShaderHandle)
+				: nullptr;
+			if (vulkanShader != nullptr)
+			{
+				const MaterialLayout& shaderMaterialLayout = vulkanShader->GetMaterialLayout();
+				if (!material.GetLayout().IsCompatibleWith(shaderMaterialLayout))
+				{
+					material.SetLayout(shaderMaterialLayout, true);
+					material.ApplyImportCompatibilityDefaults();
+				}
+				return ApplyMaterial(material, *vulkanShader);
 			}
 		}
-		else
+	}
+
+	auto ensureTextureApplied = [&](Handle textureHandle) -> bool
+	{
+		if (!textureHandle.IsValid() || m_resourceCache.textures.contains(textureHandle))
+		{
+			return true;
+		}
+
+		Texture* texture = Object::Get<Texture>(textureHandle);
+		if (texture == nullptr)
+		{
+			texture = assets::AssetManager::EnsureTextureLoaded(textureHandle);
+		}
+
+		if (texture == nullptr)
+		{
+			return false;
+		}
+
+		return ApplyTexture(*texture).IsValid();
+	};
+
+	for (size_t textureIndex = 0; textureIndex < material.GetTextureSlotCount(); ++textureIndex)
+	{
+		const Handle textureHandle = material.GetTextureHandle(textureIndex);
+		if (!ensureTextureApplied(textureHandle))
 		{
 			return {};
 		}
@@ -166,8 +251,138 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 		return it->second;
 	}
 
-	m_resourceCache.materials[materialHandle] = materialHandle;
-	return materialHandle;
+	return {};
+}
+
+gns::Handle gns::RenderSystem::ApplyMaterial(Material& material, rendering::VulkanShader& vulkanShader)
+{
+	const Handle materialHandle = material.GetHandle();
+
+	auto ensureTextureApplied = [&](Handle textureHandle) -> bool
+	{
+		if (!textureHandle.IsValid() || m_resourceCache.textures.contains(textureHandle))
+		{
+			return true;
+		}
+
+		Texture* texture = Object::Get<Texture>(textureHandle);
+		if (texture == nullptr)
+		{
+			texture = assets::AssetManager::EnsureTextureLoaded(textureHandle);
+		}
+
+		if (texture == nullptr)
+		{
+			return false;
+		}
+
+		return ApplyTexture(*texture).IsValid();
+	};
+
+	std::vector<MaterialTextureBinding> textureBindings;
+	textureBindings.reserve(material.GetTextureSlotCount());
+	for (size_t textureIndex = 0; textureIndex < material.GetTextureSlotCount(); ++textureIndex)
+	{
+		const MaterialPropertyInfo* property = material.GetTextureSlotProperty(textureIndex);
+		if (property == nullptr)
+		{
+			LOG_ERROR("[RenderSystem]: Material texture slot is missing metadata.");
+			return {};
+		}
+
+		if (property->set != MaterialTextureSet || property->descriptorCount != 1)
+		{
+			LOG_ERROR("[RenderSystem]: Material texture property violates the material texture binding rules.");
+			LOG_ERROR(property->name);
+			return {};
+		}
+
+		Handle textureHandle = material.GetTextureHandle(textureIndex);
+		if (!textureHandle.IsValid())
+		{
+			textureHandle = GetDefaultTextureHandle(DefaultTexture::White);
+		}
+
+		if (!ensureTextureApplied(textureHandle))
+		{
+			return {};
+		}
+
+		const auto textureResource = m_resourceCache.textures.find(textureHandle);
+		if (textureResource == m_resourceCache.textures.end())
+		{
+			LOG_ERROR("[RenderSystem]: Missing Vulkan texture resource for material texture.");
+			LOG_ERROR(std::to_string(textureHandle.Get()));
+			return {};
+		}
+
+		rendering::VulkanTexture* vulkanTexture = m_renderer.GetVulkanTexture(textureResource->second);
+		if (vulkanTexture == nullptr)
+		{
+			return {};
+		}
+
+		textureBindings.emplace_back(MaterialTextureBinding
+		{
+			.binding = property->binding,
+			.texture = vulkanTexture
+		});
+	}
+
+	GpuDataDescriptor materialDataDescriptor;
+	uint32_t materialDataSet = gns::InvalidMaterialBinding;
+	uint32_t materialDataBinding = gns::InvalidMaterialBinding;
+	MaterialDescriptorKind materialDataDescriptorKind = MaterialDescriptorKind::None;
+	const MaterialDataBlob materialDataBlob = material.GetDataBlob();
+	if (materialDataBlob.IsValid())
+	{
+		MaterialPropertyInfo materialDataProperty;
+		if (TryFindMaterialDataBinding(material, materialDataProperty))
+		{
+			materialDataDescriptor = GpuDataDescriptor::GetFromMemory(
+				materialDataBlob.data,
+				materialDataBlob.size);
+			materialDataSet = materialDataProperty.set;
+			materialDataBinding = materialDataProperty.binding;
+			materialDataDescriptorKind = materialDataProperty.descriptorKind;
+		}
+	}
+
+	rendering::VulkanMaterial* vulkanMaterial = nullptr;
+	Handle renderMaterialHandle;
+	if (const auto it = m_resourceCache.materials.find(materialHandle); it != m_resourceCache.materials.end())
+	{
+		renderMaterialHandle = it->second;
+		vulkanMaterial = m_renderer.GetVulkanMaterial(renderMaterialHandle);
+	}
+
+	if (vulkanMaterial == nullptr)
+	{
+		vulkanMaterial = m_renderer.m_device.CreateResource<rendering::VulkanMaterial>();
+		if (vulkanMaterial == nullptr)
+		{
+			LOG_ERROR("[RenderSystem]: Failed to create Vulkan material resource.");
+			return {};
+		}
+
+		renderMaterialHandle = vulkanMaterial->GetHandle();
+		m_resourceCache.materials[materialHandle] = renderMaterialHandle;
+	}
+
+	if (!m_renderer.m_device.UpdateMaterialResource(
+		*vulkanMaterial,
+		vulkanShader,
+		materialDataDescriptor,
+		materialDataSet,
+		materialDataBinding,
+		materialDataDescriptorKind,
+		textureBindings,
+		MaterialTextureSet))
+	{
+		return {};
+	}
+
+	return renderMaterialHandle;
 }
 
 gns::Handle gns::RenderSystem::GetRenderMeshHandle(Handle meshHandle) const
@@ -340,9 +555,7 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 
 		material->shader_ref = shader->Ref<Shader>();
 		material->albedo_color = glm::vec4(0.5f, 1.0f, 0.0f, 1.0f);
-		material->SetVec4("albedo_color", material->albedo_color);
 		material->albedo_texture = Reference<Texture>(GetDefaultTextureHandle(DefaultTexture::ErrorCheckerboard));
-		ApplyMaterial(*material);
 		m_defaultMeshMaterial = material->GetHandle();
 	}
 
@@ -429,14 +642,6 @@ void gns::RenderSystem::BuildDrawData()
 			ApplyShader(*shader);
 		}
 
-		if (!m_resourceCache.materials.contains(meshComp.material.m_handle))
-		{
-			if (!ApplyMaterial(*material).IsValid())
-			{
-				return;
-			}
-		}
-
 		const Handle renderShaderHandle = GetRenderShaderHandle(shaderHandle);
 		const Handle renderMeshHandle = GetRenderMeshHandle(meshComp.mesh.m_handle);
 		if (!renderShaderHandle.IsValid() || !renderMeshHandle.IsValid())
@@ -452,20 +657,21 @@ void gns::RenderSystem::BuildDrawData()
 		}
 
 		const MaterialLayout& shaderMaterialLayout = vulkanShader->GetMaterialLayout();
-		if (shaderMaterialLayout.IsValid() &&
-			!material->GetLayout().IsCompatibleWith(shaderMaterialLayout))
+		const bool materialLayoutChanged = !material->GetLayout().IsCompatibleWith(shaderMaterialLayout);
+		if (materialLayoutChanged)
 		{
 			material->SetLayout(shaderMaterialLayout, true);
+			material->ApplyImportCompatibilityDefaults();
 		}
 
-		Handle albedoTextureHandle = material->albedo_texture.m_handle;
-		if (!albedoTextureHandle.IsValid())
+		const Handle renderMaterialHandle = ApplyMaterial(*material, *vulkanShader);
+		if (!renderMaterialHandle.IsValid())
 		{
-			albedoTextureHandle = GetDefaultTextureHandle(DefaultTexture::White);
+			return;
 		}
 
-		const RenderTextureBinding albedoTextureBinding = GetTextureBinding(albedoTextureHandle);
-		if (!albedoTextureBinding.IsValid())
+		rendering::VulkanMaterial* vulkanMaterial = m_renderer.GetVulkanMaterial(renderMaterialHandle);
+		if (vulkanMaterial == nullptr)
 		{
 			return;
 		}
@@ -474,7 +680,7 @@ void gns::RenderSystem::BuildDrawData()
 		drawData.transform = m_renderer.m_cameraBackend.viewProjection * transform.matrix;
 		drawData.vkShader = vulkanShader;
 		drawData.vk_indexBuffer = vulkanMesh->indexBuffer.buffer;
-		drawData.albedoTextureDescriptor = albedoTextureBinding.descriptor;
+		drawData.vkMaterial = vulkanMaterial;
 		drawData.vk_vertexBufferAddress = vulkanMesh->vertexBufferAddress;
 		drawData.StartIndex = vulkanMesh->startIndex;
 		drawData.Count = vulkanMesh->count;

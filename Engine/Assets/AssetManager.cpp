@@ -564,7 +564,6 @@ namespace
             aiGetMaterialColor(assimpMaterial, AI_MATKEY_COLOR_DIFFUSE, &baseColor) == AI_SUCCESS)
         {
             material->albedo_color = glm::vec4(baseColor.r, baseColor.g, baseColor.b, baseColor.a);
-            material->SetVec4("albedo_color", material->albedo_color);
         }
 
         if (importTextures)

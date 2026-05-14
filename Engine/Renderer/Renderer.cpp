@@ -8,6 +8,7 @@
 #include "Vulkan/vkutils.h"
 #include "Vulkan/vulkan_log.h"
 #include "Resources/VulkanShader.h"
+#include "Resources/VulkanMaterial.h"
 #include "Resources/VulkanTexture.h"
 
 #include <array>
@@ -277,6 +278,11 @@ gns::rendering::VulkanShader* gns::rendering::Renderer::GetVulkanShader(Handle s
 	return m_device.GetResource<VulkanShader>(shaderHandle);
 }
 
+gns::rendering::VulkanMaterial* gns::rendering::Renderer::GetVulkanMaterial(Handle materialHandle)
+{
+	return m_device.GetResource<VulkanMaterial>(materialHandle);
+}
+
 VulkanMesh* gns::rendering::Renderer::GetVulkanMesh(Handle meshHandle)
 {
 	return m_device.GetResource<VulkanMesh>(meshHandle);
@@ -371,6 +377,13 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 	if (shaderReflections.empty())
 	{
 		LOG_ERROR("[Renderer]: Cannot create shader pipeline without SPIR-V reflection data.");
+		LOG_ERROR(shader.GetName());
+		return {};
+	}
+
+	if (!ShaderUtils::ValidateMaterialDescriptorRules(shaderReflections))
+	{
+		LOG_ERROR("[Renderer]: Shader violates material descriptor layout rules.");
 		LOG_ERROR(shader.GetName());
 		return {};
 	}

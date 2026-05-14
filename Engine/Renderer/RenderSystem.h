@@ -103,6 +103,7 @@ namespace gns {
 
 		void CreateDefaultTextureObjects();
 		Handle RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle);
+		Handle ApplyMaterial(Material& material, rendering::VulkanShader& vulkanShader);
 		void BuildDrawData();
 		void BuildSceneDataDescriptor();
 	};

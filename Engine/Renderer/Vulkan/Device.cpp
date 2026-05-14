@@ -8,7 +8,9 @@
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
+#include <algorithm>
 #include <array>
+#include <cstring>
 #include <utility>
 #include <glm/gtc/packing.hpp>
 
@@ -17,12 +19,40 @@
 #include "../../Scene/Scene.h"
 #include "../../Utils/Path.h"
 #include "../Resources/VulkanShader.h"
+#include "../Resources/VulkanMaterial.h"
 #include "../Resources/VulkanTexture.h"
 
 constexpr unsigned int FRAME_OVERLAP = 3;
 constexpr bool useValidationLayers = true;
 constexpr const char* BackgroundComputeShaderPath = R"(Shaders\sky.comp.spv)";
 
+namespace
+{
+	VkDescriptorType ToVkDescriptorType(gns::MaterialDescriptorKind descriptorKind)
+	{
+		switch (descriptorKind)
+		{
+		case gns::MaterialDescriptorKind::UniformBuffer:
+			return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		case gns::MaterialDescriptorKind::StorageBuffer:
+			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		default:
+			return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+		}
+	}
+
+	VkBufferUsageFlags ToBufferUsage(gns::MaterialDescriptorKind descriptorKind)
+	{
+		switch (descriptorKind)
+		{
+		case gns::MaterialDescriptorKind::StorageBuffer:
+			return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		case gns::MaterialDescriptorKind::UniformBuffer:
+		default:
+			return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		}
+	}
+}
 
 void gns::rendering::CleanupQueue::Push(std::function<void()>&& func)
 {
@@ -303,6 +333,310 @@ VkDescriptorSet gns::rendering::Device::UpdateDescriptorSet(
 	return sceneDataDescriptor;
 }
 
+VkDescriptorSet gns::rendering::Device::CreateTransientBufferDescriptorSet(
+	GpuDataDescriptor dataDescriptor,
+	VkDescriptorSetLayout setLayout,
+	uint32_t binding,
+	MaterialDescriptorKind descriptorKind)
+{
+	if (!dataDescriptor.IsValid())
+	{
+		return VK_NULL_HANDLE;
+	}
+
+	if (setLayout == VK_NULL_HANDLE)
+	{
+		LOG_WARNING("[Device]: Cannot create transient buffer descriptor because layout is null.");
+		return VK_NULL_HANDLE;
+	}
+
+	const VkDescriptorType descriptorType = ToVkDescriptorType(descriptorKind);
+	if (descriptorType == VK_DESCRIPTOR_TYPE_MAX_ENUM)
+	{
+		LOG_WARNING("[Device]: Cannot create transient buffer descriptor for unsupported material descriptor kind.");
+		return VK_NULL_HANDLE;
+	}
+
+	VkBufferCreateInfo bufferInfo{ .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	bufferInfo.pNext = nullptr;
+	bufferInfo.size = dataDescriptor.size;
+	bufferInfo.usage = ToBufferUsage(descriptorKind);
+
+	VmaAllocationCreateInfo allocationInfo{};
+	allocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+	allocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+	VkBuffer buffer = VK_NULL_HANDLE;
+	VmaAllocation allocation = VK_NULL_HANDLE;
+	VmaAllocationInfo allocationResult{};
+	const VkResult createResult = vmaCreateBuffer(
+		m_allocator,
+		&bufferInfo,
+		&allocationInfo,
+		&buffer,
+		&allocation,
+		&allocationResult);
+	if (createResult != VK_SUCCESS)
+	{
+		LOG_ERROR("[Device]: Failed to create transient material data buffer.");
+		LOG_ERROR(std::to_string(createResult));
+		return VK_NULL_HANDLE;
+	}
+
+	void* mappedBufferData = allocationResult.pMappedData;
+	bool mappedManually = false;
+	if (mappedBufferData == nullptr)
+	{
+		const VkResult mapResult = vmaMapMemory(m_allocator, allocation, &mappedBufferData);
+		if (mapResult != VK_SUCCESS || mappedBufferData == nullptr)
+		{
+			LOG_ERROR("[Device]: Failed to map transient material data buffer.");
+			LOG_ERROR(std::to_string(mapResult));
+			vmaDestroyBuffer(m_allocator, buffer, allocation);
+			return VK_NULL_HANDLE;
+		}
+		mappedManually = true;
+	}
+
+	memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);
+	if (mappedManually)
+	{
+		vmaUnmapMemory(m_allocator, allocation);
+	}
+
+	GetCurrentFrame()._cleanupQueue.Push([allocator = m_allocator, buffer, allocation]()
+	{
+		vmaDestroyBuffer(allocator, buffer, allocation);
+	});
+
+	VkDescriptorSet descriptorSet = GetCurrentFrame()._frameDescriptors.Allocate(m_device, setLayout);
+	if (descriptorSet == VK_NULL_HANDLE)
+	{
+		return VK_NULL_HANDLE;
+	}
+
+	DescriptorWriter writer;
+	writer.WriteBuffer(binding, buffer, dataDescriptor.size, 0, descriptorType);
+	writer.UpdateSet(m_device, descriptorSet);
+	return descriptorSet;
+}
+
+bool gns::rendering::Device::UpdateMaterialResource(
+	VulkanMaterial& material,
+	VulkanShader& shader,
+	GpuDataDescriptor materialDataDescriptor,
+	uint32_t materialDataSet,
+	uint32_t materialDataBinding,
+	MaterialDescriptorKind materialDataDescriptorKind,
+	std::span<const MaterialTextureBinding> materialTextures,
+	uint32_t materialTextureSet)
+{
+	material.vkShader = &shader;
+
+	if (materialDataDescriptor.IsValid())
+	{
+		const VkDescriptorSetLayout setLayout = shader.GetDescriptorSetLayout(materialDataSet);
+		if (setLayout == VK_NULL_HANDLE)
+		{
+			LOG_ERROR("[Device]: Material data descriptor layout is missing.");
+			return false;
+		}
+
+		const VkDescriptorType descriptorType = ToVkDescriptorType(materialDataDescriptorKind);
+		if (descriptorType == VK_DESCRIPTOR_TYPE_MAX_ENUM)
+		{
+			LOG_ERROR("[Device]: Material data descriptor kind is unsupported.");
+			return false;
+		}
+
+		const bool recreateBuffer =
+			!material.materialDataBuffer ||
+			material.materialDataBuffer.size != materialDataDescriptor.size ||
+			material.materialDataDescriptorKind != materialDataDescriptorKind;
+		if (recreateBuffer)
+		{
+			material.materialDataBuffer.reset();
+			material.materialDataBuffer.allocator = m_allocator;
+			material.materialDataBuffer.CreateBuffer(
+				materialDataDescriptor.size,
+				ToBufferUsage(materialDataDescriptorKind),
+				VMA_MEMORY_USAGE_CPU_TO_GPU);
+		}
+
+		const bool dataChanged =
+			material.materialDataCache.size() != materialDataDescriptor.size ||
+			std::memcmp(
+				material.materialDataCache.data(),
+				materialDataDescriptor.data,
+				materialDataDescriptor.size) != 0;
+		if (dataChanged || recreateBuffer)
+		{
+			material.materialDataCache.assign(
+				static_cast<const uint8_t*>(materialDataDescriptor.data),
+				static_cast<const uint8_t*>(materialDataDescriptor.data) + materialDataDescriptor.size);
+
+			void* mappedBufferData = material.materialDataBuffer.info.pMappedData;
+			bool mappedManually = false;
+			if (mappedBufferData == nullptr)
+			{
+				const VkResult mapResult = vmaMapMemory(
+					m_allocator,
+					material.materialDataBuffer.allocation,
+					&mappedBufferData);
+				if (mapResult != VK_SUCCESS || mappedBufferData == nullptr)
+				{
+					LOG_ERROR("[Device]: Failed to map material data buffer.");
+					LOG_ERROR(std::to_string(mapResult));
+					return false;
+				}
+				mappedManually = true;
+			}
+
+			std::memcpy(mappedBufferData, materialDataDescriptor.data, materialDataDescriptor.size);
+			if (mappedManually)
+			{
+				vmaUnmapMemory(m_allocator, material.materialDataBuffer.allocation);
+			}
+		}
+
+		const bool descriptorSetMissing = material.materialDataSet == VK_NULL_HANDLE;
+		const bool layoutChanged = material.materialDataLayout != setLayout;
+		const bool bindingChanged =
+			material.materialDataSetIndex != materialDataSet ||
+			material.materialDataBinding != materialDataBinding ||
+			material.materialDataDescriptorKind != materialDataDescriptorKind;
+
+		if (descriptorSetMissing || layoutChanged)
+		{
+			material.materialDataSet = m_descriptorAllocator.Allocate(m_device, setLayout);
+			if (material.materialDataSet == VK_NULL_HANDLE)
+			{
+				LOG_ERROR("[Device]: Failed to allocate material data descriptor set.");
+				return false;
+			}
+		}
+
+		if (descriptorSetMissing || layoutChanged || bindingChanged || recreateBuffer)
+		{
+			DescriptorWriter writer;
+			writer.WriteBuffer(
+				materialDataBinding,
+				material.materialDataBuffer.buffer,
+				materialDataDescriptor.size,
+				0,
+				descriptorType);
+			writer.UpdateSet(m_device, material.materialDataSet);
+		}
+
+		material.materialDataLayout = setLayout;
+		material.materialDataSetIndex = materialDataSet;
+		material.materialDataBinding = materialDataBinding;
+		material.materialDataDescriptorKind = materialDataDescriptorKind;
+	}
+	else
+	{
+		material.materialDataSet = VK_NULL_HANDLE;
+		material.materialDataLayout = VK_NULL_HANDLE;
+		material.materialDataSetIndex = gns::InvalidMaterialBinding;
+		material.materialDataBinding = gns::InvalidMaterialBinding;
+		material.materialDataDescriptorKind = MaterialDescriptorKind::None;
+		material.materialDataCache.clear();
+		material.materialDataBuffer.reset();
+	}
+
+	if (!materialTextures.empty())
+	{
+		const VkDescriptorSetLayout setLayout = shader.GetDescriptorSetLayout(materialTextureSet);
+		if (setLayout == VK_NULL_HANDLE)
+		{
+			LOG_ERROR("[Device]: Material texture descriptor layout is missing.");
+			return false;
+		}
+
+		std::vector<VulkanMaterialTextureBinding> textureBindings;
+		textureBindings.reserve(materialTextures.size());
+		for (const MaterialTextureBinding& textureBinding : materialTextures)
+		{
+			if (textureBinding.texture == nullptr ||
+				textureBinding.texture->sampler == VK_NULL_HANDLE ||
+				textureBinding.texture->image.imageView == VK_NULL_HANDLE)
+			{
+				LOG_ERROR("[Device]: Cannot bind incomplete material texture.");
+				return false;
+			}
+
+			textureBindings.emplace_back(VulkanMaterialTextureBinding
+			{
+				.binding = textureBinding.binding,
+				.textureHandle = textureBinding.texture->GetHandle(),
+				.imageView = textureBinding.texture->image.imageView,
+				.sampler = textureBinding.texture->sampler
+			});
+		}
+
+		std::sort(
+			textureBindings.begin(),
+			textureBindings.end(),
+			[](const VulkanMaterialTextureBinding& lhs, const VulkanMaterialTextureBinding& rhs)
+			{
+				return lhs.binding < rhs.binding;
+			});
+
+		const bool descriptorSetMissing = material.textureSet == VK_NULL_HANDLE;
+		const bool layoutChanged = material.textureLayout != setLayout;
+		const bool texturesChanged = material.textureBindings.size() != textureBindings.size() ||
+			!std::equal(
+				material.textureBindings.begin(),
+				material.textureBindings.end(),
+				textureBindings.begin(),
+				[](const VulkanMaterialTextureBinding& lhs, const VulkanMaterialTextureBinding& rhs)
+				{
+					return lhs.binding == rhs.binding &&
+						lhs.textureHandle == rhs.textureHandle &&
+						lhs.imageView == rhs.imageView &&
+						lhs.sampler == rhs.sampler;
+				});
+
+		if (descriptorSetMissing || layoutChanged)
+		{
+			material.textureSet = m_descriptorAllocator.Allocate(m_device, setLayout);
+			if (material.textureSet == VK_NULL_HANDLE)
+			{
+				LOG_ERROR("[Device]: Failed to allocate material texture descriptor set.");
+				return false;
+			}
+		}
+
+		if (descriptorSetMissing || layoutChanged || texturesChanged)
+		{
+			DescriptorWriter writer;
+			for (const VulkanMaterialTextureBinding& textureBinding : textureBindings)
+			{
+				writer.WriteImage(
+					textureBinding.binding,
+					textureBinding.imageView,
+					textureBinding.sampler,
+					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+			}
+			writer.UpdateSet(m_device, material.textureSet);
+		}
+
+		material.textureLayout = setLayout;
+		material.textureSetIndex = materialTextureSet;
+		material.textureBindings = std::move(textureBindings);
+	}
+	else
+	{
+		material.textureSet = VK_NULL_HANDLE;
+		material.textureLayout = VK_NULL_HANDLE;
+		material.textureSetIndex = gns::InvalidMaterialBinding;
+		material.textureBindings.clear();
+	}
+
+	return true;
+}
+
 void gns::rendering::Device::InitCommands()
 {
 	//create a command pool for commands submitted to the graphics queue.
@@ -354,7 +688,9 @@ void gns::rendering::Device::InitDescriptors()
 	std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes =
 	{
 		{.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .ratio = 1 },
-		{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .ratio = 8 }
+		{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .ratio = 8 },
+		{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .ratio = 4 },
+		{.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .ratio = 2 }
 	};
 
 	m_descriptorAllocator.Init(m_device, 32, sizes);
@@ -850,11 +1186,34 @@ void gns::rendering::Device::DrawMesh(
 			nullptr);
 	}
 
-	if (draw_data.albedoTextureDescriptor != 0)
+	if (draw_data.vkMaterial != nullptr &&
+		draw_data.vkMaterial->materialDataSet != VK_NULL_HANDLE &&
+		draw_data.vkMaterial->materialDataSetIndex != gns::InvalidMaterialBinding)
 	{
-		const VkDescriptorSet albedoTextureDescriptor = (VkDescriptorSet)draw_data.albedoTextureDescriptor;
 		vkCmdBindDescriptorSets(
-			cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 1, 1, &albedoTextureDescriptor, 0, nullptr);
+			cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			layout,
+			draw_data.vkMaterial->materialDataSetIndex,
+			1,
+			&draw_data.vkMaterial->materialDataSet,
+			0,
+			nullptr);
+	}
+
+	if (draw_data.vkMaterial != nullptr &&
+		draw_data.vkMaterial->textureSet != VK_NULL_HANDLE &&
+		draw_data.vkMaterial->textureSetIndex != gns::InvalidMaterialBinding)
+	{
+		vkCmdBindDescriptorSets(
+			cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			layout,
+			draw_data.vkMaterial->textureSetIndex,
+			1,
+			&draw_data.vkMaterial->textureSet,
+			0,
+			nullptr);
 	}
 	
 	GPUDrawPushConstants push_constants;

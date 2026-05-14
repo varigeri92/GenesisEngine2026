@@ -37,12 +37,16 @@ struct VulkanBuffer
         : buffer(other.buffer),
           allocation(other.allocation),
           info(other.info),
-          allocator(other.allocator)
+          allocator(other.allocator),
+          size(other.size),
+          usage(other.usage),
+          memoryUsage(other.memoryUsage)
     {
         other.buffer = VK_NULL_HANDLE;
         other.allocation = VK_NULL_HANDLE;
         other.info = {};
         other.allocator = VK_NULL_HANDLE;
+        other.size = 0;
     }
 
     VulkanBuffer& operator=(VulkanBuffer&& other) noexcept
@@ -55,11 +59,15 @@ struct VulkanBuffer
             allocation = other.allocation;
             info = other.info;
             allocator = other.allocator;
+            size = other.size;
+            usage = other.usage;
+            memoryUsage = other.memoryUsage;
 
             other.buffer = VK_NULL_HANDLE;
             other.allocation = VK_NULL_HANDLE;
             other.info = {};
             other.allocator = VK_NULL_HANDLE;
+            other.size = 0;
         }
         return *this;
     }
@@ -75,6 +83,7 @@ struct VulkanBuffer
         allocation = VK_NULL_HANDLE;
         info = {};
         allocator = VK_NULL_HANDLE;
+        size = 0;
     }
 
     explicit operator bool() const noexcept

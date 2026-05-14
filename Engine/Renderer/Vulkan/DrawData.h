@@ -5,26 +5,45 @@
 
 namespace gns
 {
-    struct DrawData
+    namespace rendering
     {
-        glm::mat4 transform;
-        VkBuffer vk_indexBuffer;
-        gns::rendering::VulkanShader* vkShader; 
-        uint64_t albedoTextureDescriptor;
-        VkDeviceAddress vk_vertexBufferAddress;
-        size_t StartIndex;
-        size_t Count;
-    };
-    
+        struct VulkanMaterial;
+        struct VulkanTexture;
+    }
+
     struct GpuDataDescriptor
     {
-        void* data;
-        size_t size;
+        const void* data = nullptr;
+        size_t size = 0;
+
+        bool IsValid() const { return data != nullptr && size > 0; }
         
         template<typename T>
         static GpuDataDescriptor GetFromType(T* data)
         {
-            return {.data = static_cast<void*>(data), .size = sizeof(T)};
+            return {.data = static_cast<const void*>(data), .size = sizeof(T)};
         }
+
+        static GpuDataDescriptor GetFromMemory(const void* data, size_t size)
+        {
+            return {.data = data, .size = size};
+        }
+    };
+
+    struct MaterialTextureBinding
+    {
+        uint32_t binding = InvalidMaterialBinding;
+        gns::rendering::VulkanTexture* texture = nullptr;
+    };
+
+    struct DrawData
+    {
+        glm::mat4 transform;
+        VkBuffer vk_indexBuffer;
+        gns::rendering::VulkanShader* vkShader;
+        gns::rendering::VulkanMaterial* vkMaterial = nullptr;
+        VkDeviceAddress vk_vertexBufferAddress;
+        size_t StartIndex;
+        size_t Count;
     };
 }

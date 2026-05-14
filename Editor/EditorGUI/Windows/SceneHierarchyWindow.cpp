@@ -10,6 +10,25 @@
 
 namespace
 {
+    void DrawCreateEntityMenu(gns::Handle sceneHandle, gns::entityHandle parent)
+    {
+        if (!ImGui::BeginMenu("Add New Entity"))
+        {
+            return;
+        }
+
+        if (ImGui::MenuItem("Empty"))
+        {
+            gns::Entity entity = gns::Entity::CreateEntity("Empty", sceneHandle, parent);
+            if (entity.IsValid())
+            {
+                EditorSelection::SelectEntity(entity.GetHandle());
+            }
+        }
+
+        ImGui::EndMenu();
+    }
+
     ImGuiTreeNodeFlags GetTreeFlags(
         gns::Entity entity,
         const HierarchyComponent* hierarchy,
@@ -65,6 +84,13 @@ namespace
             EditorSelection::SelectEntity(entity.GetHandle());
         }
 
+        if (ImGui::BeginPopupContextItem(nullptr, ImGuiPopupFlags_MouseButtonRight))
+        {
+            EditorSelection::SelectEntity(entity.GetHandle());
+            DrawCreateEntityMenu(entity.SceneHandle(), entity.GetHandle());
+            ImGui::EndPopup();
+        }
+
         if ((flags & ImGuiTreeNodeFlags_NoTreePushOnOpen) != 0)
         {
             return;
@@ -100,5 +126,14 @@ void SceneHierarchyWindow::OnDraw()
         }
 
         DrawEntityNode(scene->root.entity_handle, true);
+    }
+
+    if (ImGui::BeginPopupContextWindow(
+        "SceneHierarchyContextMenu",
+        ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+    {
+        gns::Scene& activeScene = gns::SceneManager::GetActiveScene();
+        DrawCreateEntityMenu(activeScene.handle, activeScene.root.entity_handle);
+        ImGui::EndPopup();
     }
 }

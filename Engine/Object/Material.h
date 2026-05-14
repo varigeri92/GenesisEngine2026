@@ -14,6 +14,8 @@ namespace gns
 {
     struct Shader;
 
+    inline constexpr uint32_t InvalidMaterialBinding = UINT32_MAX;
+
     enum class MaterialPropertyType : uint8_t
     {
         Unknown,
@@ -23,11 +25,22 @@ namespace gns
         Vec2,
         Vec3,
         Vec4,
+        Color3,
+        Color4,
         Mat4,
         FloatArray,
         IntArray,
         UIntArray,
+        Texture2D,
         Bytes
+    };
+
+    enum class MaterialDescriptorKind : uint8_t
+    {
+        None,
+        UniformBuffer,
+        StorageBuffer,
+        Texture
     };
 
     struct MaterialPropertyInfo
@@ -40,8 +53,14 @@ namespace gns
         size_t elementStride = 0;
         size_t alignment = 1;
         uint32_t elementCount = 1;
+        uint32_t set = InvalidMaterialBinding;
+        uint32_t binding = InvalidMaterialBinding;
+        uint32_t descriptorCount = 1;
+        MaterialDescriptorKind descriptorKind = MaterialDescriptorKind::None;
 
         bool IsArray() const { return elementCount > 1; }
+        bool IsTexture() const { return type == MaterialPropertyType::Texture2D; }
+        bool IsBufferBacked() const { return !IsTexture(); }
     };
 
     struct MaterialDataBlob
@@ -57,7 +76,10 @@ namespace gns
         GNS_API bool AddProperty(
             const std::string& name,
             MaterialPropertyType type,
-            uint32_t elementCount = 1);
+            uint32_t elementCount = 1,
+            uint32_t set = InvalidMaterialBinding,
+            uint32_t binding = InvalidMaterialBinding,
+            MaterialDescriptorKind descriptorKind = MaterialDescriptorKind::None);
         GNS_API bool AddPropertyAtOffset(
             const std::string& name,
             MaterialPropertyType type,
@@ -65,11 +87,20 @@ namespace gns
             size_t size,
             uint32_t elementCount = 1,
             size_t elementStride = 0,
-            size_t alignment = 0);
+            size_t alignment = 0,
+            uint32_t set = InvalidMaterialBinding,
+            uint32_t binding = InvalidMaterialBinding,
+            uint32_t descriptorCount = 1,
+            MaterialDescriptorKind descriptorKind = MaterialDescriptorKind::None);
+        GNS_API bool AddTextureProperty(
+            const std::string& name,
+            uint32_t set,
+            uint32_t binding,
+            uint32_t descriptorCount = 1);
 
         GNS_API void Clear();
         GNS_API void SetSize(size_t size);
-        bool IsValid() const { return m_size > 0; }
+        bool IsValid() const { return m_size > 0 || !m_properties.empty(); }
         GNS_API bool IsCompatibleWith(const MaterialLayout& other) const;
         size_t GetSize() const { return m_size; }
         const std::vector<MaterialPropertyInfo>& GetProperties() const { return m_properties; }
@@ -143,6 +174,7 @@ namespace gns
         GNS_API Material(Handle handle, std::string name);
 
         GNS_API void SetLayout(const MaterialLayout& layout, bool preserveValues = true);
+        GNS_API void ApplyImportCompatibilityDefaults();
         GNS_API const MaterialLayout& GetLayout() const;
 
         GNS_API void SetFloat(const std::string& name, float value);
@@ -157,6 +189,8 @@ namespace gns
         GNS_API void SetFloatArray(const std::string& name, std::span<const float> values);
         GNS_API void SetIntArray(const std::string& name, std::span<const int32_t> values);
         GNS_API void SetUIntArray(const std::string& name, std::span<const uint32_t> values);
+        GNS_API void SetTexture(const std::string& name, Reference<gns::Texture> texture);
+        GNS_API void SetTexture(const std::string& name, Handle textureHandle);
         GNS_API void SetBytes(
             const std::string& name,
             MaterialPropertyType type,
@@ -174,6 +208,7 @@ namespace gns
         GNS_API bool TryGetColor3(const std::string& name, glm::vec3& outValue) const;
         GNS_API bool TryGetColor4(const std::string& name, glm::vec4& outValue) const;
         GNS_API bool TryGetMat4(const std::string& name, glm::mat4& outValue) const;
+        GNS_API bool TryGetTexture(const std::string& name, Reference<gns::Texture>& outTexture) const;
 
         GNS_API float GetFloat(const std::string& name, float fallback = 0.0f) const;
         GNS_API int32_t GetInt(const std::string& name, int32_t fallback = 0) const;
@@ -184,6 +219,14 @@ namespace gns
         GNS_API glm::vec3 GetColor3(const std::string& name, const glm::vec3& fallback = glm::vec3(0.0f)) const;
         GNS_API glm::vec4 GetColor4(const std::string& name, const glm::vec4& fallback = glm::vec4(0.0f)) const;
         GNS_API glm::mat4 GetMat4(const std::string& name, const glm::mat4& fallback = glm::mat4(1.0f)) const;
+        GNS_API Reference<gns::Texture> GetTexture(
+            const std::string& name,
+            Reference<gns::Texture> fallback = {}) const;
+        GNS_API Handle GetTextureHandle(const std::string& name, Handle fallback = {}) const;
+        GNS_API size_t GetTextureSlotCount() const;
+        GNS_API const MaterialPropertyInfo* GetTextureSlotProperty(size_t slotIndex) const;
+        GNS_API bool TryGetTexture(size_t slotIndex, Reference<gns::Texture>& outTexture) const;
+        GNS_API Handle GetTextureHandle(size_t slotIndex, Handle fallback = {}) const;
 
         GNS_API float* GetFloatPtr(const std::string& name);
         GNS_API int32_t* GetIntPtr(const std::string& name);
@@ -242,17 +285,22 @@ namespace gns
         GNS_API const std::vector<MaterialPropertyInfo>& GetProperties() const;
         GNS_API MaterialDataBlob GetDataBlob() const;
         GNS_API const void* GetPropertyData(const MaterialPropertyInfo& property) const;
+        GNS_API void* GetMutablePropertyData(const MaterialPropertyInfo& property);
 
         GNS_API void ClearProperties();
 
     private:
         MaterialLayout m_layout;
         std::vector<uint8_t> m_dataBlob;
+        std::vector<Reference<gns::Texture>> m_textureSlots;
+        std::vector<size_t> m_texturePropertyIndices;
+        std::unordered_map<std::string, size_t> m_textureNameToSlot;
 
         bool EnsureProperty(
             const std::string& name,
             MaterialPropertyType type,
             uint32_t elementCount);
-        GNS_API void* GetMutablePropertyData(const MaterialPropertyInfo& property);
+        void RebuildTextureSlots(
+            const std::unordered_map<std::string, Reference<gns::Texture>>* preservedTextures = nullptr);
     };
 }

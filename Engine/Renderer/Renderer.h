@@ -15,6 +15,7 @@ namespace gns
 namespace gns::rendering {
 	struct VulkanTexture;
 	struct VulkanShader;
+	struct VulkanMaterial;
 
 	class Renderer
 	{
@@ -45,6 +46,7 @@ namespace gns::rendering {
 		const VulkanDefaultTextureHandles& GetDefaultTextures() const;
 		VulkanTexture* GetVulkanTexture(Handle textureHandle);
 		VulkanShader* GetVulkanShader(Handle shaderHandle);
+		VulkanMaterial* GetVulkanMaterial(Handle materialHandle);
 		VulkanMesh* GetVulkanMesh(Handle meshHandle);
 		void WaitForIdle();
 		

@@ -5,6 +5,10 @@
 
 void VulkanBuffer::CreateBuffer(size_t allocSize, VkBufferUsageFlags bufferUsageFlags, VmaMemoryUsage memoryUsage)
 {
+    size = allocSize;
+    usage = bufferUsageFlags;
+    this->memoryUsage = memoryUsage;
+
     // allocate buffer
     VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     bufferInfo.pNext = nullptr;

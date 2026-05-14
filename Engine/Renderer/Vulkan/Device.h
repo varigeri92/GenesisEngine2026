@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include <span>
 #include <vulkan/vulkan.h>
 #include <vma/vk_mem_alloc.h>
 #include <unordered_map>
@@ -18,6 +19,7 @@ namespace gns::rendering
 {
 	struct VulkanShader;
 	struct VulkanTexture;
+	struct VulkanMaterial;
 
 	struct VulkanDefaultTextureHandles
 	{
@@ -153,6 +155,20 @@ namespace gns::rendering
 		bool m_resizeRequest = false;
 		void ResizeSwapchain();
 		VkDescriptorSet UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
+		VkDescriptorSet CreateTransientBufferDescriptorSet(
+			GpuDataDescriptor dataDescriptor,
+			VkDescriptorSetLayout setLayout,
+			uint32_t binding,
+			MaterialDescriptorKind descriptorKind);
+		bool UpdateMaterialResource(
+			VulkanMaterial& material,
+			VulkanShader& shader,
+			GpuDataDescriptor materialDataDescriptor,
+			uint32_t materialDataSet,
+			uint32_t materialDataBinding,
+			MaterialDescriptorKind materialDataDescriptorKind,
+			std::span<const MaterialTextureBinding> materialTextures,
+			uint32_t materialTextureSet);
 	private:
 		gns::VulkanResourceRegistry m_resourceRegistry;
 		CleanupQueue m_cleanupQueue;
