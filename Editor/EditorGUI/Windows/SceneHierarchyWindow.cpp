@@ -25,7 +25,65 @@ namespace
                 EditorSelection::SelectEntity(entity.GetHandle());
             }
         }
-
+        ImGui::Separator();
+        if (ImGui::MenuItem("Cube"))
+        {
+            gns::Entity entity = gns::Entity::CreateEntity("Empty", sceneHandle, parent);
+            if (entity.IsValid())
+            {
+                EditorSelection::SelectEntity(entity.GetHandle());
+            }
+        }
+        if (ImGui::MenuItem("Sphere"))
+        {
+            gns::Entity entity = gns::Entity::CreateEntity("Empty", sceneHandle, parent);
+            if (entity.IsValid())
+            {
+                EditorSelection::SelectEntity(entity.GetHandle());
+            }
+        }
+        if (ImGui::MenuItem("Plane"))
+        {
+            gns::Entity entity = gns::Entity::CreateEntity("Empty", sceneHandle, parent);
+            if (entity.IsValid())
+            {
+                EditorSelection::SelectEntity(entity.GetHandle());
+            }
+        }
+        if (ImGui::MenuItem("Quad"))
+        {
+            gns::Entity entity = gns::Entity::CreateEntity("Empty", sceneHandle, parent);
+            if (entity.IsValid())
+            {
+                EditorSelection::SelectEntity(entity.GetHandle());
+            }
+        }
+        if (ImGui::MenuItem("Capsule"))
+        {
+            gns::Entity entity = gns::Entity::CreateEntity("Empty", sceneHandle, parent);
+            if (entity.IsValid())
+            {
+                EditorSelection::SelectEntity(entity.GetHandle());
+            }
+        }
+        
+        if (ImGui::MenuItem("Knot"))
+        {
+            gns::Entity entity = gns::Entity::CreateEntity("Empty", sceneHandle, parent);
+            if (entity.IsValid())
+            {
+                EditorSelection::SelectEntity(entity.GetHandle());
+            }
+        }
+        if (ImGui::MenuItem("Torus"))
+        {
+            gns::Entity entity = gns::Entity::CreateEntity("Empty", sceneHandle, parent);
+            if (entity.IsValid())
+            {
+                EditorSelection::SelectEntity(entity.GetHandle());
+            }
+        }
+        
         ImGui::EndMenu();
     }
 
@@ -127,7 +185,7 @@ void SceneHierarchyWindow::OnDraw()
 
         DrawEntityNode(scene->root.entity_handle, true);
     }
-
+    
     if (ImGui::BeginPopupContextWindow(
         "SceneHierarchyContextMenu",
         ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))

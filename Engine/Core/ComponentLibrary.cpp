@@ -58,7 +58,7 @@ namespace gns::reflection
     template<>
     void RegisterFields<DirectionalLightComponent>(ComponentMeta& componentMeta)
     {
-        GNS_REGISTER_FIELD(DirectionalLightComponent, direction);
+        GNS_REGISTER_FIELD(DirectionalLightComponent, intensity);
         GNS_REGISTER_FIELD(DirectionalLightComponent, color);
     }
 

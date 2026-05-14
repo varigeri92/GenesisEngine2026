@@ -595,6 +595,10 @@ namespace
                 material->albedo_texture = gns::Reference<gns::Texture>(
                     gns::Handle::CreateFromString(gns::DefaultResourceNames::ErrorCheckerboardTexture));
             }
+        }else
+        {
+            material->albedo_texture = gns::Reference<gns::Texture>(
+                    gns::Handle::CreateFromString(gns::DefaultResourceNames::WhiteTexture));
         }
 
         return material;

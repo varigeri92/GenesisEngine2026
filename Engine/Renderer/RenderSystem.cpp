@@ -1,6 +1,10 @@
 #include "gnspch.h"
 #include "RenderSystem.h"
 
+#include <glm/detail/type_quat.hpp>
+#include <glm/ext/quaternion_trigonometric.hpp>
+
+#include "glm/glm.hpp"
 #include "../Assets/AssetManager.h"
 #include "../Window/WindowSystem.h"
 #include "../Object/Mesh.h"
@@ -11,6 +15,7 @@
 #include "../Scene/Scene.h"
 #include "../Scene/SceneManager.h"
 #include "../Systems/SystemsManager.h"
+#include "../Utils/TransformHelper.h"
 #include "Resources/VulkanMaterial.h"
 #include "Resources/VulkanShader.h"
 #include "Resources/VulkanTexture.h"
@@ -554,8 +559,8 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 		}
 
 		material->shader_ref = shader->Ref<Shader>();
-		material->albedo_color = glm::vec4(0.5f, 1.0f, 0.0f, 1.0f);
-		material->albedo_texture = Reference<Texture>(GetDefaultTextureHandle(DefaultTexture::ErrorCheckerboard));
+		material->albedo_color = glm::vec4(1.f, 1.f, 1.f, 1.f);
+		material->albedo_texture = Reference<Texture>(GetDefaultTextureHandle(DefaultTexture::White));
 		m_defaultMeshMaterial = material->GetHandle();
 	}
 
@@ -590,9 +595,9 @@ void gns::RenderSystem::BuildDrawData()
 	}
 
 	core::SystemsManager::ForEach<SceneMemberComponent, Transform, MeshComponent>([&](
-		SceneMemberComponent& sceneMember,
-		Transform& transform,
-		MeshComponent& meshComp)
+		const SceneMemberComponent& sceneMember,
+		const Transform& transform,
+		const MeshComponent& meshComp)
 	{
 		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
@@ -700,8 +705,8 @@ void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 
 	bool hasAmbientLight = false;
 	core::SystemsManager::ForEach<SceneMemberComponent, AmbientLightComponent>([&](
-		SceneMemberComponent& sceneMember,
-		AmbientLightComponent& ambientLight)
+		const SceneMemberComponent& sceneMember,
+		const AmbientLightComponent& ambientLight)
 	{
 		if (hasAmbientLight || !SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
@@ -713,9 +718,10 @@ void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 	});
 
 	bool directionalLightLimitReached = false;
-	core::SystemsManager::ForEach<SceneMemberComponent, DirectionalLightComponent>([&](
-		SceneMemberComponent& sceneMember,
-		DirectionalLightComponent& directionalLight)
+	core::SystemsManager::ForEach<SceneMemberComponent, DirectionalLightComponent, Transform>([&](
+		const SceneMemberComponent& sceneMember,
+		DirectionalLightComponent& directionalLight, 
+		Transform& transform)
 	{
 		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
@@ -733,15 +739,15 @@ void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 		}
 
 		DirectionalLightGpu& light = m_directionalLights.lights[m_directionalLights.count++];
-		light.direction = directionalLight.direction;
-		light.color = directionalLight.color;
+		light.direction = {TransformHelper::Forward(transform),directionalLight.intensity};
+		light.color = {directionalLight.color, 0};
 	});
 
 	bool pointLightLimitReached = false;
 	core::SystemsManager::ForEach<SceneMemberComponent, Transform, PointLightComponent>([&](
-		SceneMemberComponent& sceneMember,
-		Transform& transform,
-		PointLightComponent& pointLight)
+		const SceneMemberComponent& sceneMember,
+		const Transform& transform,
+		const PointLightComponent& pointLight)
 	{
 		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
@@ -765,9 +771,9 @@ void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 
 	bool spotLightLimitReached = false;
 	core::SystemsManager::ForEach<SceneMemberComponent, Transform, SpotLightComponent>([&](
-		SceneMemberComponent& sceneMember,
-		Transform& transform,
-		SpotLightComponent& spotLight)
+		const SceneMemberComponent& sceneMember,
+		const Transform& transform,
+		const SpotLightComponent& spotLight)
 	{
 		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{

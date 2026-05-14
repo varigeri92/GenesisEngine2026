@@ -60,7 +60,7 @@ const std::vector<std::unique_ptr<gns::Scene>>& gns::SceneManager::GetLoadedScen
 
 gns::Scene& gns::SceneManager::CreateScene(const std::string& name)
 {
-    return CreateScene(name, true);
+    return CreateScene(name, false);
 }
 
 gns::Scene& gns::SceneManager::CreateScene(const std::string& name, bool createDefaultEntities)

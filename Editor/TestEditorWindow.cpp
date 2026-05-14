@@ -21,7 +21,6 @@ void TestEditorWindow::OnDraw()
     [&](EntityComponent& entityComp, DirectionalLightComponent& directional_light)
     {
         if (widgets::startWidgets(entityComp.name + "##DirectionalLight")){
-            widgets::float4_widget("Sun Direction", reinterpret_cast<float*>(&directional_light.direction));
             widgets::float4_widget("Sun Color", reinterpret_cast<float*>(&directional_light.color));
             widgets::endWidgets();
         }

@@ -64,18 +64,18 @@ struct MeshComponent
 struct AmbientLightComponent
 {
     glm::vec4 color;
-
+    
     AmbientLightComponent() : color{1.0f, 1.0f, 1.0f, 1.0f} {}
 };
 
 struct DirectionalLightComponent
 {
-    glm::vec4 direction;
-    glm::vec4 color;
+    float intensity;
+    glm::vec3 color;
 
     DirectionalLightComponent() :
-        direction{1.0f, 1.0f, 1.0f, 1.0f},
-        color{1.0f, 1.0f, 1.0f, 1.0f}
+        intensity{5.0f},
+        color{1.0f, 1.0f, 1.0f}
     {}
 };
 
