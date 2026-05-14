@@ -122,11 +122,29 @@ void SceneViewWindow::DrawTransformGizmo(const ImVec2& scenePosition, const ImVe
 
 	glm::mat4 gizmoProjection = BuildImGuizmoProjection(camera.projection);
 
+	ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;
+	switch (gizmoMode)
+	{
+	case GizmoOperation::translate:
+		operation = ImGuizmo::TRANSLATE;
+		break;
+	case GizmoOperation::rotate:
+		operation = ImGuizmo::ROTATE;
+		break;
+	case GizmoOperation::scale:
+		operation = ImGuizmo::SCALE;
+		break;
+	case GizmoOperation::box:
+		operation = ImGuizmo::BOUNDS;
+		break;
+	}
+	ImGuizmo::MODE mode = local? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+	
 	if (!ImGuizmo::Manipulate(
 		glm::value_ptr(camera.view),
 		glm::value_ptr(gizmoProjection),
-		ImGuizmo::TRANSLATE,
-		ImGuizmo::WORLD,
+		operation,
+		mode,
 		glm::value_ptr(transformMatrix)))
 	{
 		return;
@@ -161,11 +179,27 @@ void SceneViewWindow::EndWindow()
 
 void SceneViewWindow::OnDraw()
 {
-	ImGui::Button(ICON_MD_ARROW_OUTWARD);
+	if (ImGui::Button(ICON_MD_ARROW_OUTWARD))
+	{
+		gizmoMode = GizmoOperation::translate;
+	}
 	ImGui::SameLine();
-	ImGui::Button(ICON_MD_3K);
+	if (ImGui::Button(ICON_MD_3K))
+	{
+		gizmoMode = GizmoOperation::scale;
+	}
 	ImGui::SameLine();
-	ImGui::Button(ICON_MD_ROTATE_LEFT);
+	if (ImGui::Button(ICON_MD_ROTATE_LEFT))
+	{
+		gizmoMode = GizmoOperation::rotate;
+	}
+	
+	ImGui::SameLine();
+	if (ImGui::Button(ICON_MD_ADD_HOME))
+	{
+		local = !local;
+	}
+	
 	GuiSystem* guiSystem = gns::core::SystemsManager::GetSystem<GuiSystem>();
 	if (guiSystem == nullptr)
 	{

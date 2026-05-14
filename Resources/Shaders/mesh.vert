@@ -1,8 +1,9 @@
 #version 450
 #extension GL_EXT_buffer_reference : require
 
-layout (location = 0) out vec3 outColor;
-layout (location = 1) out vec2 outUV;
+layout (location = 0) out vec3 outWorldPosition;
+layout (location = 1) out vec3 outWorldNormal;
+layout (location = 2) out vec2 outUV;
 
 struct Vertex {
 
@@ -18,8 +19,6 @@ layout(set = 0, binding = 0) uniform SceneData {
     mat4 proj;
     mat4 viewproj;
     vec4 ambientColor;
-    vec4 sunlightDirection; // w for sun power
-    vec4 sunlightColor;
 } sceneData;
 
 layout(buffer_reference, std430) readonly buffer VertexBuffer{ 
@@ -29,7 +28,7 @@ layout(buffer_reference, std430) readonly buffer VertexBuffer{
 //push constants block
 layout( push_constant ) uniform constants
 {	
-	mat4 render_matrix;
+	mat4 modelMatrix;
 	VertexBuffer vertexBuffer;
 } PushConstants;
 
@@ -37,10 +36,12 @@ void main()
 {	
 	//load vertex data from device adress
 	Vertex v = PushConstants.vertexBuffer.vertices[gl_VertexIndex];
+	vec4 worldPosition = PushConstants.modelMatrix * vec4(v.position, 1.0f);
 
 	//output data
-	gl_Position = PushConstants.render_matrix *vec4(v.position, 1.0f);
-	outColor = sceneData.ambientColor.xyz;
+	gl_Position = sceneData.viewproj * worldPosition;
+	outWorldPosition = worldPosition.xyz;
+	outWorldNormal = normalize(transpose(inverse(mat3(PushConstants.modelMatrix))) * v.normal);
 	outUV.x = v.uv_x;
 	outUV.y = v.uv_y;
 }

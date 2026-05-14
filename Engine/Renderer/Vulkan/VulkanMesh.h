@@ -31,6 +31,6 @@ struct VulkanMesh : public gns::VulkanResource
 };
 
 struct GPUDrawPushConstants {
-    glm::mat4 worldMatrix;
+    glm::mat4 modelMatrix;
     VkDeviceAddress vertexBuffer;
 };

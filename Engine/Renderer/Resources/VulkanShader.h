@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <cstdint>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 #include "VulkanResource.h"
@@ -24,6 +25,7 @@ namespace gns::rendering
         VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
         std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
         gns::MaterialLayout m_materialLayout;
+        uint32_t m_globalDescriptorBindingMask = 0;
         VkPipeline GetPipeline() { return m_pipeline; }
         VkPipelineLayout GetPipelineLayout() { return m_pipelineLayout; }
         VkDescriptorSetLayout GetDescriptorSetLayout() { return m_descriptorSetLayout; }

@@ -93,14 +93,14 @@ void gns::RenderSystem::OnLateUpdate(float deltaTime)
 	const bool hasDrawData = !m_drawData.empty();
 	if (hasDrawData)
 	{
-		BuildSceneDataDescriptor();
+		BuildGlobalFrameDataDescriptor();
 	}
 	else
 	{
-		m_hasSceneDataDescriptor = false;
+		m_hasGlobalFrameDataDescriptor = false;
 	}
 
-	m_renderer.DrawFrame(m_drawData, m_hasSceneDataDescriptor ? &m_sceneDataDescriptor : nullptr);
+	m_renderer.DrawFrame(m_drawData, m_hasGlobalFrameDataDescriptor ? &m_globalFrameDataDescriptor : nullptr);
 }
 
 void gns::RenderSystem::OnFixedUpdate()
@@ -677,7 +677,7 @@ void gns::RenderSystem::BuildDrawData()
 		}
 
 		DrawData drawData;
-		drawData.transform = m_renderer.m_cameraBackend.viewProjection * transform.matrix;
+		drawData.transform = transform.matrix;
 		drawData.vkShader = vulkanShader;
 		drawData.vk_indexBuffer = vulkanMesh->indexBuffer.buffer;
 		drawData.vkMaterial = vulkanMaterial;
@@ -688,9 +688,15 @@ void gns::RenderSystem::BuildDrawData()
 	});
 }
 
-void gns::RenderSystem::BuildSceneDataDescriptor()
+void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 {
 	m_sceneData = SceneData();
+	m_sceneData.view = m_renderer.m_cameraBackend.view;
+	m_sceneData.proj = m_renderer.m_cameraBackend.projection;
+	m_sceneData.viewproj = m_renderer.m_cameraBackend.viewProjection;
+	m_directionalLights = DirectionalLightBuffer();
+	m_pointLights = PointLightBuffer();
+	m_spotLights = SpotLightBuffer();
 
 	bool hasAmbientLight = false;
 	core::SystemsManager::ForEach<SceneMemberComponent, AmbientLightComponent>([&](
@@ -706,21 +712,92 @@ void gns::RenderSystem::BuildSceneDataDescriptor()
 		hasAmbientLight = true;
 	});
 
-	bool hasDirectionalLight = false;
+	bool directionalLightLimitReached = false;
 	core::SystemsManager::ForEach<SceneMemberComponent, DirectionalLightComponent>([&](
 		SceneMemberComponent& sceneMember,
 		DirectionalLightComponent& directionalLight)
 	{
-		if (hasDirectionalLight || !SceneManager::IsSceneLoaded(sceneMember.scene_handle))
+		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
 			return;
 		}
 
-		m_sceneData.sunlightDirection = directionalLight.direction;
-		m_sceneData.sunlightColor = directionalLight.color;
-		hasDirectionalLight = true;
+		if (m_directionalLights.count >= MaxSceneLights)
+		{
+			if (!directionalLightLimitReached)
+			{
+				LOG_WARNING("[RenderSystem]: Directional light count exceeded MaxSceneLights. Extra lights are ignored.");
+				directionalLightLimitReached = true;
+			}
+			return;
+		}
+
+		DirectionalLightGpu& light = m_directionalLights.lights[m_directionalLights.count++];
+		light.direction = directionalLight.direction;
+		light.color = directionalLight.color;
 	});
 
-	m_sceneDataDescriptor = GpuDataDescriptor::GetFromType<gns::SceneData>(&m_sceneData);
-	m_hasSceneDataDescriptor = true;
+	bool pointLightLimitReached = false;
+	core::SystemsManager::ForEach<SceneMemberComponent, Transform, PointLightComponent>([&](
+		SceneMemberComponent& sceneMember,
+		Transform& transform,
+		PointLightComponent& pointLight)
+	{
+		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
+		{
+			return;
+		}
+
+		if (m_pointLights.count >= MaxSceneLights)
+		{
+			if (!pointLightLimitReached)
+			{
+				LOG_WARNING("[RenderSystem]: Point light count exceeded MaxSceneLights. Extra lights are ignored.");
+				pointLightLimitReached = true;
+			}
+			return;
+		}
+
+		PointLightGpu& light = m_pointLights.lights[m_pointLights.count++];
+		light.position = glm::vec4(transform.position, pointLight.range);
+		light.color = glm::vec4(glm::vec3(pointLight.color), pointLight.intensity);
+	});
+
+	bool spotLightLimitReached = false;
+	core::SystemsManager::ForEach<SceneMemberComponent, Transform, SpotLightComponent>([&](
+		SceneMemberComponent& sceneMember,
+		Transform& transform,
+		SpotLightComponent& spotLight)
+	{
+		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
+		{
+			return;
+		}
+
+		if (m_spotLights.count >= MaxSceneLights)
+		{
+			if (!spotLightLimitReached)
+			{
+				LOG_WARNING("[RenderSystem]: Spot light count exceeded MaxSceneLights. Extra lights are ignored.");
+				spotLightLimitReached = true;
+			}
+			return;
+		}
+
+		SpotLightGpu& light = m_spotLights.lights[m_spotLights.count++];
+		light.position = glm::vec4(transform.position, spotLight.range);
+		light.direction = spotLight.direction;
+		light.color = glm::vec4(glm::vec3(spotLight.color), spotLight.intensity);
+		light.cone = glm::vec4(
+			glm::cos(glm::radians(spotLight.innerAngle)),
+			glm::cos(glm::radians(spotLight.outerAngle)),
+			0.0f,
+			0.0f);
+	});
+
+	m_globalFrameDataDescriptor.sceneData = GpuDataDescriptor::GetFromType<gns::SceneData>(&m_sceneData);
+	m_globalFrameDataDescriptor.directionalLights = GpuDataDescriptor::GetFromType(&m_directionalLights);
+	m_globalFrameDataDescriptor.pointLights = GpuDataDescriptor::GetFromType(&m_pointLights);
+	m_globalFrameDataDescriptor.spotLights = GpuDataDescriptor::GetFromType(&m_spotLights);
+	m_hasGlobalFrameDataDescriptor = true;
 }

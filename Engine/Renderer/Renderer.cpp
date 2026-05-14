@@ -88,7 +88,7 @@ void gns::rendering::Renderer::AddGeometryPass()
 		m_device.DrawGeometry(cmd);
 		for (auto& drawData : m_drawData)
 		{
-			m_device.DrawMesh(cmd, drawData, m_frameSceneDataDescriptor);
+			m_device.DrawMesh(cmd, drawData, m_frameGlobalDataDescriptor);
 		}
 		m_device.EndRendering(cmd);
 		return true;
@@ -193,7 +193,7 @@ void gns::rendering::Renderer::AddImGuiPass()
 
 void gns::rendering::Renderer::DrawFrame(
 	const std::vector<DrawData>& drawData,
-	const GpuDataDescriptor* sceneDataDescriptor)
+	const GlobalFrameDataDescriptor* globalDataDescriptor)
 {
 	if (m_device.m_resizeRequest)
 		m_device.ResizeSwapchain();
@@ -203,12 +203,12 @@ void gns::rendering::Renderer::DrawFrame(
 	uint32_t swapchainImageIndex;
 	VkExtent2D extent;
 	FrameData frameData;
-    if (m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData))
+	if (m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData))
 	{
 		m_drawData = drawData;
-		m_frameSceneDataDescriptor = m_drawData.empty() ? nullptr : sceneDataDescriptor;
+		m_frameGlobalDataDescriptor = m_drawData.empty() ? nullptr : globalDataDescriptor;
 		m_renderGraph.Execute(cmd, frameData);
-		m_frameSceneDataDescriptor = nullptr;
+		m_frameGlobalDataDescriptor = nullptr;
 		//depth prepass
 		//Shadows prepass
 		//culling pass
@@ -381,6 +381,14 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 		return {};
 	}
 
+	uint32_t globalDescriptorBindingMask = 0;
+	if (!ShaderUtils::ValidateGlobalDescriptorRules(shaderReflections, &globalDescriptorBindingMask))
+	{
+		LOG_ERROR("[Renderer]: Shader violates global descriptor layout rules.");
+		LOG_ERROR(shader.GetName());
+		return {};
+	}
+
 	if (!ShaderUtils::ValidateMaterialDescriptorRules(shaderReflections))
 	{
 		LOG_ERROR("[Renderer]: Shader violates material descriptor layout rules.");
@@ -413,6 +421,7 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 		vkShader.m_descriptorSetLayout = vkShader.m_descriptorSetLayouts[0];
 	}
 	vkShader.m_materialLayout = ShaderUtils::BuildMaterialLayout(shaderReflections);
+	vkShader.m_globalDescriptorBindingMask = globalDescriptorBindingMask;
 
 	VkPipelineLayoutCreateInfo pipeline_layout_info = utils::PipelineLayoutCreateInfo();
 	pipeline_layout_info.pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data();

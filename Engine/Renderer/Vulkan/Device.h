@@ -47,8 +47,8 @@ namespace gns::rendering
 			  _renderFence(other._renderFence),
 			  _swapchain(other._swapchain),
 			  _swapchainImageIndex(other._swapchainImageIndex),
-			  _sceneDataDescriptors(other._sceneDataDescriptors),
-			  _sceneDataBufferUpdated(other._sceneDataBufferUpdated)
+			  _globalDataDescriptors(other._globalDataDescriptors),
+			  _globalDataBuffersUpdated(other._globalDataBuffersUpdated)
 		{}
 
 		FrameData& operator=(const FrameData& other)
@@ -62,8 +62,8 @@ namespace gns::rendering
 				_renderFence = other._renderFence;
 				_swapchain = other._swapchain;
 				_swapchainImageIndex = other._swapchainImageIndex;
-				_sceneDataDescriptors = other._sceneDataDescriptors;
-				_sceneDataBufferUpdated = other._sceneDataBufferUpdated;
+				_globalDataDescriptors = other._globalDataDescriptors;
+				_globalDataBuffersUpdated = other._globalDataBuffersUpdated;
 			}
 			return *this;
 		}
@@ -81,8 +81,11 @@ namespace gns::rendering
 		uint32_t _swapchainImageIndex;
 		DescriptorAllocatorGrowable _frameDescriptors;
 		VulkanBuffer _gpuSceneDataBuffer;
-		std::unordered_map<VkDescriptorSetLayout, VkDescriptorSet> _sceneDataDescriptors;
-		bool _sceneDataBufferUpdated = false;
+		VulkanBuffer _gpuDirectionalLightsBuffer;
+		VulkanBuffer _gpuPointLightsBuffer;
+		VulkanBuffer _gpuSpotLightsBuffer;
+		std::unordered_map<VkDescriptorSetLayout, VkDescriptorSet> _globalDataDescriptors;
+		bool _globalDataBuffersUpdated = false;
 	};
 	class Device
 	{
@@ -146,7 +149,7 @@ namespace gns::rendering
 		void DrawMesh(
 			VkCommandBuffer cmd,
 			DrawData drawData,
-			const GpuDataDescriptor* sceneDataDescriptor);
+			const GlobalFrameDataDescriptor* globalDataDescriptor);
 		
 		void DestroyShader(VulkanShader& vk_shader) const;
 		void DestroyMesh(VulkanMesh& vk_mesh) const;
@@ -154,7 +157,9 @@ namespace gns::rendering
 		void CreateTextureDescriptor(VulkanTexture& texture);
 		bool m_resizeRequest = false;
 		void ResizeSwapchain();
-		VkDescriptorSet UpdateDescriptorSet(GpuDataDescriptor dataDescriptor, VkDescriptorSetLayout setlayout);
+		VkDescriptorSet UpdateGlobalDescriptorSet(
+			const GlobalFrameDataDescriptor& globalDataDescriptor,
+			VulkanShader& shader);
 		VkDescriptorSet CreateTransientBufferDescriptorSet(
 			GpuDataDescriptor dataDescriptor,
 			VkDescriptorSetLayout setLayout,

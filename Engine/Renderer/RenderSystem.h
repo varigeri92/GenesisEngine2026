@@ -96,8 +96,11 @@ namespace gns {
 		EngineDefaultTextureHandles m_defaultTextures;
 		std::vector<DrawData> m_drawData;
 		SceneData m_sceneData = {};
-		GpuDataDescriptor m_sceneDataDescriptor = {};
-		bool m_hasSceneDataDescriptor = false;
+		DirectionalLightBuffer m_directionalLights = {};
+		PointLightBuffer m_pointLights = {};
+		SpotLightBuffer m_spotLights = {};
+		GlobalFrameDataDescriptor m_globalFrameDataDescriptor = {};
+		bool m_hasGlobalFrameDataDescriptor = false;
 		Handle m_defaultMeshShader;
 		Handle m_defaultMeshMaterial;
 
@@ -105,6 +108,6 @@ namespace gns {
 		Handle RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle);
 		Handle ApplyMaterial(Material& material, rendering::VulkanShader& vulkanShader);
 		void BuildDrawData();
-		void BuildSceneDataDescriptor();
+		void BuildGlobalFrameDataDescriptor();
 	};
 }

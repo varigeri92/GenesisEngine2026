@@ -28,6 +28,11 @@ constexpr const char* BackgroundComputeShaderPath = R"(Shaders\sky.comp.spv)";
 
 namespace
 {
+	constexpr uint32_t GlobalSceneDataBinding = 0;
+	constexpr uint32_t GlobalDirectionalLightsBinding = 1;
+	constexpr uint32_t GlobalPointLightsBinding = 2;
+	constexpr uint32_t GlobalSpotLightsBinding = 3;
+
 	VkDescriptorType ToVkDescriptorType(gns::MaterialDescriptorKind descriptorKind)
 	{
 		switch (descriptorKind)
@@ -51,6 +56,40 @@ namespace
 		default:
 			return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 		}
+	}
+
+	bool CopyDescriptorToBuffer(
+		const char* label,
+		const gns::GpuDataDescriptor& dataDescriptor,
+		VulkanBuffer& buffer)
+	{
+		if (!dataDescriptor.IsValid())
+		{
+			LOG_ERROR(std::string("[Device]: Missing global frame data descriptor for ") + label + ".");
+			return false;
+		}
+
+		if (buffer.allocation == VK_NULL_HANDLE || buffer.buffer == VK_NULL_HANDLE)
+		{
+			LOG_ERROR(std::string("[Device]: Missing global frame buffer for ") + label + ".");
+			return false;
+		}
+
+		if (dataDescriptor.size > buffer.size)
+		{
+			LOG_ERROR(std::string("[Device]: Global frame data descriptor is larger than buffer for ") + label + ".");
+			return false;
+		}
+
+		void* mappedBufferData = buffer.allocation->GetMappedData();
+		if (mappedBufferData == nullptr)
+		{
+			LOG_ERROR(std::string("[Device]: Failed to map global frame buffer for ") + label + ".");
+			return false;
+		}
+
+		memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);
+		return true;
 	}
 }
 
@@ -294,43 +333,90 @@ void gns::rendering::Device::ResizeSwapchain()
 	}
 }
 
-VkDescriptorSet gns::rendering::Device::UpdateDescriptorSet(
-	GpuDataDescriptor dataDescriptor,
-	VkDescriptorSetLayout setlayout)
+VkDescriptorSet gns::rendering::Device::UpdateGlobalDescriptorSet(
+	const GlobalFrameDataDescriptor& globalDataDescriptor,
+	VulkanShader& shader)
 {
-	if (setlayout == VK_NULL_HANDLE)
+	const VkDescriptorSetLayout setLayout = shader.GetDescriptorSetLayout(0);
+	if (setLayout == VK_NULL_HANDLE)
 	{
-		LOG_WARNING("[Device]: Cannot update descriptor set because layout is null.");
+		LOG_WARNING("[Device]: Cannot update global descriptor set because layout is null.");
 		return VK_NULL_HANDLE;
 	}
 
 	FrameData& frame = GetCurrentFrame();
-	if (const auto descriptor = frame._sceneDataDescriptors.find(setlayout);
-		descriptor != frame._sceneDataDescriptors.end())
+	if (const auto descriptor = frame._globalDataDescriptors.find(setLayout);
+		descriptor != frame._globalDataDescriptors.end())
 	{
 		return descriptor->second;
 	}
 
-	if (frame._gpuSceneDataBuffer.allocation == VK_NULL_HANDLE ||
-		frame._gpuSceneDataBuffer.buffer == VK_NULL_HANDLE)
+	if (!frame._globalDataBuffersUpdated)
 	{
-		LOG_WARNING("[Device]: Cannot update scene descriptor because scene buffer is missing.");
+		if (!CopyDescriptorToBuffer("SceneData", globalDataDescriptor.sceneData, frame._gpuSceneDataBuffer) ||
+			!CopyDescriptorToBuffer("DirectionalLights", globalDataDescriptor.directionalLights, frame._gpuDirectionalLightsBuffer) ||
+			!CopyDescriptorToBuffer("PointLights", globalDataDescriptor.pointLights, frame._gpuPointLightsBuffer) ||
+			!CopyDescriptorToBuffer("SpotLights", globalDataDescriptor.spotLights, frame._gpuSpotLightsBuffer))
+		{
+			return VK_NULL_HANDLE;
+		}
+
+		frame._globalDataBuffersUpdated = true;
+	}
+	
+	VkDescriptorSet globalDataDescriptorSet = frame._frameDescriptors.Allocate(m_device, setLayout);
+	if (globalDataDescriptorSet == VK_NULL_HANDLE)
+	{
+		LOG_ERROR("[Device]: Failed to allocate global descriptor set.");
 		return VK_NULL_HANDLE;
 	}
 
-	if (!frame._sceneDataBufferUpdated)
-	{
-		void* mappedBufferData = frame._gpuSceneDataBuffer.allocation->GetMappedData();
-		memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);
-		frame._sceneDataBufferUpdated = true;
-	}
-	
-	VkDescriptorSet sceneDataDescriptor = frame._frameDescriptors.Allocate(m_device, setlayout);
 	DescriptorWriter writer;
-	writer.WriteBuffer(0, frame._gpuSceneDataBuffer.buffer, dataDescriptor.size, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	writer.UpdateSet(m_device, sceneDataDescriptor);
-	frame._sceneDataDescriptors[setlayout] = sceneDataDescriptor;
-	return sceneDataDescriptor;
+	const uint32_t bindingMask = shader.m_globalDescriptorBindingMask;
+
+	if ((bindingMask & (1u << GlobalSceneDataBinding)) != 0)
+	{
+		writer.WriteBuffer(
+			GlobalSceneDataBinding,
+			frame._gpuSceneDataBuffer.buffer,
+			globalDataDescriptor.sceneData.size,
+			0,
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	}
+
+	if ((bindingMask & (1u << GlobalDirectionalLightsBinding)) != 0)
+	{
+		writer.WriteBuffer(
+			GlobalDirectionalLightsBinding,
+			frame._gpuDirectionalLightsBuffer.buffer,
+			globalDataDescriptor.directionalLights.size,
+			0,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+	}
+
+	if ((bindingMask & (1u << GlobalPointLightsBinding)) != 0)
+	{
+		writer.WriteBuffer(
+			GlobalPointLightsBinding,
+			frame._gpuPointLightsBuffer.buffer,
+			globalDataDescriptor.pointLights.size,
+			0,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+	}
+
+	if ((bindingMask & (1u << GlobalSpotLightsBinding)) != 0)
+	{
+		writer.WriteBuffer(
+			GlobalSpotLightsBinding,
+			frame._gpuSpotLightsBuffer.buffer,
+			globalDataDescriptor.spotLights.size,
+			0,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+	}
+
+	writer.UpdateSet(m_device, globalDataDescriptorSet);
+	frame._globalDataDescriptors[setLayout] = globalDataDescriptorSet;
+	return globalDataDescriptorSet;
 }
 
 VkDescriptorSet gns::rendering::Device::CreateTransientBufferDescriptorSet(
@@ -883,8 +969,11 @@ bool gns::rendering::Device::BeginFrame(
 	VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame()._renderFence));
 	GetCurrentFrame()._frameDescriptors.ClearPools(m_device);
 	GetCurrentFrame()._gpuSceneDataBuffer.reset();
-	GetCurrentFrame()._sceneDataDescriptors.clear();
-	GetCurrentFrame()._sceneDataBufferUpdated = false;
+	GetCurrentFrame()._gpuDirectionalLightsBuffer.reset();
+	GetCurrentFrame()._gpuPointLightsBuffer.reset();
+	GetCurrentFrame()._gpuSpotLightsBuffer.reset();
+	GetCurrentFrame()._globalDataDescriptors.clear();
+	GetCurrentFrame()._globalDataBuffersUpdated = false;
 	GetCurrentFrame()._cleanupQueue.Flush();
 	
 	VkResult e = vkAcquireNextImageKHR(m_device, m_swapchain.GetSwapchain(), 
@@ -913,6 +1002,15 @@ bool gns::rendering::Device::BeginFrame(
 	GetCurrentFrame()._gpuSceneDataBuffer.allocator = m_allocator;
 	GetCurrentFrame()._gpuSceneDataBuffer.CreateBuffer(
 		sizeof(SceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	GetCurrentFrame()._gpuDirectionalLightsBuffer.allocator = m_allocator;
+	GetCurrentFrame()._gpuDirectionalLightsBuffer.CreateBuffer(
+		sizeof(DirectionalLightBuffer), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	GetCurrentFrame()._gpuPointLightsBuffer.allocator = m_allocator;
+	GetCurrentFrame()._gpuPointLightsBuffer.CreateBuffer(
+		sizeof(PointLightBuffer), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+	GetCurrentFrame()._gpuSpotLightsBuffer.allocator = m_allocator;
+	GetCurrentFrame()._gpuSpotLightsBuffer.CreateBuffer(
+		sizeof(SpotLightBuffer), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 	
 	return true;
 }
@@ -964,8 +1062,11 @@ void gns::rendering::Device::Cleanup()
 	{
 		m_frames[i]._frameDescriptors.ClearPools(m_device);
 		m_frames[i]._gpuSceneDataBuffer.reset();
-		m_frames[i]._sceneDataDescriptors.clear();
-		m_frames[i]._sceneDataBufferUpdated = false;
+		m_frames[i]._gpuDirectionalLightsBuffer.reset();
+		m_frames[i]._gpuPointLightsBuffer.reset();
+		m_frames[i]._gpuSpotLightsBuffer.reset();
+		m_frames[i]._globalDataDescriptors.clear();
+		m_frames[i]._globalDataBuffersUpdated = false;
 		
 		vkDestroyFence(m_device, m_frames[i]._renderFence, nullptr);
 		vkDestroySemaphore(m_device, m_frames[i]._swapchainSemaphore, nullptr);
@@ -1160,17 +1261,16 @@ void gns::rendering::Device::CreateBackgroundPipeline()
 void gns::rendering::Device::DrawMesh(
 	VkCommandBuffer cmd,
 	DrawData draw_data,
-	const GpuDataDescriptor* sceneDataDescriptor)
+	const GlobalFrameDataDescriptor* globalDataDescriptor)
 {
 	VkPipeline pipeline = draw_data.vkShader->GetPipeline();
 	VkPipelineLayout layout = draw_data.vkShader->GetPipelineLayout();
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-	if (sceneDataDescriptor != nullptr)
+	if (globalDataDescriptor != nullptr)
 	{
-		const VkDescriptorSetLayout sceneDataLayout = draw_data.vkShader->GetDescriptorSetLayout(0);
-		const VkDescriptorSet sceneDataSet = UpdateDescriptorSet(*sceneDataDescriptor, sceneDataLayout);
-		if (sceneDataSet == VK_NULL_HANDLE)
+		const VkDescriptorSet globalDataSet = UpdateGlobalDescriptorSet(*globalDataDescriptor, *draw_data.vkShader);
+		if (globalDataSet == VK_NULL_HANDLE)
 		{
 			return;
 		}
@@ -1181,7 +1281,7 @@ void gns::rendering::Device::DrawMesh(
 			layout,
 			0,
 			1,
-			&sceneDataSet,
+			&globalDataSet,
 			0,
 			nullptr);
 	}
@@ -1217,7 +1317,7 @@ void gns::rendering::Device::DrawMesh(
 	}
 	
 	GPUDrawPushConstants push_constants;
-	push_constants.worldMatrix = draw_data.transform;
+	push_constants.modelMatrix = draw_data.transform;
 	push_constants.vertexBuffer = draw_data.vk_vertexBufferAddress;
 
 	vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);

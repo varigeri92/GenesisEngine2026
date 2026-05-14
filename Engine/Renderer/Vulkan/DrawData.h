@@ -36,6 +36,16 @@ namespace gns
         gns::rendering::VulkanTexture* texture = nullptr;
     };
 
+    struct GlobalFrameDataDescriptor
+    {
+        GpuDataDescriptor sceneData;
+        GpuDataDescriptor directionalLights;
+        GpuDataDescriptor pointLights;
+        GpuDataDescriptor spotLights;
+
+        bool IsValid() const { return sceneData.IsValid(); }
+    };
+
     struct DrawData
     {
         glm::mat4 transform;

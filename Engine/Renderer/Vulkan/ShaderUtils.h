@@ -72,6 +72,10 @@ namespace gns::rendering
             std::vector<VkDescriptorSetLayout>& outLayouts);
         GNS_API static std::vector<VkPushConstantRange> BuildPushConstantRanges(
             const std::vector<ShaderReflectionData>& reflections);
+        GNS_API static bool ValidateGlobalDescriptorRules(
+            const std::vector<ShaderReflectionData>& reflections,
+            uint32_t* outBindingMask = nullptr,
+            uint32_t globalSet = 0);
         GNS_API static bool ValidateMaterialDescriptorRules(
             const std::vector<ShaderReflectionData>& reflections,
             uint32_t materialSet = 1,

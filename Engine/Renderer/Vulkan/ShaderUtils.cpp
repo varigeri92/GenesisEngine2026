@@ -596,6 +596,81 @@ namespace gns::rendering
         return ranges;
     }
 
+    bool ShaderUtils::ValidateGlobalDescriptorRules(
+        const std::vector<ShaderReflectionData>& reflections,
+        uint32_t* outBindingMask,
+        uint32_t globalSet)
+    {
+        constexpr uint32_t SceneDataBinding = 0;
+        constexpr uint32_t DirectionalLightsBinding = 1;
+        constexpr uint32_t PointLightsBinding = 2;
+        constexpr uint32_t SpotLightsBinding = 3;
+
+        bool valid = true;
+        uint32_t bindingMask = 0;
+
+        for (const ShaderReflectionData& reflection : reflections)
+        {
+            for (const ShaderResourceInfo& descriptor : reflection.descriptors)
+            {
+                if (descriptor.set != globalSet)
+                {
+                    continue;
+                }
+
+                std::stringstream descriptorName;
+                descriptorName
+                    << descriptor.name
+                    << " (set "
+                    << descriptor.set
+                    << ", binding "
+                    << descriptor.binding
+                    << ")";
+
+                if (descriptor.binding == SceneDataBinding)
+                {
+                    if (descriptor.kind != ShaderResourceKind::UniformBuffer)
+                    {
+                        LOG_ERROR("[ShaderUtils]: Global set 0 binding 0 must be SceneData uniform buffer.");
+                        LOG_ERROR(descriptorName.str());
+                        valid = false;
+                        continue;
+                    }
+
+                    bindingMask |= 1u << SceneDataBinding;
+                    continue;
+                }
+
+                if (descriptor.binding == DirectionalLightsBinding ||
+                    descriptor.binding == PointLightsBinding ||
+                    descriptor.binding == SpotLightsBinding)
+                {
+                    if (descriptor.kind != ShaderResourceKind::StorageBuffer)
+                    {
+                        LOG_ERROR("[ShaderUtils]: Global light bindings 1-3 must be storage buffers.");
+                        LOG_ERROR(descriptorName.str());
+                        valid = false;
+                        continue;
+                    }
+
+                    bindingMask |= 1u << descriptor.binding;
+                    continue;
+                }
+
+                LOG_ERROR("[ShaderUtils]: Unsupported global descriptor binding. Expected set 0 bindings 0-3.");
+                LOG_ERROR(descriptorName.str());
+                valid = false;
+            }
+        }
+
+        if (outBindingMask != nullptr)
+        {
+            *outBindingMask = bindingMask;
+        }
+
+        return valid;
+    }
+
     bool ShaderUtils::ValidateMaterialDescriptorRules(
         const std::vector<ShaderReflectionData>& reflections,
         uint32_t materialSet,
