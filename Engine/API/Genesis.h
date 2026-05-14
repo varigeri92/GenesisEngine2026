@@ -10,4 +10,5 @@
 #include "../Scene/Scene.h"
 #include "../Scene/SceneManager.h"
 #include "../Scene/SceneSerializer.h"
+#include "../Profiling/Profiler.h"
 #include "../Utils/Path.h"

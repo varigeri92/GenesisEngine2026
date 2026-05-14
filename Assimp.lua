@@ -32,28 +32,33 @@ project "assimp"
     --
     -- 3. Build with CMake
     --
-    postbuildcommands {
-        ('cmake --build "%s" --config Release'):format(Assimp_BuildDir)
-    }
-
-    --
-    -- 4. Copy DLL + LIB to <SolutionRoot>/bin/assimp/<Config>
-    --
     local batch = to_win_path(path.getabsolute("copy_files.bat"))
     local libdir = to_win_path(Assimp_BuildDir .. "/lib")
     local outDir   = to_win_path(path.getabsolute(Paths.OutputDir))
-    postbuildcommands {
-        ('call "%s" "%s" "%s" "Release"'):
-        format(batch, libdir, outDir)
-    }
-    
     local bindir = to_win_path(Assimp_BuildDir .. "/bin")
-    postbuildcommands {
-        ('call "%s" "%s" "%s" "Release"'):
-            format(batch, bindir, outDir)
-    }
-    --
-    buildoutputs {
-        ('%s/lib/Release/assimp*.lib'):format(Assimp_BuildDir),
-        ('%s/bin/Release/assimp*.dll'):format(Assimp_BuildDir)
-    }
+
+    filter { "configurations:Debug or configurations:Profile" }
+        postbuildcommands {
+            ('cmake --build "%s" --config Debug'):format(Assimp_BuildDir),
+            ('call "%s" "%s" "%s" "Debug"'):format(batch, libdir, outDir),
+            ('call "%s" "%s" "%s" "Debug"'):format(batch, bindir, outDir)
+        }
+
+        buildoutputs {
+            ('%s/lib/Debug/assimp*.lib'):format(Assimp_BuildDir),
+            ('%s/bin/Debug/assimp*.dll'):format(Assimp_BuildDir)
+        }
+
+    filter { "configurations:Release or configurations:Dist" }
+        postbuildcommands {
+            ('cmake --build "%s" --config Release'):format(Assimp_BuildDir),
+            ('call "%s" "%s" "%s" "Release"'):format(batch, libdir, outDir),
+            ('call "%s" "%s" "%s" "Release"'):format(batch, bindir, outDir)
+        }
+
+        buildoutputs {
+            ('%s/lib/Release/assimp*.lib'):format(Assimp_BuildDir),
+            ('%s/bin/Release/assimp*.dll'):format(Assimp_BuildDir)
+        }
+
+    filter {}

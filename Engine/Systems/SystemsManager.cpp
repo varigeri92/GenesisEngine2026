@@ -8,9 +8,16 @@ std::vector<size_t> gns::core::SystemsManager::deletionQeue = {};
 
 void gns::core::SystemsManager::Run(float deltaTime)
 {
+	GNS_PROFILE_FUNCTION();
+
 	bool firstUpdateTicked = false;
 	for (size_t i = 0; i < Systems.size(); i++)
 	{
+#ifdef ENABLE_PROFILER
+		const std::string systemScopeName = std::string("System::") + typeid(*Systems[i]).name();
+		GNS_PROFILE_SCOPE(systemScopeName.c_str());
+#endif
+
 		switch (Systems[i]->State)
 		{
 		case System::SystemState::Created:
@@ -50,6 +57,10 @@ void gns::core::SystemsManager::Run(float deltaTime)
 	{
 		if (Systems[i]->State==System::SystemState::Running)
 		{
+#ifdef ENABLE_PROFILER
+			const std::string systemScopeName = std::string("System::LateUpdate::") + typeid(*Systems[i]).name();
+			GNS_PROFILE_SCOPE(systemScopeName.c_str());
+#endif
 			Systems[i]->OnLateUpdate(deltaTime);
 		}
 	}
@@ -57,8 +68,14 @@ void gns::core::SystemsManager::Run(float deltaTime)
 
 void gns::core::SystemsManager::Clear()
 {
+	GNS_PROFILE_FUNCTION();
+
 	for (size_t i = 0; i < Systems.size(); i++)
 	{
+#ifdef ENABLE_PROFILER
+		const std::string systemScopeName = std::string("System::Destroy::") + typeid(*Systems[i]).name();
+		GNS_PROFILE_SCOPE(systemScopeName.c_str());
+#endif
 		Systems[i]->OnDestroy();
 	}
 

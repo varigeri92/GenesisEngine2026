@@ -9,3 +9,4 @@
 //--------------
 #include "../API/API.h"
 #include "../Log/Logger.h"
+#include "../Profiling/Profiler.h"

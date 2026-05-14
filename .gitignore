@@ -1,6 +1,7 @@
 .vs
 /bin
 /bin-int
+/obj
 
 *.sln
 *.slnx
@@ -8,3 +9,5 @@
 *.user
 *.filters
 /.dotnet-home
+/profile
+*.trace.json

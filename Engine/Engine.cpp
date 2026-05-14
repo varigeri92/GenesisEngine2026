@@ -22,6 +22,8 @@ gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{std::
 
 void gns::core::Engine::Initialize(std::function<void()> callback)
 {
+	GNS_PROFILE_FUNCTION();
+
 	gns::path::Configure(m_engineConfig.projectRoot, m_engineConfig.editorResourcesRoot);
 	gns::RegisterCoreComponentReflection();
 	SystemsManager::RegisterSystem<gns::SceneSystem>();
@@ -51,8 +53,11 @@ void gns::core::Engine::Initialize(std::function<void()> callback)
 
 void gns::core::Engine::Run()
 {
+	GNS_PROFILE_FUNCTION();
+
 	while (!close)
 	{
+		GNS_PROFILE_SCOPE("Frame");
 		gns::Time::StartFrameTime();
 		float deltaTime = gns::Time::DeltaTime();
 		SystemsManager::Run(deltaTime);
@@ -62,6 +67,7 @@ void gns::core::Engine::Run()
 
 void gns::core::Engine::ShutDown()
 {
+	GNS_PROFILE_FUNCTION();
 	SystemsManager::Clear();
 }
 

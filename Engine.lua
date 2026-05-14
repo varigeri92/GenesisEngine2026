@@ -10,7 +10,6 @@ project "Engine"
     dependson { "assimp", "yaml-cpp" }
 
     libdirs {
-        LibDir.Assimp,
         LibDir.Output,
         LibDir.Vulkan,
         LibDir.fmt_d
@@ -20,19 +19,22 @@ project "Engine"
         Libs.SDL2,
         Libs.SDL2main,
         Libs.Vulkan,
-        Libs.Assimp,
         Libs.fmt_d
     }
 
     -- Release library
-    filter { "configurations:not Debug" }
-        libdirs { LibDir.YAMLCPP_Release }
-        links { Libs.YAMLCPP }
+    filter { "configurations:Release or configurations:Dist" }
+        libdirs { LibDir.Assimp_Release, LibDir.YAMLCPP_Release }
+        links { Libs.Assimp, Libs.YAMLCPP }
     
     -- Debug-only library
     filter { "configurations:Debug" }
-        libdirs { LibDir.YAMLCPP_Debug }
-        links { Libs.YAMLCPPd }
+        libdirs { LibDir.Assimp_Debug, LibDir.YAMLCPP_Debug }
+        links { Libs.Assimp_d, Libs.YAMLCPPd }
+
+    filter { "configurations:Profile" }
+        libdirs { LibDir.Assimp_Debug, LibDir.YAMLCPP_Debug }
+        links { Libs.Assimp_d, Libs.YAMLCPPd }
 
     filter {}
 
@@ -90,6 +92,9 @@ project "Engine"
 
     filter { 'files:vendor/ImGuizmo/src/ImGuizmo.cpp' }
     defines { "IMGUI_DEFINE_MATH_OPERATORS" }
+    flags { 'NoPCH' }
+
+    filter { 'files:Engine/Renderer/Vulkan/spirv_reflect_wrapper.c' }
     flags { 'NoPCH' }
 
     filter {}

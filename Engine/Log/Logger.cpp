@@ -3,10 +3,38 @@
 
 Logger::LogLevel Logger::s_ApplicationLogLevel = Logger::LogLevel::Trace;
 
+#ifdef ENABLE_PROFILER
+namespace
+{
+	const char* ToProfilerLogLevel(Logger::LogLevel level)
+	{
+		switch (level)
+		{
+		case Logger::LogLevel::Trace:
+			return "TRACE";
+		case Logger::LogLevel::Info:
+			return "INFO";
+		case Logger::LogLevel::Warning:
+			return "WARNING";
+		case Logger::LogLevel::Error:
+			return "ERROR";
+		case Logger::LogLevel::Fatal:
+			return "FATAL";
+		default:
+			return "UNKNOWN";
+		}
+	}
+}
+#endif
+
 void Logger::LogMessage(std::string project, LogLevel level, std::string file, uint32_t line, const std::string message)
 {
 	if (level < s_ApplicationLogLevel)
 		return;
+
+#ifdef ENABLE_PROFILER
+	GNS_PROFILE_LOG(ToProfilerLogLevel(level), file.c_str(), line, message);
+#endif
 
 	switch (level)
 	{

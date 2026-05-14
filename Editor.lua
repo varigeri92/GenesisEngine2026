@@ -4,23 +4,21 @@ project "Editor"
     objdir(Obj("Editor"))
     location "Editor"
 
-    libdirs { 
-        LibDir.Output,
-        LibDir.Assimp,
-    }
+    libdirs { LibDir.Output }
 
-    links {
-        "Engine.lib",
-        Libs.Assimp
-    }
+    links { "Engine.lib" }
 
-    filter { "configurations:not Debug" }
-        libdirs { LibDir.YAMLCPP_Release }
-        links { Libs.YAMLCPP }
+    filter { "configurations:Release or configurations:Dist" }
+        libdirs { LibDir.Assimp_Release, LibDir.YAMLCPP_Release }
+        links { Libs.Assimp, Libs.YAMLCPP }
 
     filter { "configurations:Debug" }
-        libdirs { LibDir.YAMLCPP_Debug }
-        links { Libs.YAMLCPPd }
+        libdirs { LibDir.Assimp_Debug, LibDir.YAMLCPP_Debug }
+        links { Libs.Assimp_d, Libs.YAMLCPPd }
+
+    filter { "configurations:Profile" }
+        libdirs { LibDir.Assimp_Debug, LibDir.YAMLCPP_Debug }
+        links { Libs.Assimp_d, Libs.YAMLCPPd }
 
     filter {}
 

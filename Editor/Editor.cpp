@@ -18,31 +18,39 @@
 
 int main(int argc, char** argv)
 {
-    EditorProjectContext projectContext;
-
-    gns::core::EngineConfig cfg = {};
-    cfg.headless = false;
-    cfg.InitTetsSystem = true;
-    cfg.projectRoot = EditorProjectContext::ProjectRootFromCommandLine(argc, argv);
-    cfg.editorResourcesRoot = EditorProjectContext::EditorResourcesRootFromCommandLine(argc, argv);
+    GNS_PROFILE_BEGIN_SESSION("GenesisEngine Editor", "profile/GenesisEngine-Editor.trace.json");
 
     {
-        gns::core::Engine engine(cfg);
-        engine.Initialize([&]() {
-            projectContext.Validate();
-            gns::core::SystemsManager::RegisterSystem<TestSystemExternal>();
-            gns::core::SystemsManager::RegisterSystem<EditorCameraSystem>();
-            GuiSystem* gui = gns::core::SystemsManager::GetSystem<GuiSystem>();
-            gui->RegisterWindow<DockingRoot>("DockingRoot");
-            gui->RegisterWindow<SceneHierarchyWindow>("Scene Hierarchy");
-            gui->RegisterWindow<InspectorWindow>("Inspector");
-            gui->RegisterWindow<SceneViewWindow>("Scene View");
-            gui->RegisterWindow<ProjectFilesWindow>("Project Files", projectContext);
-            gui->RegisterWindow<IconBrowserWindow>("Material Icons");
-            gui->RegisterWindow<TestEditorWindow>("testEditorWindow");
-        });
-        engine.Run();
-        engine.ShutDown();
+        GNS_PROFILE_FUNCTION();
+
+        EditorProjectContext projectContext;
+
+        gns::core::EngineConfig cfg = {};
+        cfg.headless = false;
+        cfg.InitTetsSystem = true;
+        cfg.projectRoot = EditorProjectContext::ProjectRootFromCommandLine(argc, argv);
+        cfg.editorResourcesRoot = EditorProjectContext::EditorResourcesRootFromCommandLine(argc, argv);
+
+        {
+            gns::core::Engine engine(cfg);
+            engine.Initialize([&]() {
+                projectContext.Validate();
+                gns::core::SystemsManager::RegisterSystem<TestSystemExternal>();
+                gns::core::SystemsManager::RegisterSystem<EditorCameraSystem>();
+                GuiSystem* gui = gns::core::SystemsManager::GetSystem<GuiSystem>();
+                gui->RegisterWindow<DockingRoot>("DockingRoot");
+                gui->RegisterWindow<SceneHierarchyWindow>("Scene Hierarchy");
+                gui->RegisterWindow<InspectorWindow>("Inspector");
+                gui->RegisterWindow<SceneViewWindow>("Scene View");
+                gui->RegisterWindow<ProjectFilesWindow>("Project Files", projectContext);
+                gui->RegisterWindow<IconBrowserWindow>("Material Icons");
+                gui->RegisterWindow<TestEditorWindow>("testEditorWindow");
+            });
+            engine.Run();
+            engine.ShutDown();
+        }
     }
+
+    GNS_PROFILE_END_SESSION();
     std::getchar();
 }

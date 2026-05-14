@@ -23,7 +23,7 @@ project "yaml-cpp"
     local batch = to_win_path(path.getabsolute("copy_files.bat"))
     local outDir = to_win_path(path.getabsolute(Paths.OutputDir))
 
-    filter { "configurations:Debug" }
+    filter { "configurations:Debug or configurations:Profile" }
         postbuildcommands {
             ('cmake --build "%s" --config Debug'):format(YAMLCPP_BuildDir),
             ('call "%s" "%s" "%s" "Debug" "*.dll"'):format(batch, to_win_path(YAMLCPP_BuildDir), outDir)
@@ -34,7 +34,7 @@ project "yaml-cpp"
             ('%s/Debug/yaml-cppd.dll'):format(YAMLCPP_BuildDir)
         }
 
-    filter { "configurations:not Debug" }
+    filter { "configurations:Release or configurations:Dist" }
         postbuildcommands {
             ('cmake --build "%s" --config Release'):format(YAMLCPP_BuildDir),
             ('call "%s" "%s" "%s" "Release" "*.dll"'):format(batch, to_win_path(YAMLCPP_BuildDir), outDir)
