@@ -1,5 +1,34 @@
 #pragma once
 #include "API.h"
+#include <chrono>
+
+struct TimerData
+{
+	double timeMs = 0.0;
+	double smoothedTimeMs = 0.0;
+	bool hasTimingSample = false;
+};
+
+struct SytemMetadata
+{
+	std::string name;
+	TimerData _createTimer;
+	TimerData _startupTimer;
+	TimerData _enableTimer;
+	TimerData _disableTimer;
+	TimerData _updateTimer;
+	TimerData _lateTimer;
+	
+	
+};
+
+struct SystemScopeTimer
+{
+	std::chrono::steady_clock::time_point startTime;
+	TimerData& timerData;
+	GNS_API SystemScopeTimer(TimerData& timer_data);
+	GNS_API ~SystemScopeTimer();
+};
 
 namespace gns::core 
 {
@@ -24,6 +53,8 @@ public:
 	GNS_API virtual void OnDestroy(){}
 
 	SystemState State = SystemState::Created;
+	SytemMetadata metadata;
+	
 protected:
 	size_t m_instanceID;
 	bool m_allowMultipleInstances = false;

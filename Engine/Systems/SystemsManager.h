@@ -19,8 +19,10 @@ namespace gns::core
 		static System_T* RegisterSystem()
 		{
 			Systems.emplace_back(std::make_unique<System_T>());
-			Systems[Systems.size() - 1]->State = System::SystemState::Created;
-			return reinterpret_cast<System_T*>(Systems[Systems.size() - 1].get());
+			System_T* System = reinterpret_cast<System_T*>(Systems[Systems.size() - 1].get());
+			System->State = System::SystemState::Created;
+			System->metadata.name = typeid(System_T).name();
+			return System;
 		}
 		template
 			<typename System_T, 
@@ -30,6 +32,7 @@ namespace gns::core
 		{
 			Systems.emplace_back(std::make_unique<System_T>(std::forward<Args>(args)...));
 			Systems[Systems.size() - 1]->State = System::SystemState::Created;
+			Systems[Systems.size() - 1]->metadata.name = typeid(System_T).name();
 			return dynamic_cast<System_T*>(Systems[Systems.size() - 1].get());
 		}
 		template
@@ -71,8 +74,8 @@ namespace gns::core
 		}
 		
 		GNS_API static entt::registry& GetRegistry();
-	private:
 		GNS_API static std::vector<std::unique_ptr<System>> Systems;
+	private:
 		GNS_API static std::vector<size_t> deletionQeue;
 		GNS_API static entt::registry Registry;
 	};

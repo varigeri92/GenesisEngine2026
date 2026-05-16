@@ -15,6 +15,7 @@
 #include "EditorGUI/Windows/SceneHierarchyWindow.h"
 #include "EditorGUI/Windows/SceneViewWindow.h"
 #include "../Engine/Systems/GuiSystem.h"
+#include "EditorGUI/Windows/SystemViewer.h"
 
 int main(int argc, char** argv)
 {
@@ -45,6 +46,7 @@ int main(int argc, char** argv)
                 gui->RegisterWindow<ProjectFilesWindow>("Project Files", projectContext);
                 gui->RegisterWindow<IconBrowserWindow>("Material Icons");
                 gui->RegisterWindow<TestEditorWindow>("testEditorWindow");
+                gui->RegisterWindow<SystemViewer>("SystemViewer");
             });
             engine.Run();
             engine.ShutDown();

@@ -1,6 +1,8 @@
 #include "gnspch.h"
 #include "SystemsManager.h"
 
+#include "../Utils/Time.h"
+
 entt::registry gns::core::SystemsManager::Registry = entt::registry();
 
 std::vector<std::unique_ptr<gns::core::System>> gns::core::SystemsManager::Systems = {};
@@ -21,30 +23,47 @@ void gns::core::SystemsManager::Run(float deltaTime)
 		switch (Systems[i]->State)
 		{
 		case System::SystemState::Created:
-			Systems[i]->State = System::SystemState::Started;
-			Systems[i]->OnCreate();
+			{
+				SystemScopeTimer timer(Systems[i]->metadata._createTimer);
+				Systems[i]->State = System::SystemState::Started;
+				Systems[i]->OnCreate();
+			}
 			break; 
 		case System::SystemState::Started:
-			Systems[i]->OnStart();
-			Systems[i]->State = System::SystemState::Running;
+			{
+				SystemScopeTimer timer(Systems[i]->metadata._startupTimer);
+				Systems[i]->OnStart();
+				Systems[i]->State = System::SystemState::Running;
+			}
 			break;
 		case System::SystemState::Stopped:
-			Systems[i]->OnDisable();
-			Systems[i]->State = System::SystemState::Disabled;
+			{
+				SystemScopeTimer timer(Systems[i]->metadata._disableTimer);
+				Systems[i]->OnDisable();
+				Systems[i]->State = System::SystemState::Disabled;
+			}
 			break;
 		case System::SystemState::Disabled:
 			continue;
 			break;
 		case System::SystemState::Enabled:
-			Systems[i]->OnEnable();
-			Systems[i]->State = System::SystemState::Running;
+			{
+				SystemScopeTimer timer(Systems[i]->metadata._enableTimer);
+				Systems[i]->OnEnable();
+				Systems[i]->State = System::SystemState::Running;
+			}
 			break;
 		case System::SystemState::Running:
-			Systems[i]->OnUpdate(deltaTime);
-			firstUpdateTicked = true;
+			{
+				SystemScopeTimer timer(Systems[i]->metadata._updateTimer);
+				Systems[i]->OnUpdate(deltaTime);
+				firstUpdateTicked = true;
+			}
 			break;
 		case System::SystemState::Destroyed:
-			Systems[i]->OnDestroy();
+			{
+				Systems[i]->OnDestroy();
+			}
 			break;
 		default:
 			continue;
@@ -61,6 +80,7 @@ void gns::core::SystemsManager::Run(float deltaTime)
 			const std::string systemScopeName = std::string("System::LateUpdate::") + typeid(*Systems[i]).name();
 			GNS_PROFILE_SCOPE(systemScopeName.c_str());
 #endif
+			SystemScopeTimer timer(Systems[i]->metadata._lateTimer);
 			Systems[i]->OnLateUpdate(deltaTime);
 		}
 	}
