@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
+#include <vector>
 #include "../Resources/VulkanShader.h"
 #include "VulkanBuffer.h"
 
@@ -57,5 +58,19 @@ namespace gns
         size_t StartIndex;
         size_t Count;
         uint32_t index;
+    };
+
+    struct RenderFramePacket
+    {
+        std::vector<DrawData> drawData;
+        GlobalFrameDataDescriptor globalFrameData;
+        bool hasGlobalFrameData = false;
+
+        void Clear()
+        {
+            drawData.clear();
+            globalFrameData = {};
+            hasGlobalFrameData = false;
+        }
     };
 }

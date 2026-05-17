@@ -22,10 +22,9 @@ namespace gns::rendering {
 	private:
 		Device m_device;
 		RenderGraph m_renderGraph;
-		std::vector<DrawData> m_drawData;
+		RenderFramePacket m_framePacket;
 		CameraBackend m_cameraBackend;
 		Screen m_screen;
-		const GlobalFrameDataDescriptor* m_frameGlobalDataDescriptor = nullptr;
 		bool m_copySceneToSwapchain = false;
 		VkDescriptorSetLayout _singleImageDescriptorLayout;
 	public:
@@ -34,7 +33,7 @@ namespace gns::rendering {
 		~Renderer() = default;
 		void CreateDevice(SDL_Window* sdl_window);
 		void SetupRenderPasses();
-		void DrawFrame(const std::vector<DrawData>& drawData, const GlobalFrameDataDescriptor* globalDataDescriptor);
+		void DrawFrame(const RenderFramePacket& packet);
 		
 		GNS_API VkDevice GetDevice();
 		GNS_API VkPhysicalDevice GetPhysicalDevice();

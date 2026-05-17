@@ -15,7 +15,7 @@
 
 void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 {
-	m_drawData = {};
+	m_framePacket.Clear();
 	m_device.Create(sdl_window);
 	const VkExtent2D renderExtent = m_device.GetRenderExtent();
 	m_screen.SetSize(renderExtent.width, renderExtent.height);
@@ -85,19 +85,22 @@ void gns::rendering::Renderer::AddGeometryPass()
 	auto& geometryPass = m_renderGraph.AddPass("Geometry",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
-		if (!m_device.UpdateDrawResourceBuffers(m_drawData))
+		if (!m_device.UpdateDrawResourceBuffers(m_framePacket.drawData))
 		{
 			return false;
 		}
-		if (!m_device.UpdateFrameMaterialDataBuffers(m_drawData))
+		if (!m_device.UpdateFrameMaterialDataBuffers(m_framePacket.drawData))
 		{
 			return false;
 		}
 
 		m_device.DrawGeometry(cmd);
-		for (auto& drawData : m_drawData)
+		const GlobalFrameDataDescriptor* globalFrameData = m_framePacket.hasGlobalFrameData
+			? &m_framePacket.globalFrameData
+			: nullptr;
+		for (auto& drawData : m_framePacket.drawData)
 		{
-			m_device.DrawMesh(cmd, drawData, m_frameGlobalDataDescriptor);
+			m_device.DrawMesh(cmd, drawData, globalFrameData);
 		}
 		m_device.EndRendering(cmd);
 		return true;
@@ -200,9 +203,7 @@ void gns::rendering::Renderer::AddImGuiPass()
 	imguiPass.data.dstImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 }
 
-void gns::rendering::Renderer::DrawFrame(
-	const std::vector<DrawData>& drawData,
-	const GlobalFrameDataDescriptor* globalDataDescriptor)
+void gns::rendering::Renderer::DrawFrame(const RenderFramePacket& packet)
 {
 	if (m_device.m_resizeRequest)
 		m_device.ResizeSwapchain();
@@ -214,10 +215,9 @@ void gns::rendering::Renderer::DrawFrame(
 	FrameData frameData;
 	if (m_device.BeginFrame(cmd, swapchainImageIndex, extent, frameData))
 	{
-		m_drawData = drawData;
-		m_frameGlobalDataDescriptor = m_drawData.empty() ? nullptr : globalDataDescriptor;
+		m_framePacket = packet;
 		m_renderGraph.Execute(cmd, frameData);
-		m_frameGlobalDataDescriptor = nullptr;
+		m_framePacket.Clear();
 		//depth prepass
 		//Shadows prepass
 		//culling pass

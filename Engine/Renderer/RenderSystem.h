@@ -54,6 +54,30 @@ namespace gns {
 		Handle errorCheckerboard;
 	};
 
+	struct PendingMeshUpload
+	{
+		Handle meshHandle;
+		Mesh* mesh = nullptr;
+	};
+
+	struct PendingTextureUpload
+	{
+		Handle textureHandle;
+		Texture* texture = nullptr;
+	};
+
+	struct PendingShaderUpload
+	{
+		Handle shaderHandle;
+		Shader* shader = nullptr;
+	};
+
+	struct PendingMaterialUpload
+	{
+		Handle materialHandle;
+		Material* material = nullptr;
+	};
+
 	class RenderSystem : public gns::core::System
 	{
 
@@ -96,7 +120,11 @@ namespace gns {
 		rendering::Renderer m_renderer;
 		RenderResourceCache m_resourceCache;
 		EngineDefaultTextureHandles m_defaultTextures;
-		std::vector<DrawData> m_drawData;
+		RenderFramePacket m_framePacket;
+		std::vector<PendingMeshUpload> m_pendingMeshUploads;
+		std::vector<PendingTextureUpload> m_pendingTextureUploads;
+		std::vector<PendingShaderUpload> m_pendingShaderUploads;
+		std::vector<PendingMaterialUpload> m_pendingMaterialUploads;
 		std::vector<glm::mat4> m_modelMatrices;
 		std::vector<rendering::VulkanMaterial*> m_materials;
 		SceneData m_sceneData = {};
@@ -111,6 +139,11 @@ namespace gns {
 		void CreateDefaultTextureObjects();
 		Handle RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle);
 		Handle ApplyMaterial(Material& material, rendering::VulkanShader& vulkanShader);
+		bool QueueMeshUpload(Mesh& mesh);
+		bool QueueTextureUpload(Texture& texture);
+		bool QueueShaderUpload(Shader& shader);
+		bool QueueMaterialUpload(Material& material);
+		void FlushPendingRenderUploads();
 		void BuildDrawData();
 		void BuildGlobalFrameDataDescriptor();
 	};

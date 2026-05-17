@@ -1,6 +1,8 @@
 #include "gnspch.h"
 #include "RenderSystem.h"
 
+#include <algorithm>
+
 #include <glm/detail/type_quat.hpp>
 #include <glm/ext/quaternion_trigonometric.hpp>
 
@@ -110,18 +112,23 @@ void gns::RenderSystem::OnUpdate(float deltaTime)
 
 void gns::RenderSystem::OnLateUpdate(float deltaTime)
 {
+	FlushPendingRenderUploads();
+	m_framePacket.Clear();
 	BuildDrawData();
-	const bool hasDrawData = !m_drawData.empty();
+	const bool hasDrawData = !m_framePacket.drawData.empty();
 	if (hasDrawData)
 	{
 		BuildGlobalFrameDataDescriptor();
+		m_framePacket.globalFrameData = m_globalFrameDataDescriptor;
+		m_framePacket.hasGlobalFrameData = m_hasGlobalFrameDataDescriptor;
 	}
 	else
 	{
 		m_hasGlobalFrameDataDescriptor = false;
+		m_framePacket.hasGlobalFrameData = false;
 	}
 
-	m_renderer.DrawFrame(m_drawData, m_hasGlobalFrameDataDescriptor ? &m_globalFrameDataDescriptor : nullptr);
+	m_renderer.DrawFrame(m_framePacket);
 }
 
 void gns::RenderSystem::OnFixedUpdate()
@@ -164,13 +171,235 @@ gns::Handle gns::RenderSystem::ApplyMesh(Mesh& mesh)
 		return it->second;
 	}
 
-	const Handle renderMeshHandle = m_renderer.ApplyMesh(mesh);
-	if (renderMeshHandle.IsValid())
+	QueueMeshUpload(mesh);
+	return {};
+}
+
+bool gns::RenderSystem::QueueMeshUpload(Mesh& mesh)
+{
+	const Handle meshHandle = mesh.GetHandle();
+	if (!meshHandle.IsValid() || m_resourceCache.meshes.contains(meshHandle))
 	{
-		m_resourceCache.meshes[meshHandle] = renderMeshHandle;
-		mesh.FreeCPUSide();
+		return false;
 	}
-	return renderMeshHandle;
+
+	const auto pending = std::find_if(
+		m_pendingMeshUploads.begin(),
+		m_pendingMeshUploads.end(),
+		[meshHandle](const PendingMeshUpload& upload)
+		{
+			return upload.meshHandle == meshHandle;
+		});
+	if (pending != m_pendingMeshUploads.end())
+	{
+		return true;
+	}
+
+	m_pendingMeshUploads.emplace_back(PendingMeshUpload
+	{
+		.meshHandle = meshHandle,
+		.mesh = &mesh
+	});
+	return true;
+}
+
+bool gns::RenderSystem::QueueTextureUpload(Texture& texture)
+{
+	const Handle textureHandle = texture.GetHandle();
+	if (!textureHandle.IsValid() || m_resourceCache.textures.contains(textureHandle))
+	{
+		return false;
+	}
+
+	const auto pending = std::find_if(
+		m_pendingTextureUploads.begin(),
+		m_pendingTextureUploads.end(),
+		[textureHandle](const PendingTextureUpload& upload)
+		{
+			return upload.textureHandle == textureHandle;
+		});
+	if (pending != m_pendingTextureUploads.end())
+	{
+		return true;
+	}
+
+	m_pendingTextureUploads.emplace_back(PendingTextureUpload
+	{
+		.textureHandle = textureHandle,
+		.texture = &texture
+	});
+	return true;
+}
+
+bool gns::RenderSystem::QueueShaderUpload(Shader& shader)
+{
+	const Handle shaderHandle = shader.GetHandle();
+	if (!shaderHandle.IsValid() || m_resourceCache.shaders.contains(shaderHandle))
+	{
+		return false;
+	}
+
+	const auto pending = std::find_if(
+		m_pendingShaderUploads.begin(),
+		m_pendingShaderUploads.end(),
+		[shaderHandle](const PendingShaderUpload& upload)
+		{
+			return upload.shaderHandle == shaderHandle;
+		});
+	if (pending != m_pendingShaderUploads.end())
+	{
+		return true;
+	}
+
+	m_pendingShaderUploads.emplace_back(PendingShaderUpload
+	{
+		.shaderHandle = shaderHandle,
+		.shader = &shader
+	});
+	return true;
+}
+
+bool gns::RenderSystem::QueueMaterialUpload(Material& material)
+{
+	const Handle materialHandle = material.GetHandle();
+	if (!materialHandle.IsValid())
+	{
+		return false;
+	}
+
+	const auto pending = std::find_if(
+		m_pendingMaterialUploads.begin(),
+		m_pendingMaterialUploads.end(),
+		[materialHandle](const PendingMaterialUpload& upload)
+		{
+			return upload.materialHandle == materialHandle;
+		});
+	if (pending != m_pendingMaterialUploads.end())
+	{
+		return true;
+	}
+
+	m_pendingMaterialUploads.emplace_back(PendingMaterialUpload
+	{
+		.materialHandle = materialHandle,
+		.material = &material
+	});
+	return true;
+}
+
+void gns::RenderSystem::FlushPendingRenderUploads()
+{
+	for (const PendingShaderUpload& upload : m_pendingShaderUploads)
+	{
+		if (!upload.shaderHandle.IsValid() ||
+			upload.shader == nullptr ||
+			m_resourceCache.shaders.contains(upload.shaderHandle))
+		{
+			continue;
+		}
+
+		const Handle renderShaderHandle = m_renderer.CreateVulkanShader(*upload.shader);
+		if (renderShaderHandle.IsValid())
+		{
+			m_resourceCache.shaders[upload.shaderHandle] = renderShaderHandle;
+		}
+	}
+	m_pendingShaderUploads.clear();
+
+	for (const PendingMeshUpload& upload : m_pendingMeshUploads)
+	{
+		if (!upload.meshHandle.IsValid() ||
+			upload.mesh == nullptr ||
+			m_resourceCache.meshes.contains(upload.meshHandle))
+		{
+			continue;
+		}
+
+		const Handle renderMeshHandle = m_renderer.ApplyMesh(*upload.mesh);
+		if (renderMeshHandle.IsValid())
+		{
+			m_resourceCache.meshes[upload.meshHandle] = renderMeshHandle;
+			upload.mesh->FreeCPUSide();
+		}
+	}
+	m_pendingMeshUploads.clear();
+
+	for (const PendingTextureUpload& upload : m_pendingTextureUploads)
+	{
+		if (!upload.textureHandle.IsValid() ||
+			upload.texture == nullptr ||
+			m_resourceCache.textures.contains(upload.textureHandle))
+		{
+			continue;
+		}
+
+		const Handle renderTextureHandle = m_renderer.ApplyTexture(*upload.texture);
+		if (renderTextureHandle.IsValid())
+		{
+			m_resourceCache.textures[upload.textureHandle] = renderTextureHandle;
+			upload.texture->FreeCPUSide();
+		}
+	}
+	m_pendingTextureUploads.clear();
+
+	std::vector<PendingMaterialUpload> remainingMaterialUploads;
+	for (const PendingMaterialUpload& upload : m_pendingMaterialUploads)
+	{
+		if (!upload.materialHandle.IsValid() || upload.material == nullptr)
+		{
+			continue;
+		}
+
+		Material& material = *upload.material;
+		if (!material.shader_ref.m_handle.IsValid())
+		{
+			if (m_resourceCache.materials.contains(upload.materialHandle))
+			{
+				continue;
+			}
+
+			remainingMaterialUploads.emplace_back(upload);
+			continue;
+		}
+
+		Shader* shader = Object::Get<Shader>(material.shader_ref.m_handle);
+		if (shader == nullptr)
+		{
+			remainingMaterialUploads.emplace_back(upload);
+			continue;
+		}
+
+		const Handle shaderHandle = shader->GetHandle();
+		if (!m_resourceCache.shaders.contains(shaderHandle))
+		{
+			QueueShaderUpload(*shader);
+			remainingMaterialUploads.emplace_back(upload);
+			continue;
+		}
+
+		const Handle renderShaderHandle = GetRenderShaderHandle(shaderHandle);
+		rendering::VulkanShader* vulkanShader = renderShaderHandle.IsValid()
+			? m_renderer.GetVulkanShader(renderShaderHandle)
+			: nullptr;
+		if (vulkanShader == nullptr)
+		{
+			remainingMaterialUploads.emplace_back(upload);
+			continue;
+		}
+
+		const MaterialLayout& shaderMaterialLayout = vulkanShader->GetMaterialLayout();
+		if (!material.GetLayout().IsCompatibleWith(shaderMaterialLayout))
+		{
+			material.SetLayout(shaderMaterialLayout, true);
+			assets::AssetManager::ApplyImportedMaterialDefaults(material);
+		}
+
+		if (!ApplyMaterial(material, *vulkanShader).IsValid())
+		{
+			remainingMaterialUploads.emplace_back(upload);
+		}
+	}
+	m_pendingMaterialUploads = std::move(remainingMaterialUploads);
 }
 
 gns::Handle gns::RenderSystem::ApplyShader(Shader& shader)
@@ -181,12 +410,8 @@ gns::Handle gns::RenderSystem::ApplyShader(Shader& shader)
 		return it->second;
 	}
 
-	const Handle renderShaderHandle = m_renderer.CreateVulkanShader(shader);
-	if (renderShaderHandle.IsValid())
-	{
-		m_resourceCache.shaders[shaderHandle] = renderShaderHandle;
-	}
-	return renderShaderHandle;
+	QueueShaderUpload(shader);
+	return {};
 }
 
 gns::Handle gns::RenderSystem::ApplyTexture(Texture& texture)
@@ -197,18 +422,15 @@ gns::Handle gns::RenderSystem::ApplyTexture(Texture& texture)
 		return it->second;
 	}
 
-	const Handle renderTextureHandle = m_renderer.ApplyTexture(texture);
-	if (renderTextureHandle.IsValid())
-	{
-		m_resourceCache.textures[textureHandle] = renderTextureHandle;
-		texture.FreeCPUSide();
-	}
-	return renderTextureHandle;
+	QueueTextureUpload(texture);
+	return {};
 }
 
 gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 {
 	const Handle materialHandle = material.GetHandle();
+	QueueMaterialUpload(material);
+
 	if (material.shader_ref.m_handle.IsValid())
 	{
 		Shader* shader = Object::Get<Shader>(material.shader_ref.m_handle);
@@ -219,50 +441,21 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 			{
 				ApplyShader(*shader);
 			}
-
-			const Handle renderShaderHandle = GetRenderShaderHandle(shaderHandle);
-			rendering::VulkanShader* vulkanShader = renderShaderHandle.IsValid()
-				? m_renderer.GetVulkanShader(renderShaderHandle)
-				: nullptr;
-			if (vulkanShader != nullptr)
+			else
 			{
-				const MaterialLayout& shaderMaterialLayout = vulkanShader->GetMaterialLayout();
-				if (!material.GetLayout().IsCompatibleWith(shaderMaterialLayout))
+				const Handle renderShaderHandle = GetRenderShaderHandle(shaderHandle);
+				rendering::VulkanShader* vulkanShader = renderShaderHandle.IsValid()
+					? m_renderer.GetVulkanShader(renderShaderHandle)
+					: nullptr;
+				if (vulkanShader != nullptr)
 				{
-					material.SetLayout(shaderMaterialLayout, true);
+					const MaterialLayout& shaderMaterialLayout = vulkanShader->GetMaterialLayout();
+					if (!material.GetLayout().IsCompatibleWith(shaderMaterialLayout))
+					{
+						material.SetLayout(shaderMaterialLayout, true);
+					}
 				}
-				return ApplyMaterial(material, *vulkanShader);
 			}
-		}
-	}
-
-	auto ensureTextureApplied = [&](Handle textureHandle) -> bool
-	{
-		if (!textureHandle.IsValid() || m_resourceCache.textures.contains(textureHandle))
-		{
-			return true;
-		}
-
-		Texture* texture = Object::Get<Texture>(textureHandle);
-		if (texture == nullptr)
-		{
-			texture = assets::AssetManager::EnsureTextureLoaded(textureHandle);
-		}
-
-		if (texture == nullptr)
-		{
-			return false;
-		}
-
-		return ApplyTexture(*texture).IsValid();
-	};
-
-	for (size_t textureIndex = 0; textureIndex < material.GetTextureSlotCount(); ++textureIndex)
-	{
-		const Handle textureHandle = material.GetTextureHandle(textureIndex);
-		if (!ensureTextureApplied(textureHandle))
-		{
-			return {};
 		}
 	}
 
@@ -579,6 +772,7 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 		material->shader_ref = shader->Ref<Shader>();
 		m_defaultMeshMaterial = material->GetHandle();
 	}
+	QueueMaterialUpload(*material);
 
 	return true;
 }
@@ -595,9 +789,10 @@ gns::Handle gns::RenderSystem::GetDefaultMeshMaterialHandle() const
 
 void gns::RenderSystem::BuildDrawData()
 {
-	const size_t previousDrawCount = m_drawData.size();
-	m_drawData.clear();
-	m_drawData.reserve(previousDrawCount);
+	std::vector<DrawData>& drawDataList = m_framePacket.drawData;
+	const size_t previousDrawCount = drawDataList.size();
+	drawDataList.clear();
+	drawDataList.reserve(previousDrawCount);
 	m_modelMatrices.clear();
 	m_modelMatrices.reserve(previousDrawCount);
 	if (!EnsureDefaultMeshResources())
@@ -663,6 +858,7 @@ void gns::RenderSystem::BuildDrawData()
 		if (!m_resourceCache.shaders.contains(shaderHandle))
 		{
 			ApplyShader(*shader);
+			return;
 		}
 
 		const Handle renderShaderHandle = GetRenderShaderHandle(shaderHandle);
@@ -687,7 +883,7 @@ void gns::RenderSystem::BuildDrawData()
 			assets::AssetManager::ApplyImportedMaterialDefaults(*material);
 		}
 
-		const Handle renderMaterialHandle = ApplyMaterial(*material, *vulkanShader);
+		const Handle renderMaterialHandle = ApplyMaterial(*material);
 		if (!renderMaterialHandle.IsValid())
 		{
 			return;
@@ -709,7 +905,7 @@ void gns::RenderSystem::BuildDrawData()
 		drawData.StartIndex = vulkanMesh->startIndex;
 		drawData.Count = vulkanMesh->count;
 		drawData.index = index;
-		m_drawData.emplace_back(drawData);
+		drawDataList.emplace_back(drawData);
 		index++;
 	});
 }
