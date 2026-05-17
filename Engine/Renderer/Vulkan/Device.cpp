@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <map>
 #include <utility>
 #include <glm/gtc/packing.hpp>
 
@@ -32,6 +33,18 @@ namespace
 	constexpr uint32_t GlobalDirectionalLightsBinding = 1;
 	constexpr uint32_t GlobalPointLightsBinding = 2;
 	constexpr uint32_t GlobalSpotLightsBinding = 3;
+	constexpr uint32_t DrawResourceSet = 3;
+	constexpr uint32_t DrawModelMatricesBinding = 0;
+	constexpr uint32_t DrawVertexBufferAddressesBinding = 1;
+
+	struct FrameMaterialDataUpload
+	{
+		VkDescriptorSetLayout setLayout = VK_NULL_HANDLE;
+		uint32_t binding = gns::InvalidMaterialBinding;
+		gns::MaterialDescriptorKind descriptorKind = gns::MaterialDescriptorKind::None;
+		size_t stride = 0;
+		std::vector<uint8_t> data;
+	};
 
 	VkDescriptorType ToVkDescriptorType(gns::MaterialDescriptorKind descriptorKind)
 	{
@@ -89,6 +102,52 @@ namespace
 		}
 
 		memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);
+		return true;
+	}
+
+	bool CopyDescriptorToMappedBuffer(
+		VmaAllocator allocator,
+		const char* label,
+		const gns::GpuDataDescriptor& dataDescriptor,
+		VulkanBuffer& buffer)
+	{
+		if (!dataDescriptor.IsValid())
+		{
+			LOG_ERROR(std::string("[Device]: Missing data descriptor for ") + label + ".");
+			return false;
+		}
+
+		if (buffer.allocation == VK_NULL_HANDLE || buffer.buffer == VK_NULL_HANDLE)
+		{
+			LOG_ERROR(std::string("[Device]: Missing GPU buffer for ") + label + ".");
+			return false;
+		}
+
+		if (dataDescriptor.size > buffer.size)
+		{
+			LOG_ERROR(std::string("[Device]: Data descriptor is larger than buffer for ") + label + ".");
+			return false;
+		}
+
+		void* mappedBufferData = buffer.info.pMappedData;
+		bool mappedManually = false;
+		if (mappedBufferData == nullptr)
+		{
+			const VkResult mapResult = vmaMapMemory(allocator, buffer.allocation, &mappedBufferData);
+			if (mapResult != VK_SUCCESS || mappedBufferData == nullptr)
+			{
+				LOG_ERROR(std::string("[Device]: Failed to map GPU buffer for ") + label + ".");
+				LOG_ERROR(std::to_string(mapResult));
+				return false;
+			}
+			mappedManually = true;
+		}
+
+		memcpy(mappedBufferData, dataDescriptor.data, dataDescriptor.size);
+		if (mappedManually)
+		{
+			vmaUnmapMemory(allocator, buffer.allocation);
+		}
 		return true;
 	}
 }
@@ -417,6 +476,239 @@ VkDescriptorSet gns::rendering::Device::UpdateGlobalDescriptorSet(
 	writer.UpdateSet(m_device, globalDataDescriptorSet);
 	frame._globalDataDescriptors[setLayout] = globalDataDescriptorSet;
 	return globalDataDescriptorSet;
+}
+
+bool gns::rendering::Device::UpdateDrawResourceBuffers(std::span<const DrawData> drawData)
+{
+	FrameData& frame = GetCurrentFrame();
+	frame._gpuModelMatricesBuffer.reset();
+	frame._gpuVertexBufferAddressesBuffer.reset();
+	frame._drawResourceDescriptors.clear();
+	frame._drawResourceBuffersUpdated = false;
+
+	if (drawData.empty())
+	{
+		return true;
+	}
+
+	std::vector<glm::mat4> modelMatrices;
+	std::vector<VkDeviceAddress> vertexBufferAddresses;
+	modelMatrices.reserve(drawData.size());
+	vertexBufferAddresses.reserve(drawData.size());
+
+	for (const DrawData& draw : drawData)
+	{
+		modelMatrices.emplace_back(draw.transform);
+		vertexBufferAddresses.emplace_back(draw.vk_vertexBufferAddress);
+	}
+
+	const GpuDataDescriptor modelMatrixDescriptor = GpuDataDescriptor::GetFromMemory(
+		modelMatrices.data(),
+		modelMatrices.size() * sizeof(glm::mat4));
+	const GpuDataDescriptor vertexBufferAddressDescriptor = GpuDataDescriptor::GetFromMemory(
+		vertexBufferAddresses.data(),
+		vertexBufferAddresses.size() * sizeof(VkDeviceAddress));
+
+	frame._gpuModelMatricesBuffer.allocator = m_allocator;
+	frame._gpuModelMatricesBuffer.CreateBuffer(
+		modelMatrixDescriptor.size,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		VMA_MEMORY_USAGE_CPU_TO_GPU);
+	frame._gpuVertexBufferAddressesBuffer.allocator = m_allocator;
+	frame._gpuVertexBufferAddressesBuffer.CreateBuffer(
+		vertexBufferAddressDescriptor.size,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+	if (!CopyDescriptorToMappedBuffer(
+			m_allocator,
+			"DrawModelMatrices",
+			modelMatrixDescriptor,
+			frame._gpuModelMatricesBuffer) ||
+		!CopyDescriptorToMappedBuffer(
+			m_allocator,
+			"DrawVertexBufferAddresses",
+			vertexBufferAddressDescriptor,
+			frame._gpuVertexBufferAddressesBuffer))
+	{
+		return false;
+	}
+
+	frame._drawResourceBuffersUpdated = true;
+	return true;
+}
+
+bool gns::rendering::Device::UpdateFrameMaterialDataBuffers(std::span<const DrawData> drawData)
+{
+	FrameData& frame = GetCurrentFrame();
+	frame._gpuMaterialDataBuffers.clear();
+	frame._materialDataDescriptors.clear();
+
+	if (drawData.empty())
+	{
+		return true;
+	}
+
+	std::map<VkDescriptorSetLayout, FrameMaterialDataUpload> uploads;
+	for (const DrawData& draw : drawData)
+	{
+		if (draw.vkShader == nullptr ||
+			draw.vkMaterial == nullptr ||
+			draw.vkMaterial->materialDataLayout == VK_NULL_HANDLE ||
+			draw.vkMaterial->materialDataBinding == gns::InvalidMaterialBinding ||
+			draw.vkMaterial->materialDataSetIndex == gns::InvalidMaterialBinding ||
+			draw.vkMaterial->materialDataCache.empty())
+		{
+			continue;
+		}
+
+		const VkDescriptorSetLayout setLayout = draw.vkMaterial->materialDataLayout;
+		FrameMaterialDataUpload& upload = uploads[setLayout];
+		if (upload.setLayout == VK_NULL_HANDLE)
+		{
+			upload.setLayout = setLayout;
+			upload.binding = draw.vkMaterial->materialDataBinding;
+			upload.descriptorKind = draw.vkMaterial->materialDataDescriptorKind;
+			upload.stride = draw.vkMaterial->materialDataCache.size();
+			upload.data.assign(drawData.size() * upload.stride, 0);
+		}
+
+		if (upload.binding != draw.vkMaterial->materialDataBinding ||
+			upload.descriptorKind != draw.vkMaterial->materialDataDescriptorKind ||
+			upload.stride != draw.vkMaterial->materialDataCache.size())
+		{
+			LOG_ERROR("[Device]: Incompatible material data layouts share the same descriptor set layout.");
+			return false;
+		}
+
+		if (draw.index >= drawData.size())
+		{
+			LOG_ERROR("[Device]: Draw index is outside the frame material data array.");
+			return false;
+		}
+
+		std::memcpy(
+			upload.data.data() + draw.index * upload.stride,
+			draw.vkMaterial->materialDataCache.data(),
+			upload.stride);
+	}
+
+	frame._gpuMaterialDataBuffers.reserve(uploads.size());
+	for (const auto& [setLayout, upload] : uploads)
+	{
+		if (upload.data.empty())
+		{
+			continue;
+		}
+
+		const VkDescriptorType descriptorType = ToVkDescriptorType(upload.descriptorKind);
+		if (descriptorType == VK_DESCRIPTOR_TYPE_MAX_ENUM)
+		{
+			LOG_ERROR("[Device]: Cannot upload frame material data for unsupported descriptor kind.");
+			return false;
+		}
+
+		VulkanBuffer& buffer = frame._gpuMaterialDataBuffers.emplace_back();
+		buffer.allocator = m_allocator;
+		buffer.CreateBuffer(
+			upload.data.size(),
+			ToBufferUsage(upload.descriptorKind),
+			VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+		const GpuDataDescriptor materialDataDescriptor = GpuDataDescriptor::GetFromMemory(
+			upload.data.data(),
+			upload.data.size());
+		if (!CopyDescriptorToMappedBuffer(
+				m_allocator,
+				"FrameMaterialData",
+				materialDataDescriptor,
+				buffer))
+		{
+			return false;
+		}
+
+		VkDescriptorSet descriptorSet = frame._frameDescriptors.Allocate(m_device, setLayout);
+		if (descriptorSet == VK_NULL_HANDLE)
+		{
+			LOG_ERROR("[Device]: Failed to allocate frame material data descriptor set.");
+			return false;
+		}
+
+		DescriptorWriter writer;
+		writer.WriteBuffer(
+			upload.binding,
+			buffer.buffer,
+			buffer.size,
+			0,
+			descriptorType);
+		writer.UpdateSet(m_device, descriptorSet);
+		frame._materialDataDescriptors[setLayout] = descriptorSet;
+	}
+
+	return true;
+}
+
+VkDescriptorSet gns::rendering::Device::GetDrawResourceDescriptorSet(VulkanShader& shader)
+{
+	FrameData& frame = GetCurrentFrame();
+	const VkDescriptorSetLayout setLayout = shader.GetDescriptorSetLayout(DrawResourceSet);
+	if (setLayout == VK_NULL_HANDLE)
+	{
+		return VK_NULL_HANDLE;
+	}
+
+	if (!frame._drawResourceBuffersUpdated ||
+		!frame._gpuModelMatricesBuffer ||
+		!frame._gpuVertexBufferAddressesBuffer)
+	{
+		LOG_WARNING("[Device]: Cannot bind draw resources because draw resource buffers are not ready.");
+		return VK_NULL_HANDLE;
+	}
+
+	if (const auto descriptor = frame._drawResourceDescriptors.find(setLayout);
+		descriptor != frame._drawResourceDescriptors.end())
+	{
+		return descriptor->second;
+	}
+
+	VkDescriptorSet drawResourceSet = frame._frameDescriptors.Allocate(m_device, setLayout);
+	if (drawResourceSet == VK_NULL_HANDLE)
+	{
+		LOG_ERROR("[Device]: Failed to allocate draw resource descriptor set.");
+		return VK_NULL_HANDLE;
+	}
+
+	DescriptorWriter writer;
+	writer.WriteBuffer(
+		DrawModelMatricesBinding,
+		frame._gpuModelMatricesBuffer.buffer,
+		frame._gpuModelMatricesBuffer.size,
+		0,
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+	writer.WriteBuffer(
+		DrawVertexBufferAddressesBinding,
+		frame._gpuVertexBufferAddressesBuffer.buffer,
+		frame._gpuVertexBufferAddressesBuffer.size,
+		0,
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+	writer.UpdateSet(m_device, drawResourceSet);
+
+	frame._drawResourceDescriptors[setLayout] = drawResourceSet;
+	return drawResourceSet;
+}
+
+VkDescriptorSet gns::rendering::Device::GetFrameMaterialDataDescriptorSet(const VulkanMaterial& material) const
+{
+	if (material.materialDataLayout == VK_NULL_HANDLE)
+	{
+		return VK_NULL_HANDLE;
+	}
+
+	const FrameData& frame = m_frames[m_currentFrame % FRAME_OVERLAP];
+	const auto descriptor = frame._materialDataDescriptors.find(material.materialDataLayout);
+	return descriptor != frame._materialDataDescriptors.end()
+		? descriptor->second
+		: VK_NULL_HANDLE;
 }
 
 VkDescriptorSet gns::rendering::Device::CreateTransientBufferDescriptorSet(
@@ -975,8 +1267,14 @@ bool gns::rendering::Device::BeginFrame(
 	GetCurrentFrame()._gpuDirectionalLightsBuffer.reset();
 	GetCurrentFrame()._gpuPointLightsBuffer.reset();
 	GetCurrentFrame()._gpuSpotLightsBuffer.reset();
+	GetCurrentFrame()._gpuModelMatricesBuffer.reset();
+	GetCurrentFrame()._gpuVertexBufferAddressesBuffer.reset();
+	GetCurrentFrame()._gpuMaterialDataBuffers.clear();
 	GetCurrentFrame()._globalDataDescriptors.clear();
+	GetCurrentFrame()._drawResourceDescriptors.clear();
+	GetCurrentFrame()._materialDataDescriptors.clear();
 	GetCurrentFrame()._globalDataBuffersUpdated = false;
+	GetCurrentFrame()._drawResourceBuffersUpdated = false;
 	GetCurrentFrame()._cleanupQueue.Flush();
 	
 	VkResult e = vkAcquireNextImageKHR(m_device, m_swapchain.GetSwapchain(), 
@@ -1068,8 +1366,14 @@ void gns::rendering::Device::Cleanup()
 		m_frames[i]._gpuDirectionalLightsBuffer.reset();
 		m_frames[i]._gpuPointLightsBuffer.reset();
 		m_frames[i]._gpuSpotLightsBuffer.reset();
+		m_frames[i]._gpuModelMatricesBuffer.reset();
+		m_frames[i]._gpuVertexBufferAddressesBuffer.reset();
+		m_frames[i]._gpuMaterialDataBuffers.clear();
 		m_frames[i]._globalDataDescriptors.clear();
+		m_frames[i]._drawResourceDescriptors.clear();
+		m_frames[i]._materialDataDescriptors.clear();
 		m_frames[i]._globalDataBuffersUpdated = false;
+		m_frames[i]._drawResourceBuffersUpdated = false;
 		
 		vkDestroyFence(m_device, m_frames[i]._renderFence, nullptr);
 		vkDestroySemaphore(m_device, m_frames[i]._swapchainSemaphore, nullptr);
@@ -1296,17 +1600,37 @@ void gns::rendering::Device::DrawMesh(
 			nullptr);
 	}
 
+	const VkDescriptorSet drawResourceSet = GetDrawResourceDescriptorSet(*draw_data.vkShader);
+	if (drawResourceSet != VK_NULL_HANDLE)
+	{
+		vkCmdBindDescriptorSets(
+			cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			layout,
+			DrawResourceSet,
+			1,
+			&drawResourceSet,
+			0,
+			nullptr);
+	}
+
 	if (draw_data.vkMaterial != nullptr &&
 		draw_data.vkMaterial->materialDataSet != VK_NULL_HANDLE &&
 		draw_data.vkMaterial->materialDataSetIndex != gns::InvalidMaterialBinding)
 	{
+		const VkDescriptorSet materialDataSet = GetFrameMaterialDataDescriptorSet(*draw_data.vkMaterial);
+		if (materialDataSet == VK_NULL_HANDLE)
+		{
+			return;
+		}
+
 		vkCmdBindDescriptorSets(
 			cmd,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			layout,
 			draw_data.vkMaterial->materialDataSetIndex,
 			1,
-			&draw_data.vkMaterial->materialDataSet,
+			&materialDataSet,
 			0,
 			nullptr);
 	}
@@ -1327,11 +1651,15 @@ void gns::rendering::Device::DrawMesh(
 	}
 	
 	GPUDrawPushConstants push_constants;
-	push_constants.modelMatrix = draw_data.transform;
-	push_constants.vertexBuffer = draw_data.vk_vertexBufferAddress;
-	push_constants.draw_index = draw_data.index;
+	push_constants.drawIndex = draw_data.index;
 
-	vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+	vkCmdPushConstants(
+		cmd,
+		layout,
+		draw_data.vkShader->m_drawPushConstantStageFlags,
+		0,
+		sizeof(GPUDrawPushConstants),
+		&push_constants);
 	vkCmdBindIndexBuffer(cmd, draw_data.vk_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(draw_data.Count), 1, static_cast<uint32_t>(draw_data.StartIndex), 0, 0);

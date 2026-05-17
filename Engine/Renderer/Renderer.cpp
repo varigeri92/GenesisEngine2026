@@ -85,6 +85,15 @@ void gns::rendering::Renderer::AddGeometryPass()
 	auto& geometryPass = m_renderGraph.AddPass("Geometry",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
+		if (!m_device.UpdateDrawResourceBuffers(m_drawData))
+		{
+			return false;
+		}
+		if (!m_device.UpdateFrameMaterialDataBuffers(m_drawData))
+		{
+			return false;
+		}
+
 		m_device.DrawGeometry(cmd);
 		for (auto& drawData : m_drawData)
 		{
@@ -405,6 +414,18 @@ gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 		defaultPushConstant.size = sizeof(GPUDrawPushConstants);
 		defaultPushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		pushConstantRanges.emplace_back(defaultPushConstant);
+	}
+	vkShader.m_drawPushConstantStageFlags = 0;
+	for (const VkPushConstantRange& range : pushConstantRanges)
+	{
+		if (range.offset == 0 && range.size >= sizeof(GPUDrawPushConstants))
+		{
+			vkShader.m_drawPushConstantStageFlags |= range.stageFlags;
+		}
+	}
+	if (vkShader.m_drawPushConstantStageFlags == 0)
+	{
+		vkShader.m_drawPushConstantStageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	}
 
 	if (!ShaderUtils::CreateDescriptorSetLayouts(

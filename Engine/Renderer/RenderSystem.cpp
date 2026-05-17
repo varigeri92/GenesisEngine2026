@@ -598,8 +598,8 @@ void gns::RenderSystem::BuildDrawData()
 	const size_t previousDrawCount = m_drawData.size();
 	m_drawData.clear();
 	m_drawData.reserve(previousDrawCount);
-	m_drawData.clear();
-	m_drawData.reserve(previousDrawCount);
+	m_modelMatrices.clear();
+	m_modelMatrices.reserve(previousDrawCount);
 	if (!EnsureDefaultMeshResources())
 	{
 		return;

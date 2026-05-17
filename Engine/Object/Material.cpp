@@ -43,26 +43,31 @@ namespace
         const gns::MaterialPropertyInfo& property,
         std::vector<uint8_t>& dataBlob)
     {
-        if (property.name == "albedo_color")
+        const size_t separator = property.name.find_last_of('.');
+        const std::string propertyName = separator == std::string::npos
+            ? property.name
+            : property.name.substr(separator + 1);
+
+        if (propertyName == "albedo_color")
         {
             WriteDefaultValue(property, dataBlob, glm::vec4(1.0f));
         }
-        else if (property.name == "emissive_color")
+        else if (propertyName == "emissive_color")
         {
             WriteDefaultValue(property, dataBlob, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
         }
-        else if (property.name == "texture_tiling_offset")
+        else if (propertyName == "texture_tiling_offset")
         {
             WriteDefaultValue(property, dataBlob, glm::vec4(1.0f, 1.0f, 0.0f, 0.0f));
         }
-        else if (property.name == "roughness" ||
-            property.name == "ambient_occlusion" ||
-            property.name == "alpha" ||
-            property.name == "normal_strength")
+        else if (propertyName == "roughness" ||
+            propertyName == "ambient_occlusion" ||
+            propertyName == "alpha" ||
+            propertyName == "normal_strength")
         {
             WriteDefaultValue(property, dataBlob, 1.0f);
         }
-        else if (property.name == "alpha_cutoff")
+        else if (propertyName == "alpha_cutoff")
         {
             WriteDefaultValue(property, dataBlob, 0.5f);
         }

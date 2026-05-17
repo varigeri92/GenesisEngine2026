@@ -9,13 +9,18 @@
 #include <vector>
 
 #include <assimp/Importer.hpp>
+#include <assimp/GltfMaterial.h>
 #include <assimp/material.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <yaml-cpp/yaml.h>
 
+#include <glm/glm.hpp>
+
 #include "../../Engine/Assets/AssetManager.h"
 #include "../../Engine/Log/Logger.h"
+#include "../../Engine/Object/Material.h"
+#include "../../Engine/Renderer/Vulkan/ShaderUtils.h"
 #include "../../Engine/Utils/Path.h"
 
 
@@ -35,6 +40,16 @@ namespace
         uint32_t materialIndex = 0;
         std::string name;
         std::string path;
+        glm::vec4 albedoColor = glm::vec4(1.0f);
+        glm::vec4 emissiveColor = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        glm::vec4 textureTilingOffset = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f);
+        float metallic = 0.0f;
+        float roughness = 1.0f;
+        float ambientOcclusion = 1.0f;
+        float alpha = 1.0f;
+        float normalStrength = 1.0f;
+        float emissiveStrength = 0.0f;
+        float alphaCutoff = 0.5f;
         gns::Handle albedoTexture;
         gns::Handle normalMap;
         gns::Handle metallicMap;
@@ -218,7 +233,190 @@ namespace
             (gns::path::FileStem(modelPath) + "_material_" + std::to_string(materialIndex) + ".gnsmaterial");
     }
 
-    bool WriteMaterialFile(const std::filesystem::path& materialPath, const MaterialArtifact& material)
+    void WriteVec4(YAML::Emitter& emitter, const glm::vec4& value)
+    {
+        emitter << YAML::Flow << YAML::BeginSeq
+            << value.x
+            << value.y
+            << value.z
+            << value.w
+            << YAML::EndSeq;
+    }
+
+    void WriteVec3(YAML::Emitter& emitter, const glm::vec3& value)
+    {
+        emitter << YAML::Flow << YAML::BeginSeq
+            << value.x
+            << value.y
+            << value.z
+            << YAML::EndSeq;
+    }
+
+    void WriteVec2(YAML::Emitter& emitter, const glm::vec2& value)
+    {
+        emitter << YAML::Flow << YAML::BeginSeq
+            << value.x
+            << value.y
+            << YAML::EndSeq;
+    }
+
+    bool IsSerializableMaterialProperty(const gns::MaterialPropertyInfo& property)
+    {
+        if (!property.IsBufferBacked() ||
+            property.name.rfind("padding", 0) == 0 ||
+            property.name.find(".padding") != std::string::npos)
+        {
+            return false;
+        }
+
+        switch (property.type)
+        {
+        case gns::MaterialPropertyType::Float:
+        case gns::MaterialPropertyType::Int:
+        case gns::MaterialPropertyType::UInt:
+        case gns::MaterialPropertyType::Vec2:
+        case gns::MaterialPropertyType::Vec3:
+        case gns::MaterialPropertyType::Vec4:
+        case gns::MaterialPropertyType::Color3:
+        case gns::MaterialPropertyType::Color4:
+            return property.elementCount == 1;
+        default:
+            return false;
+        }
+    }
+
+    std::string MaterialPropertyBaseName(const std::string& propertyName)
+    {
+        const size_t separator = propertyName.find_last_of('.');
+        return separator == std::string::npos ? propertyName : propertyName.substr(separator + 1);
+    }
+
+    float MaterialFloatValue(const MaterialArtifact& material, const std::string& propertyName)
+    {
+        const std::string baseName = MaterialPropertyBaseName(propertyName);
+        if (baseName == "metallic")
+        {
+            return material.metallic;
+        }
+        if (baseName == "roughness")
+        {
+            return material.roughness;
+        }
+        if (baseName == "ambient_occlusion")
+        {
+            return material.ambientOcclusion;
+        }
+        if (baseName == "alpha")
+        {
+            return material.alpha;
+        }
+        if (baseName == "normal_strength")
+        {
+            return material.normalStrength;
+        }
+        if (baseName == "emissive_strength")
+        {
+            return material.emissiveStrength;
+        }
+        if (baseName == "alpha_cutoff")
+        {
+            return material.alphaCutoff;
+        }
+
+        return 0.0f;
+    }
+
+    glm::vec4 MaterialVec4Value(const MaterialArtifact& material, const std::string& propertyName)
+    {
+        const std::string baseName = MaterialPropertyBaseName(propertyName);
+        if (baseName == "albedo_color")
+        {
+            return material.albedoColor;
+        }
+        if (baseName == "emissive_color")
+        {
+            return material.emissiveColor;
+        }
+        if (baseName == "texture_tiling_offset")
+        {
+            return material.textureTilingOffset;
+        }
+
+        return glm::vec4(0.0f);
+    }
+
+    bool WriteMaterialProperty(
+        YAML::Emitter& emitter,
+        const MaterialArtifact& material,
+        const gns::MaterialPropertyInfo& property)
+    {
+        if (!IsSerializableMaterialProperty(property))
+        {
+            return false;
+        }
+
+        emitter << YAML::Key << property.name << YAML::Value;
+        switch (property.type)
+        {
+        case gns::MaterialPropertyType::Float:
+            emitter << MaterialFloatValue(material, property.name);
+            return true;
+        case gns::MaterialPropertyType::Int:
+            emitter << 0;
+            return true;
+        case gns::MaterialPropertyType::UInt:
+            emitter << 0u;
+            return true;
+        case gns::MaterialPropertyType::Vec2:
+            WriteVec2(emitter, glm::vec2(0.0f));
+            return true;
+        case gns::MaterialPropertyType::Vec3:
+        case gns::MaterialPropertyType::Color3:
+            WriteVec3(emitter, glm::vec3(MaterialVec4Value(material, property.name)));
+            return true;
+        case gns::MaterialPropertyType::Vec4:
+        case gns::MaterialPropertyType::Color4:
+            WriteVec4(emitter, MaterialVec4Value(material, property.name));
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    gns::MaterialLayout BuildFallbackMaterialLayout()
+    {
+        gns::MaterialLayout layout;
+        layout.AddProperty("albedo_color", gns::MaterialPropertyType::Color4);
+        layout.AddProperty("emissive_color", gns::MaterialPropertyType::Color4);
+        layout.AddProperty("texture_tiling_offset", gns::MaterialPropertyType::Vec4);
+        layout.AddProperty("metallic", gns::MaterialPropertyType::Float);
+        layout.AddProperty("roughness", gns::MaterialPropertyType::Float);
+        layout.AddProperty("ambient_occlusion", gns::MaterialPropertyType::Float);
+        layout.AddProperty("alpha", gns::MaterialPropertyType::Float);
+        layout.AddProperty("normal_strength", gns::MaterialPropertyType::Float);
+        layout.AddProperty("emissive_strength", gns::MaterialPropertyType::Float);
+        layout.AddProperty("alpha_cutoff", gns::MaterialPropertyType::Float);
+        return layout;
+    }
+
+    gns::MaterialLayout BuildImportedMaterialLayout()
+    {
+        gns::rendering::ShaderReflectionData fragmentReflection;
+        const std::string fragmentShaderPath =
+            gns::rendering::ShaderUtils::ResolveCompiledShaderPath(R"(Shaders\default.frag)");
+        if (gns::rendering::ShaderUtils::ReflectShaderFile(fragmentShaderPath, fragmentReflection))
+        {
+            return gns::rendering::ShaderUtils::BuildMaterialLayout({ fragmentReflection });
+        }
+
+        LOG_WARNING("[AssetMetadataWriter]: Falling back to built-in material properties.");
+        return BuildFallbackMaterialLayout();
+    }
+
+    bool WriteMaterialFile(
+        const std::filesystem::path& materialPath,
+        const MaterialArtifact& material,
+        const gns::MaterialLayout& materialLayout)
     {
         std::error_code error;
         std::filesystem::create_directories(materialPath.parent_path(), error);
@@ -234,6 +432,12 @@ namespace
         emitter << YAML::Key << "assetType" << YAML::Value << "Material";
         emitter << YAML::Key << "handle" << YAML::Value << material.handle.Get();
         emitter << YAML::Key << "name" << YAML::Value << material.name;
+        emitter << YAML::Key << "properties" << YAML::Value << YAML::BeginMap;
+        for (const gns::MaterialPropertyInfo& property : materialLayout.GetProperties())
+        {
+            WriteMaterialProperty(emitter, material, property);
+        }
+        emitter << YAML::EndMap;
         emitter << YAML::Key << "textures" << YAML::Value << YAML::BeginMap;
         if (material.albedoTexture.IsValid())
         {
@@ -263,6 +467,69 @@ namespace
         emitter << YAML::EndMap;
 
         return emitter.good() && gns::path::WriteTextFile(materialPath, emitter.c_str());
+    }
+
+    MaterialArtifact CreateMaterialArtifact(
+        const aiMaterial* assimpMaterial,
+        uint32_t materialIndex,
+        const std::filesystem::path& materialPath,
+        const std::string& sourcePath)
+    {
+        MaterialArtifact material
+        {
+            .handle = gns::assets::AssetManager::GetMaterialArtifactHandle(sourcePath, materialIndex),
+            .materialIndex = materialIndex,
+            .name = MaterialName(assimpMaterial, materialIndex),
+            .path = ToProjectRelativeString(materialPath)
+        };
+
+        if (assimpMaterial == nullptr)
+        {
+            return material;
+        }
+
+        aiColor4D baseColor;
+        if (assimpMaterial->Get(AI_MATKEY_BASE_COLOR, baseColor) == AI_SUCCESS ||
+            assimpMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, baseColor) == AI_SUCCESS)
+        {
+            material.albedoColor = glm::vec4(baseColor.r, baseColor.g, baseColor.b, baseColor.a);
+            material.alpha = baseColor.a;
+        }
+
+        aiColor3D emissiveColor;
+        if (assimpMaterial->Get(AI_MATKEY_COLOR_EMISSIVE, emissiveColor) == AI_SUCCESS)
+        {
+            material.emissiveColor = glm::vec4(emissiveColor.r, emissiveColor.g, emissiveColor.b, 1.0f);
+        }
+
+        float value = 0.0f;
+        if (assimpMaterial->Get(AI_MATKEY_METALLIC_FACTOR, value) == AI_SUCCESS)
+        {
+            material.metallic = value;
+        }
+        if (assimpMaterial->Get(AI_MATKEY_ROUGHNESS_FACTOR, value) == AI_SUCCESS)
+        {
+            material.roughness = value;
+        }
+        if (assimpMaterial->Get(AI_MATKEY_OPACITY, value) == AI_SUCCESS)
+        {
+            material.alpha = value;
+            material.albedoColor.a = value;
+        }
+        if (assimpMaterial->Get(AI_MATKEY_EMISSIVE_INTENSITY, value) == AI_SUCCESS)
+        {
+            material.emissiveStrength = value;
+        }
+        if (assimpMaterial->Get(AI_MATKEY_GLTF_ALPHACUTOFF, value) == AI_SUCCESS)
+        {
+            material.alphaCutoff = value;
+        }
+        if (assimpMaterial->Get(AI_MATKEY_GLTF_TEXTURE_STRENGTH(aiTextureType_NORMALS, 0), value) == AI_SUCCESS)
+        {
+            material.normalStrength = value;
+        }
+
+        return material;
     }
 
     std::filesystem::path ArtifactDirectory()
@@ -359,19 +626,18 @@ bool editor::assets::WriteModelMetaFile(
     std::vector<gns::Handle> meshArtifactHandles;
     if (scene->HasMaterials())
     {
+        const gns::MaterialLayout materialLayout = BuildImportedMaterialLayout();
         materialArtifacts.reserve(scene->mNumMaterials);
         const std::filesystem::path assetDirectory = gns::path::ParentDirectory(normalizedModelPath);
         for (uint32_t materialIndex = 0; materialIndex < scene->mNumMaterials; ++materialIndex)
         {
             const aiMaterial* assimpMaterial = scene->mMaterials[materialIndex];
             const std::filesystem::path materialPath = MaterialFilePath(normalizedModelPath, materialIndex);
-            MaterialArtifact material
-            {
-                .handle = gns::assets::AssetManager::GetMaterialArtifactHandle(sourcePath, materialIndex),
-                .materialIndex = materialIndex,
-                .name = MaterialName(assimpMaterial, materialIndex),
-                .path = ToProjectRelativeString(materialPath)
-            };
+            MaterialArtifact material = CreateMaterialArtifact(
+                assimpMaterial,
+                materialIndex,
+                materialPath,
+                sourcePath);
 
             if (loadOptions.importTextures)
             {
@@ -413,7 +679,7 @@ bool editor::assets::WriteModelMetaFile(
                     textureArtifacts);
             }
 
-            if (loadOptions.importMaterials && !WriteMaterialFile(materialPath, material))
+            if (loadOptions.importMaterials && !WriteMaterialFile(materialPath, material, materialLayout))
             {
                 LOG_WARNING("[AssetMetadataWriter]: Failed to write material asset file.");
                 LOG_WARNING(materialPath.string());

@@ -49,7 +49,9 @@ namespace gns::rendering
 			  _swapchain(other._swapchain),
 			  _swapchainImageIndex(other._swapchainImageIndex),
 			  _globalDataDescriptors(other._globalDataDescriptors),
-			  _globalDataBuffersUpdated(other._globalDataBuffersUpdated)
+			  _drawResourceDescriptors(other._drawResourceDescriptors),
+			  _globalDataBuffersUpdated(other._globalDataBuffersUpdated),
+			  _drawResourceBuffersUpdated(other._drawResourceBuffersUpdated)
 		{}
 
 		FrameData& operator=(const FrameData& other)
@@ -64,7 +66,9 @@ namespace gns::rendering
 				_swapchain = other._swapchain;
 				_swapchainImageIndex = other._swapchainImageIndex;
 				_globalDataDescriptors = other._globalDataDescriptors;
+				_drawResourceDescriptors = other._drawResourceDescriptors;
 				_globalDataBuffersUpdated = other._globalDataBuffersUpdated;
+				_drawResourceBuffersUpdated = other._drawResourceBuffersUpdated;
 			}
 			return *this;
 		}
@@ -85,8 +89,14 @@ namespace gns::rendering
 		VulkanBuffer _gpuDirectionalLightsBuffer;
 		VulkanBuffer _gpuPointLightsBuffer;
 		VulkanBuffer _gpuSpotLightsBuffer;
+		VulkanBuffer _gpuModelMatricesBuffer;
+		VulkanBuffer _gpuVertexBufferAddressesBuffer;
+		std::vector<VulkanBuffer> _gpuMaterialDataBuffers;
 		std::unordered_map<VkDescriptorSetLayout, VkDescriptorSet> _globalDataDescriptors;
+		std::unordered_map<VkDescriptorSetLayout, VkDescriptorSet> _drawResourceDescriptors;
+		std::unordered_map<VkDescriptorSetLayout, VkDescriptorSet> _materialDataDescriptors;
 		bool _globalDataBuffersUpdated = false;
+		bool _drawResourceBuffersUpdated = false;
 	};
 	class Device
 	{
@@ -161,6 +171,10 @@ namespace gns::rendering
 		VkDescriptorSet UpdateGlobalDescriptorSet(
 			const GlobalFrameDataDescriptor& globalDataDescriptor,
 			VulkanShader& shader);
+		bool UpdateDrawResourceBuffers(std::span<const DrawData> drawData);
+		bool UpdateFrameMaterialDataBuffers(std::span<const DrawData> drawData);
+		VkDescriptorSet GetDrawResourceDescriptorSet(VulkanShader& shader);
+		VkDescriptorSet GetFrameMaterialDataDescriptorSet(const VulkanMaterial& material) const;
 		VkDescriptorSet CreateTransientBufferDescriptorSet(
 			GpuDataDescriptor dataDescriptor,
 			VkDescriptorSetLayout setLayout,

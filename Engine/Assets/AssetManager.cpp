@@ -369,6 +369,241 @@ namespace
         }
     }
 
+    bool ReadFloatProperty(const YAML::Node& node, float& outValue)
+    {
+        if (!node || node.IsNull())
+        {
+            return false;
+        }
+
+        try
+        {
+            outValue = node.as<float>();
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    }
+
+    bool ReadIntProperty(const YAML::Node& node, int32_t& outValue)
+    {
+        if (!node || node.IsNull())
+        {
+            return false;
+        }
+
+        try
+        {
+            outValue = node.as<int32_t>();
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    }
+
+    bool ReadUIntProperty(const YAML::Node& node, uint32_t& outValue)
+    {
+        if (!node || node.IsNull())
+        {
+            return false;
+        }
+
+        try
+        {
+            outValue = node.as<uint32_t>();
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    }
+
+    bool ReadVec2Property(const YAML::Node& node, glm::vec2& outValue)
+    {
+        if (!node || !node.IsSequence() || node.size() < 2)
+        {
+            return false;
+        }
+
+        try
+        {
+            outValue = glm::vec2(
+                node[0].as<float>(),
+                node[1].as<float>());
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    }
+
+    bool ReadVec3Property(const YAML::Node& node, glm::vec3& outValue)
+    {
+        if (!node || !node.IsSequence() || node.size() < 3)
+        {
+            return false;
+        }
+
+        try
+        {
+            outValue = glm::vec3(
+                node[0].as<float>(),
+                node[1].as<float>(),
+                node[2].as<float>());
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    }
+
+    bool ReadVec4Property(const YAML::Node& node, glm::vec4& outValue)
+    {
+        if (!node || !node.IsSequence() || node.size() < 4)
+        {
+            return false;
+        }
+
+        try
+        {
+            outValue = glm::vec4(
+                node[0].as<float>(),
+                node[1].as<float>(),
+                node[2].as<float>(),
+                node[3].as<float>());
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    }
+
+    bool ApplyImportedMaterialProperty(
+        gns::Material& material,
+        const gns::MaterialPropertyInfo& property,
+        const YAML::Node& valueNode)
+    {
+        switch (property.type)
+        {
+        case gns::MaterialPropertyType::Float:
+        {
+            float value = 0.0f;
+            if (!ReadFloatProperty(valueNode, value))
+            {
+                return false;
+            }
+            material.SetFloat(property.name, value);
+            return true;
+        }
+        case gns::MaterialPropertyType::Int:
+        {
+            int32_t value = 0;
+            if (!ReadIntProperty(valueNode, value))
+            {
+                return false;
+            }
+            material.SetInt(property.name, value);
+            return true;
+        }
+        case gns::MaterialPropertyType::UInt:
+        {
+            uint32_t value = 0;
+            if (!ReadUIntProperty(valueNode, value))
+            {
+                return false;
+            }
+            material.SetUInt(property.name, value);
+            return true;
+        }
+        case gns::MaterialPropertyType::Vec2:
+        {
+            glm::vec2 value(0.0f);
+            if (!ReadVec2Property(valueNode, value))
+            {
+                return false;
+            }
+            material.SetVec2(property.name, value);
+            return true;
+        }
+        case gns::MaterialPropertyType::Vec3:
+        {
+            glm::vec3 value(0.0f);
+            if (!ReadVec3Property(valueNode, value))
+            {
+                return false;
+            }
+            material.SetVec3(property.name, value);
+            return true;
+        }
+        case gns::MaterialPropertyType::Color3:
+        {
+            glm::vec3 value(0.0f);
+            if (!ReadVec3Property(valueNode, value))
+            {
+                return false;
+            }
+            material.SetColor3(property.name, value);
+            return true;
+        }
+        case gns::MaterialPropertyType::Vec4:
+        {
+            glm::vec4 value(0.0f);
+            if (!ReadVec4Property(valueNode, value))
+            {
+                return false;
+            }
+            material.SetVec4(property.name, value);
+            return true;
+        }
+        case gns::MaterialPropertyType::Color4:
+        {
+            glm::vec4 value(0.0f);
+            if (!ReadVec4Property(valueNode, value))
+            {
+                return false;
+            }
+            material.SetColor4(property.name, value);
+            return true;
+        }
+        default:
+            return false;
+        }
+    }
+
+    std::string MaterialPropertyBaseName(const std::string& propertyName)
+    {
+        const size_t separator = propertyName.find_last_of('.');
+        return separator == std::string::npos ? propertyName : propertyName.substr(separator + 1);
+    }
+
+    bool TryFindMaterialProperty(
+        const gns::Material& material,
+        const std::string& propertyName,
+        gns::MaterialPropertyInfo& outProperty)
+    {
+        if (material.TryGetProperty(propertyName, outProperty))
+        {
+            return true;
+        }
+
+        const std::string baseName = MaterialPropertyBaseName(propertyName);
+        if (baseName != propertyName && material.TryGetProperty(baseName, outProperty))
+        {
+            return true;
+        }
+
+        const std::string legacyArrayName = "materials." + propertyName;
+        return legacyArrayName != propertyName && material.TryGetProperty(legacyArrayName, outProperty);
+    }
+
     const char* GetStbiFailureReason()
     {
         const char* reason = stbi_failure_reason();
@@ -1012,13 +1247,30 @@ bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& mat
         return false;
     }
 
+    bool appliedAny = false;
+
+    const YAML::Node properties = root["properties"];
+    if (properties && properties.IsMap())
+    {
+        for (YAML::const_iterator propertyNode = properties.begin(); propertyNode != properties.end(); ++propertyNode)
+        {
+            const std::string propertyName = propertyNode->first.as<std::string>();
+            MaterialPropertyInfo property;
+            if (!TryFindMaterialProperty(material, propertyName, property) || !property.IsBufferBacked())
+            {
+                continue;
+            }
+
+            appliedAny |= ApplyImportedMaterialProperty(material, property, propertyNode->second);
+        }
+    }
+
     const YAML::Node textures = root["textures"];
     if (!textures || !textures.IsMap())
     {
-        return false;
+        return appliedAny;
     }
 
-    bool appliedAny = false;
     for (YAML::const_iterator texture = textures.begin(); texture != textures.end(); ++texture)
     {
         const std::string propertyName = texture->first.as<std::string>();

@@ -86,7 +86,8 @@ namespace gns::rendering
             const std::vector<ShaderReflectionData>& reflections,
             uint32_t materialSet = 1,
             uint32_t materialBinding = 0,
-            uint32_t materialTextureSet = 2);
+            uint32_t materialTextureSet = 2,
+            uint32_t drawResourceSet = 3);
         GNS_API static gns::MaterialLayout BuildMaterialLayout(
             const std::vector<ShaderReflectionData>& reflections,
             uint32_t materialSet = 1,

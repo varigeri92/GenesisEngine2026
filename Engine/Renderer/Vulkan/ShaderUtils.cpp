@@ -703,8 +703,12 @@ namespace gns::rendering
         const std::vector<ShaderReflectionData>& reflections,
         uint32_t materialSet,
         uint32_t materialBinding,
-        uint32_t materialTextureSet)
+        uint32_t materialTextureSet,
+        uint32_t drawResourceSet)
     {
+        constexpr uint32_t DrawModelMatricesBinding = 0;
+        constexpr uint32_t DrawVertexBufferAddressesBinding = 1;
+
         bool valid = true;
 
         for (const ShaderReflectionData& reflection : reflections)
@@ -759,7 +763,22 @@ namespace gns::rendering
                     continue;
                 }
 
-                LOG_ERROR("[ShaderUtils]: Unsupported material descriptor set. Expected set 1 for MaterialData or set 2 for textures.");
+                if (descriptor.set == drawResourceSet)
+                {
+                    const bool isDrawStorageBuffer =
+                        descriptor.kind == ShaderResourceKind::StorageBuffer &&
+                        (descriptor.binding == DrawModelMatricesBinding ||
+                            descriptor.binding == DrawVertexBufferAddressesBinding);
+                    if (!isDrawStorageBuffer)
+                    {
+                        LOG_ERROR("[ShaderUtils]: Draw resource set may only contain storage buffers at bindings 0 and 1.");
+                        LOG_ERROR(descriptorName.str());
+                        valid = false;
+                    }
+                    continue;
+                }
+
+                LOG_ERROR("[ShaderUtils]: Unsupported descriptor set. Expected set 1 for MaterialData, set 2 for textures, or set 3 for draw resources.");
                 LOG_ERROR(descriptorName.str());
                 valid = false;
             }
@@ -800,7 +819,7 @@ namespace gns::rendering
 
                 if (descriptor.members.size() == 1 &&
                     !descriptor.members.front().members.empty() &&
-                    descriptor.members.front().elementStride > 0)
+                    descriptor.members.front().name == "materials")
                 {
                     const ShaderBlockMemberInfo& arrayMember = descriptor.members.front();
                     AddMaterialLayoutMembers(
@@ -811,7 +830,7 @@ namespace gns::rendering
                         descriptor.binding,
                         ToMaterialDescriptorKind(descriptor.kind),
                         layout);
-                    layout.SetSize(arrayMember.elementStride);
+                    layout.SetSize(arrayMember.elementStride > 0 ? arrayMember.elementStride : descriptor.size);
                     continue;
                 }
 

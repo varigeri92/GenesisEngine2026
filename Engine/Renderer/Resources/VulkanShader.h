@@ -26,6 +26,7 @@ namespace gns::rendering
         std::vector<VkDescriptorSetLayout> m_descriptorSetLayouts;
         gns::MaterialLayout m_materialLayout;
         uint32_t m_globalDescriptorBindingMask = 0;
+        VkShaderStageFlags m_drawPushConstantStageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         VkPipeline GetPipeline() { return m_pipeline; }
         VkPipelineLayout GetPipelineLayout() { return m_pipelineLayout; }
         VkDescriptorSetLayout GetDescriptorSetLayout() { return m_descriptorSetLayout; }

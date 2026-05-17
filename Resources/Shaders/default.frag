@@ -53,7 +53,7 @@ layout(std430, set = 0, binding = 3) readonly buffer SpotLights
 	SpotLight lights[MAX_LIGHTS];
 } spotLights;
 
-layout(std140, set = 1, binding = 0) uniform MaterialData
+struct MaterialData
 {
 	vec4 albedo_color;
 	vec4 emissive_color;
@@ -66,7 +66,12 @@ layout(std140, set = 1, binding = 0) uniform MaterialData
 	float emissive_strength;
 	float alpha_cutoff;
 	float padding0;
-} materialData;
+};
+
+layout(std430, set = 1, binding = 0) readonly buffer MaterialDataBuffer
+{
+	MaterialData materials[];
+} materialDataBuffer;
 
 layout(set = 2, binding = 0) uniform sampler2D albedo_texture;
 layout(set = 2, binding = 1) uniform sampler2D normal_map;
@@ -75,11 +80,20 @@ layout(set = 2, binding = 3) uniform sampler2D roughness_map;
 layout(set = 2, binding = 4) uniform sampler2D ambient_occlusion_map;
 layout(set = 2, binding = 5) uniform sampler2D emissive_map;
 
+layout( push_constant ) uniform constants
+{
+	uint drawIndex;
+	uint padding0;
+	uint padding1;
+	uint padding2;
+} PushConstants;
+
 //output write
 layout (location = 0) out vec4 outFragColor;
 
 void main() 
 {
+	MaterialData materialData = materialDataBuffer.materials[PushConstants.drawIndex];
 	vec4 baseColor = texture(albedo_texture, inUV) * materialData.albedo_color;
 	if (materialData.alpha < -1.0f)
 	{
