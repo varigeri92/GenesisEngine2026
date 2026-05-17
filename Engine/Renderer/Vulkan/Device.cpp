@@ -1261,6 +1261,9 @@ void gns::rendering::Device::CreateBackgroundPipeline()
 		});
 }
 
+VkPipeline currentPipeline = VK_NULL_HANDLE;
+VkPipelineLayout currentLayout = VK_NULL_HANDLE;
+
 void gns::rendering::Device::DrawMesh(
 	VkCommandBuffer cmd,
 	DrawData draw_data,
@@ -1268,6 +1271,10 @@ void gns::rendering::Device::DrawMesh(
 {
 	VkPipeline pipeline = draw_data.vkShader->GetPipeline();
 	VkPipelineLayout layout = draw_data.vkShader->GetPipelineLayout();
+	if (pipeline != currentPipeline)
+	{
+		currentPipeline = pipeline;
+	}
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
 	if (globalDataDescriptor != nullptr)
@@ -1322,6 +1329,7 @@ void gns::rendering::Device::DrawMesh(
 	GPUDrawPushConstants push_constants;
 	push_constants.modelMatrix = draw_data.transform;
 	push_constants.vertexBuffer = draw_data.vk_vertexBufferAddress;
+	push_constants.draw_index = draw_data.index;
 
 	vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
 	vkCmdBindIndexBuffer(cmd, draw_data.vk_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -1423,11 +1431,6 @@ void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 
 	vkCmdSetViewport(cmd, 0, 1, &viewport);
 	vkCmdSetScissor(cmd, 0, 1, &scissor);
-	/* 
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
-	//launch a draw command to draw 3 vertices
-	vkCmdDraw(cmd, 3, 1, 0, 0);
-	*/
 }
 
 void* gns::rendering::Device::GetMappedDataFromAllocation(VmaAllocation allocation)

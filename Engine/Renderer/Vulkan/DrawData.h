@@ -55,5 +55,6 @@ namespace gns
         VkDeviceAddress vk_vertexBufferAddress;
         size_t StartIndex;
         size_t Count;
+        uint32_t index;
     };
 }

@@ -598,6 +598,8 @@ void gns::RenderSystem::BuildDrawData()
 	const size_t previousDrawCount = m_drawData.size();
 	m_drawData.clear();
 	m_drawData.reserve(previousDrawCount);
+	m_drawData.clear();
+	m_drawData.reserve(previousDrawCount);
 	if (!EnsureDefaultMeshResources())
 	{
 		return;
@@ -609,7 +611,7 @@ void gns::RenderSystem::BuildDrawData()
 		LOG_ERROR("[RenderSystem]: Cannot build draw data because default mesh shader is missing.");
 		return;
 	}
-
+	uint32_t index = 0;
 	core::SystemsManager::ForEach<SceneMemberComponent, Transform, MeshComponent>([&](
 		const SceneMemberComponent& sceneMember,
 		const Transform& transform,
@@ -697,6 +699,7 @@ void gns::RenderSystem::BuildDrawData()
 			return;
 		}
 
+		m_modelMatrices.emplace_back(transform.matrix);
 		DrawData drawData;
 		drawData.transform = transform.matrix;
 		drawData.vkShader = vulkanShader;
@@ -705,7 +708,9 @@ void gns::RenderSystem::BuildDrawData()
 		drawData.vk_vertexBufferAddress = vulkanMesh->vertexBufferAddress;
 		drawData.StartIndex = vulkanMesh->startIndex;
 		drawData.Count = vulkanMesh->count;
+		drawData.index = index;
 		m_drawData.emplace_back(drawData);
+		index++;
 	});
 }
 

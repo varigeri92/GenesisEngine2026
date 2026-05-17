@@ -97,6 +97,8 @@ namespace gns {
 		RenderResourceCache m_resourceCache;
 		EngineDefaultTextureHandles m_defaultTextures;
 		std::vector<DrawData> m_drawData;
+		std::vector<glm::mat4> m_modelMatrices;
+		std::vector<rendering::VulkanMaterial*> m_materials;
 		SceneData m_sceneData = {};
 		DirectionalLightBuffer m_directionalLights = {};
 		PointLightBuffer m_pointLights = {};

@@ -30,7 +30,10 @@ struct VulkanMesh : public gns::VulkanResource
     void Destroy() override;
 };
 
+
 struct GPUDrawPushConstants {
     glm::mat4 modelMatrix;
     VkDeviceAddress vertexBuffer;
+    uint32_t draw_index = 0;
+    uint32_t padding = 0;
 };
