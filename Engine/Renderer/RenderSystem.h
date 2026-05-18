@@ -7,6 +7,7 @@
 #include "../Scene/Scene.h"
 #include "../Systems/System.h"
 #include "Renderer.h"
+#include "RenderThread.h"
 
 struct CameraBackend;
 
@@ -54,30 +55,6 @@ namespace gns {
 		Handle errorCheckerboard;
 	};
 
-	struct PendingMeshUpload
-	{
-		Handle meshHandle;
-		Mesh* mesh = nullptr;
-	};
-
-	struct PendingTextureUpload
-	{
-		Handle textureHandle;
-		Texture* texture = nullptr;
-	};
-
-	struct PendingShaderUpload
-	{
-		Handle shaderHandle;
-		Shader* shader = nullptr;
-	};
-
-	struct PendingMaterialUpload
-	{
-		Handle materialHandle;
-		Material* material = nullptr;
-	};
-
 	class RenderSystem : public gns::core::System
 	{
 
@@ -118,13 +95,11 @@ namespace gns {
 	private:
 		gns::window::WindowSystem* m_windowSystem;
 		rendering::Renderer m_renderer;
+		RenderThread m_renderThread;
 		RenderResourceCache m_resourceCache;
 		EngineDefaultTextureHandles m_defaultTextures;
 		RenderFramePacket m_framePacket;
-		std::vector<PendingMeshUpload> m_pendingMeshUploads;
-		std::vector<PendingTextureUpload> m_pendingTextureUploads;
-		std::vector<PendingShaderUpload> m_pendingShaderUploads;
-		std::vector<PendingMaterialUpload> m_pendingMaterialUploads;
+		RenderUploadQueue m_pendingUploads;
 		std::vector<glm::mat4> m_modelMatrices;
 		std::vector<rendering::VulkanMaterial*> m_materials;
 		SceneData m_sceneData = {};
@@ -138,12 +113,18 @@ namespace gns {
 
 		void CreateDefaultTextureObjects();
 		Handle RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle);
-		Handle ApplyMaterial(Material& material, rendering::VulkanShader& vulkanShader);
+		Handle ApplyMaterial(Material& material, rendering::VulkanShader& vulkanShader, RenderUploadQueue* dependencyUploads = nullptr);
 		bool QueueMeshUpload(Mesh& mesh);
 		bool QueueTextureUpload(Texture& texture);
+		bool QueueTextureUpload(RenderUploadQueue& uploads, Texture& texture);
 		bool QueueShaderUpload(Shader& shader);
+		bool QueueShaderUpload(RenderUploadQueue& uploads, Shader& shader);
 		bool QueueMaterialUpload(Material& material);
-		void FlushPendingRenderUploads();
+		RenderUploadQueue ConsumePendingRenderUploads();
+		void HarvestCompletedRenderSubmissions();
+		void RequeuePendingRenderUploads(RenderUploadQueue& uploads);
+		void FlushRenderUploads(RenderUploadQueue& uploads);
+		void ExecuteRenderSubmission(RenderSubmission& submission);
 		void BuildDrawData();
 		void BuildGlobalFrameDataDescriptor();
 	};

@@ -2,6 +2,7 @@
 #include "RenderSystem.h"
 
 #include <algorithm>
+#include <iterator>
 
 #include <glm/detail/type_quat.hpp>
 #include <glm/ext/quaternion_trigonometric.hpp>
@@ -95,6 +96,12 @@ void gns::RenderSystem::OnCreate()
 {
 	m_renderer.CreateDevice(m_windowSystem->GetSDLWindow());
 	CreateDefaultTextureObjects();
+	m_renderThread.Start(
+		m_renderer,
+		[this](RenderSubmission& submission)
+		{
+			ExecuteRenderSubmission(submission);
+		});
 	LOG_INFO("Render System created!");
 }
 
@@ -108,11 +115,14 @@ void gns::RenderSystem::OnEnable()
 
 void gns::RenderSystem::OnUpdate(float deltaTime)
 {
+	HarvestCompletedRenderSubmissions();
 }
 
 void gns::RenderSystem::OnLateUpdate(float deltaTime)
 {
-	FlushPendingRenderUploads();
+	RenderSubmission submission;
+	submission.uploads = ConsumePendingRenderUploads();
+
 	m_framePacket.Clear();
 	BuildDrawData();
 	const bool hasDrawData = !m_framePacket.drawData.empty();
@@ -128,7 +138,8 @@ void gns::RenderSystem::OnLateUpdate(float deltaTime)
 		m_framePacket.hasGlobalFrameData = false;
 	}
 
-	m_renderer.DrawFrame(m_framePacket);
+	submission.packet = m_framePacket;
+	m_renderThread.Submit(std::move(submission));
 }
 
 void gns::RenderSystem::OnFixedUpdate()
@@ -141,6 +152,9 @@ void gns::RenderSystem::OnDisable()
 
 void gns::RenderSystem::OnDestroy()
 {
+	m_renderThread.Stop();
+	HarvestCompletedRenderSubmissions();
+	m_renderer.WaitForIdle();
 }
 
 gns::rendering::Renderer& gns::RenderSystem::GetRenderer()
@@ -150,6 +164,7 @@ gns::rendering::Renderer& gns::RenderSystem::GetRenderer()
 
 void gns::RenderSystem::WaitForIdle()
 {
+	HarvestCompletedRenderSubmissions();
 	m_renderer.WaitForIdle();
 }
 
@@ -184,18 +199,18 @@ bool gns::RenderSystem::QueueMeshUpload(Mesh& mesh)
 	}
 
 	const auto pending = std::find_if(
-		m_pendingMeshUploads.begin(),
-		m_pendingMeshUploads.end(),
+		m_pendingUploads.meshUploads.begin(),
+		m_pendingUploads.meshUploads.end(),
 		[meshHandle](const PendingMeshUpload& upload)
 		{
 			return upload.meshHandle == meshHandle;
 		});
-	if (pending != m_pendingMeshUploads.end())
+	if (pending != m_pendingUploads.meshUploads.end())
 	{
 		return true;
 	}
 
-	m_pendingMeshUploads.emplace_back(PendingMeshUpload
+	m_pendingUploads.meshUploads.emplace_back(PendingMeshUpload
 	{
 		.meshHandle = meshHandle,
 		.mesh = &mesh
@@ -205,6 +220,11 @@ bool gns::RenderSystem::QueueMeshUpload(Mesh& mesh)
 
 bool gns::RenderSystem::QueueTextureUpload(Texture& texture)
 {
+	return QueueTextureUpload(m_pendingUploads, texture);
+}
+
+bool gns::RenderSystem::QueueTextureUpload(RenderUploadQueue& uploads, Texture& texture)
+{
 	const Handle textureHandle = texture.GetHandle();
 	if (!textureHandle.IsValid() || m_resourceCache.textures.contains(textureHandle))
 	{
@@ -212,18 +232,18 @@ bool gns::RenderSystem::QueueTextureUpload(Texture& texture)
 	}
 
 	const auto pending = std::find_if(
-		m_pendingTextureUploads.begin(),
-		m_pendingTextureUploads.end(),
+		uploads.textureUploads.begin(),
+		uploads.textureUploads.end(),
 		[textureHandle](const PendingTextureUpload& upload)
 		{
 			return upload.textureHandle == textureHandle;
 		});
-	if (pending != m_pendingTextureUploads.end())
+	if (pending != uploads.textureUploads.end())
 	{
 		return true;
 	}
 
-	m_pendingTextureUploads.emplace_back(PendingTextureUpload
+	uploads.textureUploads.emplace_back(PendingTextureUpload
 	{
 		.textureHandle = textureHandle,
 		.texture = &texture
@@ -233,6 +253,11 @@ bool gns::RenderSystem::QueueTextureUpload(Texture& texture)
 
 bool gns::RenderSystem::QueueShaderUpload(Shader& shader)
 {
+	return QueueShaderUpload(m_pendingUploads, shader);
+}
+
+bool gns::RenderSystem::QueueShaderUpload(RenderUploadQueue& uploads, Shader& shader)
+{
 	const Handle shaderHandle = shader.GetHandle();
 	if (!shaderHandle.IsValid() || m_resourceCache.shaders.contains(shaderHandle))
 	{
@@ -240,18 +265,18 @@ bool gns::RenderSystem::QueueShaderUpload(Shader& shader)
 	}
 
 	const auto pending = std::find_if(
-		m_pendingShaderUploads.begin(),
-		m_pendingShaderUploads.end(),
+		uploads.shaderUploads.begin(),
+		uploads.shaderUploads.end(),
 		[shaderHandle](const PendingShaderUpload& upload)
 		{
 			return upload.shaderHandle == shaderHandle;
 		});
-	if (pending != m_pendingShaderUploads.end())
+	if (pending != uploads.shaderUploads.end())
 	{
 		return true;
 	}
 
-	m_pendingShaderUploads.emplace_back(PendingShaderUpload
+	uploads.shaderUploads.emplace_back(PendingShaderUpload
 	{
 		.shaderHandle = shaderHandle,
 		.shader = &shader
@@ -268,18 +293,18 @@ bool gns::RenderSystem::QueueMaterialUpload(Material& material)
 	}
 
 	const auto pending = std::find_if(
-		m_pendingMaterialUploads.begin(),
-		m_pendingMaterialUploads.end(),
+		m_pendingUploads.materialUploads.begin(),
+		m_pendingUploads.materialUploads.end(),
 		[materialHandle](const PendingMaterialUpload& upload)
 		{
 			return upload.materialHandle == materialHandle;
 		});
-	if (pending != m_pendingMaterialUploads.end())
+	if (pending != m_pendingUploads.materialUploads.end())
 	{
 		return true;
 	}
 
-	m_pendingMaterialUploads.emplace_back(PendingMaterialUpload
+	m_pendingUploads.materialUploads.emplace_back(PendingMaterialUpload
 	{
 		.materialHandle = materialHandle,
 		.material = &material
@@ -287,9 +312,47 @@ bool gns::RenderSystem::QueueMaterialUpload(Material& material)
 	return true;
 }
 
-void gns::RenderSystem::FlushPendingRenderUploads()
+gns::RenderUploadQueue gns::RenderSystem::ConsumePendingRenderUploads()
 {
-	for (const PendingShaderUpload& upload : m_pendingShaderUploads)
+	RenderUploadQueue uploads = std::move(m_pendingUploads);
+	m_pendingUploads = {};
+	return uploads;
+}
+
+void gns::RenderSystem::HarvestCompletedRenderSubmissions()
+{
+	m_renderThread.WaitForIdle();
+	m_renderThread.DrainCompletedSubmissions(
+		[this](RenderSubmission& completedSubmission)
+		{
+			RequeuePendingRenderUploads(completedSubmission.uploads);
+		});
+}
+
+void gns::RenderSystem::RequeuePendingRenderUploads(RenderUploadQueue& uploads)
+{
+	m_pendingUploads.meshUploads.insert(
+		m_pendingUploads.meshUploads.end(),
+		std::make_move_iterator(uploads.meshUploads.begin()),
+		std::make_move_iterator(uploads.meshUploads.end()));
+	m_pendingUploads.textureUploads.insert(
+		m_pendingUploads.textureUploads.end(),
+		std::make_move_iterator(uploads.textureUploads.begin()),
+		std::make_move_iterator(uploads.textureUploads.end()));
+	m_pendingUploads.shaderUploads.insert(
+		m_pendingUploads.shaderUploads.end(),
+		std::make_move_iterator(uploads.shaderUploads.begin()),
+		std::make_move_iterator(uploads.shaderUploads.end()));
+	m_pendingUploads.materialUploads.insert(
+		m_pendingUploads.materialUploads.end(),
+		std::make_move_iterator(uploads.materialUploads.begin()),
+		std::make_move_iterator(uploads.materialUploads.end()));
+	uploads.Clear();
+}
+
+void gns::RenderSystem::FlushRenderUploads(RenderUploadQueue& uploads)
+{
+	for (const PendingShaderUpload& upload : uploads.shaderUploads)
 	{
 		if (!upload.shaderHandle.IsValid() ||
 			upload.shader == nullptr ||
@@ -304,9 +367,9 @@ void gns::RenderSystem::FlushPendingRenderUploads()
 			m_resourceCache.shaders[upload.shaderHandle] = renderShaderHandle;
 		}
 	}
-	m_pendingShaderUploads.clear();
+	uploads.shaderUploads.clear();
 
-	for (const PendingMeshUpload& upload : m_pendingMeshUploads)
+	for (const PendingMeshUpload& upload : uploads.meshUploads)
 	{
 		if (!upload.meshHandle.IsValid() ||
 			upload.mesh == nullptr ||
@@ -322,9 +385,9 @@ void gns::RenderSystem::FlushPendingRenderUploads()
 			upload.mesh->FreeCPUSide();
 		}
 	}
-	m_pendingMeshUploads.clear();
+	uploads.meshUploads.clear();
 
-	for (const PendingTextureUpload& upload : m_pendingTextureUploads)
+	for (const PendingTextureUpload& upload : uploads.textureUploads)
 	{
 		if (!upload.textureHandle.IsValid() ||
 			upload.texture == nullptr ||
@@ -340,10 +403,10 @@ void gns::RenderSystem::FlushPendingRenderUploads()
 			upload.texture->FreeCPUSide();
 		}
 	}
-	m_pendingTextureUploads.clear();
+	uploads.textureUploads.clear();
 
 	std::vector<PendingMaterialUpload> remainingMaterialUploads;
-	for (const PendingMaterialUpload& upload : m_pendingMaterialUploads)
+	for (const PendingMaterialUpload& upload : uploads.materialUploads)
 	{
 		if (!upload.materialHandle.IsValid() || upload.material == nullptr)
 		{
@@ -372,7 +435,7 @@ void gns::RenderSystem::FlushPendingRenderUploads()
 		const Handle shaderHandle = shader->GetHandle();
 		if (!m_resourceCache.shaders.contains(shaderHandle))
 		{
-			QueueShaderUpload(*shader);
+			QueueShaderUpload(uploads, *shader);
 			remainingMaterialUploads.emplace_back(upload);
 			continue;
 		}
@@ -394,12 +457,18 @@ void gns::RenderSystem::FlushPendingRenderUploads()
 			assets::AssetManager::ApplyImportedMaterialDefaults(material);
 		}
 
-		if (!ApplyMaterial(material, *vulkanShader).IsValid())
+		if (!ApplyMaterial(material, *vulkanShader, &uploads).IsValid())
 		{
 			remainingMaterialUploads.emplace_back(upload);
 		}
 	}
-	m_pendingMaterialUploads = std::move(remainingMaterialUploads);
+	uploads.materialUploads = std::move(remainingMaterialUploads);
+}
+
+void gns::RenderSystem::ExecuteRenderSubmission(RenderSubmission& submission)
+{
+	FlushRenderUploads(submission.uploads);
+	m_renderer.DrawFrame(submission.packet);
 }
 
 gns::Handle gns::RenderSystem::ApplyShader(Shader& shader)
@@ -467,7 +536,10 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 	return {};
 }
 
-gns::Handle gns::RenderSystem::ApplyMaterial(Material& material, rendering::VulkanShader& vulkanShader)
+gns::Handle gns::RenderSystem::ApplyMaterial(
+	Material& material,
+	rendering::VulkanShader& vulkanShader,
+	RenderUploadQueue* dependencyUploads)
 {
 	const Handle materialHandle = material.GetHandle();
 
@@ -486,6 +558,12 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material, rendering::Vulk
 
 		if (texture == nullptr)
 		{
+			return false;
+		}
+
+		if (dependencyUploads != nullptr)
+		{
+			QueueTextureUpload(*dependencyUploads, *texture);
 			return false;
 		}
 
@@ -656,6 +734,8 @@ gns::Handle gns::RenderSystem::GetDefaultTextureHandle(DefaultTexture texture) c
 
 gns::RenderTextureBinding gns::RenderSystem::GetTextureBinding(Handle textureHandle)
 {
+	HarvestCompletedRenderSubmissions();
+
 	if (!textureHandle.IsValid())
 	{
 		LOG_WARNING("[RenderSystem]: Cannot get texture binding for invalid texture handle.");
@@ -698,11 +778,13 @@ uint64_t gns::RenderSystem::GetTextureDescriptor(Handle textureHandle)
 
 uint64_t gns::RenderSystem::GetSceneTextureDescriptor()
 {
+	HarvestCompletedRenderSubmissions();
 	return m_renderer.GetSceneTextureDescriptor();
 }
 
 void gns::RenderSystem::SetScreen(const Screen& screen)
 {
+	HarvestCompletedRenderSubmissions();
 	m_renderer.SetScreen(screen);
 }
 

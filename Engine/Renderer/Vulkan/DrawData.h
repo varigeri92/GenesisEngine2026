@@ -7,6 +7,11 @@
 
 namespace gns
 {
+    struct Material;
+    struct Mesh;
+    struct Shader;
+    struct Texture;
+
     namespace rendering
     {
         struct VulkanMaterial;
@@ -60,6 +65,54 @@ namespace gns
         uint32_t index;
     };
 
+    struct PendingMeshUpload
+    {
+        Handle meshHandle;
+        Mesh* mesh = nullptr;
+    };
+
+    struct PendingTextureUpload
+    {
+        Handle textureHandle;
+        Texture* texture = nullptr;
+    };
+
+    struct PendingShaderUpload
+    {
+        Handle shaderHandle;
+        Shader* shader = nullptr;
+    };
+
+    struct PendingMaterialUpload
+    {
+        Handle materialHandle;
+        Material* material = nullptr;
+    };
+
+    struct RenderUploadQueue
+    {
+        std::vector<PendingMeshUpload> meshUploads;
+        std::vector<PendingTextureUpload> textureUploads;
+        std::vector<PendingShaderUpload> shaderUploads;
+        std::vector<PendingMaterialUpload> materialUploads;
+
+        bool IsEmpty() const
+        {
+            return meshUploads.empty() &&
+                textureUploads.empty() &&
+                shaderUploads.empty() &&
+                materialUploads.empty();
+        }
+
+        void Clear()
+        {
+            meshUploads.clear();
+            textureUploads.clear();
+            shaderUploads.clear();
+            materialUploads.clear();
+        }
+    };
+
     struct RenderFramePacket
     {
         std::vector<DrawData> drawData;
@@ -71,6 +124,18 @@ namespace gns
             drawData.clear();
             globalFrameData = {};
             hasGlobalFrameData = false;
+        }
+    };
+
+    struct RenderSubmission
+    {
+        RenderFramePacket packet;
+        RenderUploadQueue uploads;
+
+        void Clear()
+        {
+            packet.Clear();
+            uploads.Clear();
         }
     };
 }

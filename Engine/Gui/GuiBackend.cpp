@@ -152,15 +152,13 @@ void gns::gui::GuiBackend::DrawImGui(VkCommandBuffer cmd, const VkRenderingInfo&
 {
 	vkCmdBeginRendering(cmd, &renderInfo);
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+	vkCmdEndRendering(cmd);
 	
 	ImGuiIO& io = ImGui::GetIO();
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
 	{
-		ImGui::UpdatePlatformWindows();
 		ImGui::RenderPlatformWindowsDefault();
 	}
-	
-	vkCmdEndRendering(cmd);
 }
 
 void gns::gui::GuiBackend::HandleEvents(SDL_Event& event)
@@ -247,6 +245,12 @@ void gns::gui::GuiBackend::OnUpdate()
 void gns::gui::GuiBackend::OnEndGuiFrame()
 {
 	ImGui::Render();
+
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		ImGui::UpdatePlatformWindows();
+	}
 }
 
 
