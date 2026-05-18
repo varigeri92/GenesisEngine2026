@@ -368,6 +368,7 @@ namespace gns::rendering
 
     std::string ShaderUtils::ResolveCompiledShaderPath(const std::string& shaderPath)
     {
+        GNS_PROFILE_FUNCTION();
         std::string resolvedShaderPath = shaderPath;
         if (!gns::path::HasExtension(resolvedShaderPath, "spv"))
         {
@@ -379,6 +380,7 @@ namespace gns::rendering
 
     bool ShaderUtils::ReflectShaderFile(const std::string& shaderPath, ShaderReflectionData& outReflection)
     {
+        GNS_PROFILE_FUNCTION();
         std::vector<uint32_t> spirvCode;
         if (!ReadSpirvFile(shaderPath, spirvCode))
         {
@@ -524,6 +526,7 @@ namespace gns::rendering
         const std::vector<ShaderReflectionData>& reflections,
         std::vector<VkDescriptorSetLayout>& outLayouts)
     {
+        GNS_PROFILE_FUNCTION();
         outLayouts.clear();
 
         std::map<uint32_t, std::map<uint32_t, ReflectedDescriptorBinding>> reflectedSets;
@@ -592,6 +595,7 @@ namespace gns::rendering
     std::vector<VkPushConstantRange> ShaderUtils::BuildPushConstantRanges(
         const std::vector<ShaderReflectionData>& reflections)
     {
+        GNS_PROFILE_FUNCTION();
         std::vector<VkPushConstantRange> ranges;
 
         for (const ShaderReflectionData& reflection : reflections)
@@ -629,6 +633,7 @@ namespace gns::rendering
         uint32_t* outBindingMask,
         uint32_t globalSet)
     {
+        GNS_PROFILE_FUNCTION();
         constexpr uint32_t SceneDataBinding = 0;
         constexpr uint32_t DirectionalLightsBinding = 1;
         constexpr uint32_t PointLightsBinding = 2;
@@ -706,6 +711,7 @@ namespace gns::rendering
         uint32_t materialTextureSet,
         uint32_t drawResourceSet)
     {
+        GNS_PROFILE_FUNCTION();
         constexpr uint32_t DrawModelMatricesBinding = 0;
         constexpr uint32_t DrawVertexBufferAddressesBinding = 1;
 
@@ -793,6 +799,7 @@ namespace gns::rendering
         uint32_t materialBinding,
         uint32_t materialTextureSet)
     {
+        GNS_PROFILE_FUNCTION();
         gns::MaterialLayout layout;
         for (const ShaderReflectionData& reflection : reflections)
         {
@@ -851,6 +858,7 @@ namespace gns::rendering
 
     void ShaderUtils::PrintReflection(const ShaderReflectionData& reflection)
     {
+        GNS_PROFILE_FUNCTION();
         LOG_INFO("[ShaderUtils]: Reflecting shader: " + reflection.filePath);
         LOG_INFO(std::string("[ShaderUtils]: stage=") + ToString(reflection.stage) + " entry_point=\"" + reflection.entryPoint + "\"");
 

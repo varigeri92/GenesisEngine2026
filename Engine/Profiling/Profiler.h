@@ -25,6 +25,7 @@ namespace gns::profiling
 			const char* file,
 			uint32_t line,
 			const std::string& message);
+		GNS_API static void SetCurrentThreadName(const char* name);
 	};
 
 	class ScopeTimer
@@ -53,8 +54,9 @@ namespace gns::profiling
 #define GNS_PROFILE_BEGIN_SESSION(name, path) ::gns::profiling::Profiler::BeginSession(name, path)
 #define GNS_PROFILE_END_SESSION() ::gns::profiling::Profiler::EndSession()
 #define GNS_PROFILE_SCOPE(name) ::gns::profiling::ScopeTimer GNS_PROFILE_CONCAT(profileTimer, __LINE__)(name, __FILE__, __LINE__)
+#define GNS_PROFILE_THREAD(name) ::gns::profiling::Profiler::SetCurrentThreadName(name)
 #if defined(_MSC_VER)
-#define GNS_PROFILE_FUNCTION() GNS_PROFILE_SCOPE(__FUNCSIG__)
+#define GNS_PROFILE_FUNCTION() GNS_PROFILE_SCOPE(__FUNCTION__)
 #elif defined(__GNUC__) || defined(__clang__)
 #define GNS_PROFILE_FUNCTION() GNS_PROFILE_SCOPE(__PRETTY_FUNCTION__)
 #else
@@ -65,6 +67,7 @@ namespace gns::profiling
 #define GNS_PROFILE_BEGIN_SESSION(name, path)
 #define GNS_PROFILE_END_SESSION()
 #define GNS_PROFILE_SCOPE(name)
+#define GNS_PROFILE_THREAD(name)
 #define GNS_PROFILE_FUNCTION()
 #define GNS_PROFILE_LOG(level, file, line, message)
 #endif

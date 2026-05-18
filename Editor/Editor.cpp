@@ -20,6 +20,7 @@
 int main(int argc, char** argv)
 {
     GNS_PROFILE_BEGIN_SESSION("GenesisEngine Editor", "profile/GenesisEngine-Editor.trace.json");
+    GNS_PROFILE_THREAD("Genesis Main Thread");
 
     {
         GNS_PROFILE_FUNCTION();

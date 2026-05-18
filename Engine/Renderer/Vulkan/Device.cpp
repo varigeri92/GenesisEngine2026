@@ -76,6 +76,7 @@ namespace
 		const gns::GpuDataDescriptor& dataDescriptor,
 		VulkanBuffer& buffer)
 	{
+		GNS_PROFILE_SCOPE("Device::CopyDescriptorToBuffer");
 		if (!dataDescriptor.IsValid())
 		{
 			LOG_ERROR(std::string("[Device]: Missing global frame data descriptor for ") + label + ".");
@@ -111,6 +112,7 @@ namespace
 		const gns::GpuDataDescriptor& dataDescriptor,
 		VulkanBuffer& buffer)
 	{
+		GNS_PROFILE_SCOPE("Device::CopyDescriptorToMappedBuffer");
 		if (!dataDescriptor.IsValid())
 		{
 			LOG_ERROR(std::string("[Device]: Missing data descriptor for ") + label + ".");
@@ -159,6 +161,7 @@ void gns::rendering::CleanupQueue::Push(std::function<void()>&& func)
 
 void gns::rendering::CleanupQueue::Flush()
 {
+	GNS_PROFILE_FUNCTION();
 	for (auto it = m_queue.rbegin(); it != m_queue.rend(); it++) {
 		(*it)();
 	}
@@ -182,6 +185,7 @@ gns::rendering::Device::~Device()
 }
 void gns::rendering::Device::Create(SDL_Window* sdl_window)
 {
+	GNS_PROFILE_FUNCTION();
 	m_sdl_window = sdl_window;
 	
 
@@ -197,11 +201,13 @@ void gns::rendering::Device::Create(SDL_Window* sdl_window)
 
 void gns::rendering::Device::WaitForIdle()
 {
+	GNS_PROFILE_FUNCTION();
 	vkDeviceWaitIdle(m_device);
 }
 
 void gns::rendering::Device::InitVulkan(SDL_Window* sdl_window)
 {
+	GNS_PROFILE_FUNCTION();
 	vkb::InstanceBuilder builder;
 	auto inst_ret = builder.request_validation_layers(useValidationLayers).set_debug_callback(VulkanDebugCallback)
 		.set_debug_messenger_severity(
@@ -276,6 +282,7 @@ void gns::rendering::Device::InitVulkan(SDL_Window* sdl_window)
 
 void gns::rendering::Device::InitSwapchain()
 {
+	GNS_PROFILE_FUNCTION();
 	int w, h;
 	SDL_GetWindowSize(m_sdl_window, &w, &h);
 	VkExtent2D _extent{ static_cast<uint32_t>(w),static_cast<uint32_t>(h) };
@@ -311,6 +318,7 @@ void gns::rendering::Device::InitSwapchain()
 
 void gns::rendering::Device::CreateDrawTargets(VkExtent2D extent)
 {
+	GNS_PROFILE_FUNCTION();
 	VkExtent3D drawImageExtent = { extent.width, extent.height, 1 };
 	m_drawImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	m_depthImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -334,6 +342,7 @@ void gns::rendering::Device::CreateDrawTargets(VkExtent2D extent)
 
 void gns::rendering::Device::SetRenderExtent(VkExtent2D extent)
 {
+	GNS_PROFILE_FUNCTION();
 	if (extent.width == 0 || extent.height == 0)
 	{
 		return;
@@ -351,6 +360,7 @@ void gns::rendering::Device::SetRenderExtent(VkExtent2D extent)
 
 void gns::rendering::Device::ApplyRenderTargetResize()
 {
+	GNS_PROFILE_FUNCTION();
 	if (!m_renderTargetResizeRequest)
 	{
 		return;
@@ -363,6 +373,7 @@ void gns::rendering::Device::ApplyRenderTargetResize()
 
 void gns::rendering::Device::ResizeDrawTargets(VkExtent2D extent)
 {
+	GNS_PROFILE_FUNCTION();
 	if (extent.width == 0 || extent.height == 0)
 	{
 		return;
@@ -383,6 +394,7 @@ void gns::rendering::Device::ResizeDrawTargets(VkExtent2D extent)
 
 void gns::rendering::Device::ResizeSwapchain()
 {
+	GNS_PROFILE_FUNCTION();
 	vkDeviceWaitIdle(m_device);
 	m_swapchain.ResizeSwapchain(m_resizeRequest, m_sdl_window);
 	if (!m_useCustomRenderExtent)
@@ -396,6 +408,7 @@ VkDescriptorSet gns::rendering::Device::UpdateGlobalDescriptorSet(
 	const GlobalFrameDataDescriptor& globalDataDescriptor,
 	VulkanShader& shader)
 {
+	GNS_PROFILE_FUNCTION();
 	const VkDescriptorSetLayout setLayout = shader.GetDescriptorSetLayout(0);
 	if (setLayout == VK_NULL_HANDLE)
 	{
@@ -480,6 +493,7 @@ VkDescriptorSet gns::rendering::Device::UpdateGlobalDescriptorSet(
 
 bool gns::rendering::Device::UpdateDrawResourceBuffers(std::span<const DrawData> drawData)
 {
+	GNS_PROFILE_FUNCTION();
 	FrameData& frame = GetCurrentFrame();
 	frame._gpuModelMatricesBuffer.reset();
 	frame._gpuVertexBufferAddressesBuffer.reset();
@@ -540,6 +554,7 @@ bool gns::rendering::Device::UpdateDrawResourceBuffers(std::span<const DrawData>
 
 bool gns::rendering::Device::UpdateFrameMaterialDataBuffers(std::span<const DrawData> drawData)
 {
+	GNS_PROFILE_FUNCTION();
 	FrameData& frame = GetCurrentFrame();
 	frame._gpuMaterialDataBuffers.clear();
 	frame._materialDataDescriptors.clear();
@@ -552,6 +567,7 @@ bool gns::rendering::Device::UpdateFrameMaterialDataBuffers(std::span<const Draw
 	std::map<VkDescriptorSetLayout, FrameMaterialDataUpload> uploads;
 	for (const DrawData& draw : drawData)
 	{
+		GNS_PROFILE_SCOPE("Device::UpdateFrameMaterialDataBuffers::CollectDraw");
 		if (draw.vkShader == nullptr ||
 			draw.vkMaterial == nullptr ||
 			draw.vkMaterial->materialDataLayout == VK_NULL_HANDLE ||
@@ -596,6 +612,7 @@ bool gns::rendering::Device::UpdateFrameMaterialDataBuffers(std::span<const Draw
 	frame._gpuMaterialDataBuffers.reserve(uploads.size());
 	for (const auto& [setLayout, upload] : uploads)
 	{
+		GNS_PROFILE_SCOPE("Device::UpdateFrameMaterialDataBuffers::UploadLayout");
 		if (upload.data.empty())
 		{
 			continue;
@@ -650,6 +667,7 @@ bool gns::rendering::Device::UpdateFrameMaterialDataBuffers(std::span<const Draw
 
 VkDescriptorSet gns::rendering::Device::GetDrawResourceDescriptorSet(VulkanShader& shader)
 {
+	GNS_PROFILE_FUNCTION();
 	FrameData& frame = GetCurrentFrame();
 	const VkDescriptorSetLayout setLayout = shader.GetDescriptorSetLayout(DrawResourceSet);
 	if (setLayout == VK_NULL_HANDLE)
@@ -699,6 +717,7 @@ VkDescriptorSet gns::rendering::Device::GetDrawResourceDescriptorSet(VulkanShade
 
 VkDescriptorSet gns::rendering::Device::GetFrameMaterialDataDescriptorSet(const VulkanMaterial& material) const
 {
+	GNS_PROFILE_FUNCTION();
 	if (material.materialDataLayout == VK_NULL_HANDLE)
 	{
 		return VK_NULL_HANDLE;
@@ -717,6 +736,7 @@ VkDescriptorSet gns::rendering::Device::CreateTransientBufferDescriptorSet(
 	uint32_t binding,
 	MaterialDescriptorKind descriptorKind)
 {
+	GNS_PROFILE_FUNCTION();
 	if (!dataDescriptor.IsValid())
 	{
 		return VK_NULL_HANDLE;
@@ -809,6 +829,7 @@ bool gns::rendering::Device::UpdateMaterialResource(
 	std::span<const MaterialTextureBinding> materialTextures,
 	uint32_t materialTextureSet)
 {
+	GNS_PROFILE_FUNCTION();
 	material.vkShader = &shader;
 
 	if (materialDataDescriptor.IsValid())
@@ -935,6 +956,7 @@ bool gns::rendering::Device::UpdateMaterialResource(
 		textureBindings.reserve(materialTextures.size());
 		for (const MaterialTextureBinding& textureBinding : materialTextures)
 		{
+			GNS_PROFILE_SCOPE("Device::UpdateMaterialResource::TextureBinding");
 			if (textureBinding.texture == nullptr ||
 				textureBinding.texture->sampler == VK_NULL_HANDLE ||
 				textureBinding.texture->image.imageView == VK_NULL_HANDLE)
@@ -1017,6 +1039,7 @@ bool gns::rendering::Device::UpdateMaterialResource(
 
 void gns::rendering::Device::InitCommands()
 {
+	GNS_PROFILE_FUNCTION();
 	//create a command pool for commands submitted to the graphics queue.
 	//we also want the pool to allow for resetting of individual command buffers
 	VkCommandPoolCreateInfo commandPoolInfo = 
@@ -1046,6 +1069,7 @@ void gns::rendering::Device::InitCommands()
 
 void gns::rendering::Device::InitSyncStructs()
 {
+	GNS_PROFILE_FUNCTION();
 	VkFenceCreateInfo fenceCreateInfo = utils::FenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
 	VkSemaphoreCreateInfo semaphoreCreateInfo = utils::SemaphoreCreateInfo();
 
@@ -1062,6 +1086,7 @@ void gns::rendering::Device::InitSyncStructs()
 
 void gns::rendering::Device::InitDescriptors()
 {
+	GNS_PROFILE_FUNCTION();
 	//create a descriptor pool that will hold 10 sets with 1 image each
 	std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes =
 	{
@@ -1119,6 +1144,7 @@ void gns::rendering::Device::InitDescriptors()
 
 void gns::rendering::Device::UpdateDrawImageDescriptor()
 {
+	GNS_PROFILE_FUNCTION();
 	if (_drawImageDescriptors == VK_NULL_HANDLE || m_drawImage.imageView == VK_NULL_HANDLE)
 	{
 		return;
@@ -1143,6 +1169,7 @@ void gns::rendering::Device::UpdateDrawImageDescriptor()
 
 void gns::rendering::Device::UpdateRenderTargetDescriptor()
 {
+	GNS_PROFILE_FUNCTION();
 	if (_renderTargetDescriptor == VK_NULL_HANDLE ||
 		_renderTargetSampler == VK_NULL_HANDLE ||
 		m_drawImage.imageView == VK_NULL_HANDLE)
@@ -1162,6 +1189,7 @@ void gns::rendering::Device::UpdateRenderTargetDescriptor()
 
 void gns::rendering::Device::InitDefaultTextures()
 {
+	GNS_PROFILE_FUNCTION();
 	const uint32_t white = glm::packUnorm4x8(glm::vec4(1.f, 1.f, 1.f, 1.f));
 	const uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1.f));
 	const uint32_t black = glm::packUnorm4x8(glm::vec4(0.f, 0.f, 0.f, 1.f));
@@ -1196,6 +1224,7 @@ gns::Handle gns::rendering::Device::CreateDefaultTexture(
 	VkFilter samplerFilter,
 	VkSamplerAddressMode samplerAddressMode)
 {
+	GNS_PROFILE_FUNCTION();
 	VulkanTexture* texture = CreateResource<VulkanTexture>();
 	if (texture == nullptr)
 	{
@@ -1236,6 +1265,7 @@ gns::rendering::FrameData& gns::rendering::Device::GetFrameByIndex(size_t index)
 
 void gns::rendering::Device::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
+	GNS_PROFILE_FUNCTION();
 	VK_CHECK(vkResetFences(m_device, 1, &m_immediateFence));
 	VK_CHECK(vkResetCommandBuffer(m_immediateCommandBuffer, 0));
 	VkCommandBuffer cmd = m_immediateCommandBuffer;
@@ -1260,6 +1290,7 @@ void gns::rendering::Device::DrawFrame(
 bool gns::rendering::Device::BeginFrame(
 	VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data)
 {
+	GNS_PROFILE_FUNCTION();
 	VK_CHECK(vkWaitForFences(m_device, 1, &GetCurrentFrame()._renderFence, true, 1000000000));
 	VK_CHECK(vkResetFences(m_device, 1, &GetCurrentFrame()._renderFence));
 	GetCurrentFrame()._frameDescriptors.ClearPools(m_device);
@@ -1319,6 +1350,7 @@ bool gns::rendering::Device::BeginFrame(
 void gns::rendering::Device::EndFrame(
 	VkCommandBuffer& cmd, uint32_t& swapchainImageIndex, VkExtent2D& extent, FrameData& data )
 {
+	GNS_PROFILE_FUNCTION();
 	VK_CHECK(vkEndCommandBuffer(cmd));
 	
 	
@@ -1355,6 +1387,7 @@ void gns::rendering::Device::EndFrame(
 
 void gns::rendering::Device::Cleanup()
 {
+	GNS_PROFILE_FUNCTION();
 	vkDeviceWaitIdle(m_device);
 	
 	m_resourceRegistry.DestroyAll();
@@ -1398,6 +1431,7 @@ glm::vec4 ToUnitRgba(float r, float g, float b, float a)
 
 void gns::rendering::Device::DrawBackground(VkCommandBuffer cmd)
 {
+	GNS_PROFILE_FUNCTION();
 	if (m_backgroundPipeline == VK_NULL_HANDLE || m_backgroundPipelineLayout == VK_NULL_HANDLE)
 	{
 		LOG_WARNING("[Device]: Skipping background pass because background pipeline is not ready.");
@@ -1424,6 +1458,7 @@ void gns::rendering::Device::DrawBackground(VkCommandBuffer cmd)
 
 void gns::rendering::Device::TransitionDrawImage(VkCommandBuffer cmd, VkImageLayout newLayout)
 {
+	GNS_PROFILE_FUNCTION();
 	if (m_drawImageLayout == newLayout)
 	{
 		return;
@@ -1435,6 +1470,7 @@ void gns::rendering::Device::TransitionDrawImage(VkCommandBuffer cmd, VkImageLay
 
 void gns::rendering::Device::TransitionDepthImage(VkCommandBuffer cmd, VkImageLayout newLayout)
 {
+	GNS_PROFILE_FUNCTION();
 	if (m_depthImageLayout == newLayout)
 	{
 		return;
@@ -1446,11 +1482,13 @@ void gns::rendering::Device::TransitionDepthImage(VkCommandBuffer cmd, VkImageLa
 
 void gns::rendering::Device::InitBackgroundResources()
 {
+	GNS_PROFILE_FUNCTION();
 	CreateBackgroundPipeline();
 }
 
 void gns::rendering::Device::CreateBackgroundPipeline()
 {
+	GNS_PROFILE_FUNCTION();
 	std::string shaderPath =
 		gns::path::Resolve(gns::path::Root::EditorResources, BackgroundComputeShaderPath).string();
 	std::vector<ShaderReflectionData> shaderReflections;
@@ -1573,6 +1611,7 @@ void gns::rendering::Device::DrawMesh(
 	DrawData draw_data,
 	const GlobalFrameDataDescriptor* globalDataDescriptor)
 {
+	GNS_PROFILE_FUNCTION();
 	VkPipeline pipeline = draw_data.vkShader->GetPipeline();
 	VkPipelineLayout layout = draw_data.vkShader->GetPipelineLayout();
 	if (pipeline != currentPipeline)
@@ -1667,6 +1706,7 @@ void gns::rendering::Device::DrawMesh(
 
 void gns::rendering::Device::DestroyShader(VulkanShader& vk_shader) const
 {
+	GNS_PROFILE_FUNCTION();
 	if (vk_shader.m_pipelineLayout != VK_NULL_HANDLE)
 		vkDestroyPipelineLayout(m_device, vk_shader.m_pipelineLayout, nullptr);
 	if (vk_shader.m_pipeline != VK_NULL_HANDLE)
@@ -1688,12 +1728,14 @@ void gns::rendering::Device::DestroyShader(VulkanShader& vk_shader) const
 
 void gns::rendering::Device::DestroyMesh(VulkanMesh& vk_mesh) const
 {
+	GNS_PROFILE_FUNCTION();
 	DestroyBuffer(vk_mesh.indexBuffer);
 	DestroyBuffer(vk_mesh.vertexBuffer);
 }
 
 void gns::rendering::Device::DestroyBuffer(VulkanBuffer& vk_buffer) const
 {
+	GNS_PROFILE_FUNCTION();
 	if (vk_buffer.buffer != VK_NULL_HANDLE)
 		vk_buffer.reset();
 	vk_buffer.buffer = VK_NULL_HANDLE;
@@ -1701,6 +1743,7 @@ void gns::rendering::Device::DestroyBuffer(VulkanBuffer& vk_buffer) const
 
 void gns::rendering::Device::CreateTextureDescriptor(VulkanTexture& texture)
 {
+	GNS_PROFILE_FUNCTION();
 	if (_textureDescriptorLayout == VK_NULL_HANDLE ||
 		texture.sampler == VK_NULL_HANDLE ||
 		texture.image.imageView == VK_NULL_HANDLE)
@@ -1723,11 +1766,13 @@ void gns::rendering::Device::CreateTextureDescriptor(VulkanTexture& texture)
 
 void gns::rendering::Device::EndRendering(VkCommandBuffer cmd)
 {
+	GNS_PROFILE_FUNCTION();
 	vkCmdEndRendering(cmd);
 }
 
 void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 {
+	GNS_PROFILE_FUNCTION();
 	//begin a render pass  connected to our draw image
 	VkRenderingAttachmentInfo colorAttachment = utils::AttachmentInfo(
 		m_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -1763,5 +1808,6 @@ void gns::rendering::Device::DrawGeometry(VkCommandBuffer cmd)
 
 void* gns::rendering::Device::GetMappedDataFromAllocation(VmaAllocation allocation)
 {
+	GNS_PROFILE_FUNCTION();
 	return allocation->GetMappedData();
 }

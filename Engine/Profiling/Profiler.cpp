@@ -6,6 +6,7 @@
 #include <mutex>
 #include <system_error>
 #include <thread>
+#include <unordered_map>
 
 namespace
 {
@@ -20,6 +21,8 @@ namespace
 	std::mutex g_profilerMutex;
 	ProfileSession g_session;
 	bool g_sessionActive = false;
+	std::unordered_map<std::thread::id, uint32_t> g_threadIds;
+	uint32_t g_nextThreadId = 0;
 
 	std::string JsonEscape(const std::string& value)
 	{
@@ -54,9 +57,17 @@ namespace
 		return escaped;
 	}
 
-	uint64_t ThreadId()
+	uint32_t ThreadId()
 	{
-		return static_cast<uint64_t>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+		const std::thread::id threadId = std::this_thread::get_id();
+		if (const auto it = g_threadIds.find(threadId); it != g_threadIds.end())
+		{
+			return it->second;
+		}
+
+		const uint32_t profilerThreadId = g_nextThreadId++;
+		g_threadIds[threadId] = profilerThreadId;
+		return profilerThreadId;
 	}
 
 	int64_t MicrosecondsSinceSessionStart(std::chrono::steady_clock::time_point timePoint)
@@ -106,6 +117,8 @@ void gns::profiling::Profiler::BeginSession(const std::string& name, const std::
 
 	g_session.name = name;
 	g_session.startTime = std::chrono::steady_clock::now();
+	g_threadIds.clear();
+	g_nextThreadId = 0;
 	g_session.stream.open(outputPath);
 	if (!g_session.stream.is_open())
 	{
@@ -171,6 +184,25 @@ void gns::profiling::Profiler::WriteLog(const char* level, const char* file, uin
 	WriteStringArg("file", file != nullptr ? file : "");
 	g_session.stream << ",\"line\":" << line << ",";
 	WriteStringArg("message", message);
+	g_session.stream << "}}";
+}
+
+void gns::profiling::Profiler::SetCurrentThreadName(const char* name)
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	if (!g_sessionActive)
+		return;
+
+	BeginEvent();
+
+	g_session.stream
+		<< "{\"cat\":\"metadata\","
+		<< "\"name\":\"thread_name\","
+		<< "\"ph\":\"M\","
+		<< "\"pid\":0,"
+		<< "\"tid\":" << ThreadId() << ","
+		<< "\"args\":{";
+	WriteStringArg("name", name != nullptr ? name : "Thread");
 	g_session.stream << "}}";
 }
 

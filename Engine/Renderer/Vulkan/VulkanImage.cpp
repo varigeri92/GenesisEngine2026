@@ -25,6 +25,7 @@ gns::rendering::VulkanImage::VulkanImage(VkExtent3D imageExtent, VkFormat imageF
 void gns::rendering::VulkanImage::CreateImage(VkExtent3D size, VkFormat format,
     VkImageUsageFlags usage, bool mipmapped)
 {
+    GNS_PROFILE_FUNCTION();
     imageFormat = format;
     imageExtent = size;
     
@@ -61,6 +62,7 @@ void gns::rendering::VulkanImage::CreateImage(VkExtent3D size, VkFormat format,
 void gns::rendering::VulkanImage::CreateImage(const void* data, VkExtent3D size, VkFormat format,
     VkImageUsageFlags usage, bool mipmapped)
 {
+    GNS_PROFILE_FUNCTION();
     size_t data_size = 
         static_cast<size_t>(size.depth) * static_cast<size_t>(size.width) * static_cast<size_t>(size.height) * 4;
     VulkanBuffer uploadBuffer;
@@ -97,6 +99,7 @@ void gns::rendering::VulkanImage::CreateImage(const void* data, VkExtent3D size,
 
 void gns::rendering::VulkanImage::DestroyImage()
 {
+    GNS_PROFILE_FUNCTION();
     if (m_device == nullptr)
     {
         return;
@@ -118,5 +121,6 @@ void gns::rendering::VulkanImage::DestroyImage()
 
 void gns::rendering::VulkanImage::Destroy()
 {
+    GNS_PROFILE_FUNCTION();
     DestroyImage();
 }

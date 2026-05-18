@@ -15,6 +15,7 @@
 
 void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 {
+	GNS_PROFILE_FUNCTION();
 	m_framePacket.Clear();
 	m_device.Create(sdl_window);
 	const VkExtent2D renderExtent = m_device.GetRenderExtent();
@@ -24,6 +25,7 @@ void gns::rendering::Renderer::CreateDevice(SDL_Window* sdl_window)
 
 void gns::rendering::Renderer::SetupRenderPasses()
 {
+	GNS_PROFILE_FUNCTION();
 	m_renderGraph.Clear();
 
 	AddDrawImageToGeneralPass();
@@ -45,9 +47,11 @@ void gns::rendering::Renderer::SetupRenderPasses()
 
 void gns::rendering::Renderer::AddDrawImageToGeneralPass()
 {
+	GNS_PROFILE_FUNCTION();
 	auto& transitionToGeneral = m_renderGraph.AddPass("DrawImageToGeneral",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
+		GNS_PROFILE_SCOPE("Renderer::Pass::DrawImageToGeneral");
 		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_GENERAL);
 		return true;
 	});
@@ -56,9 +60,11 @@ void gns::rendering::Renderer::AddDrawImageToGeneralPass()
 
 void gns::rendering::Renderer::AddBackgroundPass()
 {
+	GNS_PROFILE_FUNCTION();
 	auto& backgroundPass = m_renderGraph.AddPass("Background",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
+		GNS_PROFILE_SCOPE("Renderer::Pass::Background");
 		m_device.DrawBackground(cmd);
 		return true;
 	});
@@ -67,9 +73,11 @@ void gns::rendering::Renderer::AddBackgroundPass()
 
 void gns::rendering::Renderer::AddDrawImageToColorAttachmentPass()
 {
+	GNS_PROFILE_FUNCTION();
 	auto& transitionToColorAttachment = m_renderGraph.AddPass("DrawImageToColorAttachment",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
+		GNS_PROFILE_SCOPE("Renderer::Pass::DrawImageToColorAttachment");
 		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		m_device.TransitionDepthImage(cmd, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 		return true;
@@ -82,9 +90,11 @@ void gns::rendering::Renderer::AddDrawImageToColorAttachmentPass()
 
 void gns::rendering::Renderer::AddGeometryPass()
 {
+	GNS_PROFILE_FUNCTION();
 	auto& geometryPass = m_renderGraph.AddPass("Geometry",
 		[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
+		GNS_PROFILE_SCOPE("Renderer::Pass::Geometry");
 		if (!m_device.UpdateDrawResourceBuffers(m_framePacket.drawData))
 		{
 			return false;
@@ -110,9 +120,11 @@ void gns::rendering::Renderer::AddGeometryPass()
 
 void gns::rendering::Renderer::AddCopyDrawImageToSwapchainPass()
 {
+	GNS_PROFILE_FUNCTION();
 	auto& copyToSwapchain = m_renderGraph.AddPass("CopyDrawImageToSwapchain",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data,  FrameData& frameData)
 	{
+		GNS_PROFILE_SCOPE("Renderer::Pass::CopyDrawImageToSwapchain");
 		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 		utils::CopyImageToImage(
 			cmd, rp_data.renderTarget->image, frameData._swapchain->GetImage(frameData._swapchainImageIndex), 
@@ -128,9 +140,11 @@ void gns::rendering::Renderer::AddCopyDrawImageToSwapchainPass()
 
 void gns::rendering::Renderer::AddClearSwapchainPass(VkImageLayout finalLayout)
 {
+	GNS_PROFILE_FUNCTION();
 	auto& clearSwapchain = m_renderGraph.AddPass("ClearSwapchain",
 	[finalLayout](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
+		GNS_PROFILE_SCOPE("Renderer::Pass::ClearSwapchain");
 		utils::TransitionImage(
 			cmd,
 			frameData._swapchain->GetImage(frameData._swapchainImageIndex),
@@ -167,9 +181,11 @@ void gns::rendering::Renderer::AddClearSwapchainPass(VkImageLayout finalLayout)
 
 void gns::rendering::Renderer::AddDrawImageToShaderReadPass()
 {
+	GNS_PROFILE_FUNCTION();
 	auto& shaderReadPass = m_renderGraph.AddPass("DrawImageToShaderRead",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
+		GNS_PROFILE_SCOPE("Renderer::Pass::DrawImageToShaderRead");
 		m_device.TransitionDrawImage(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		return true;
 	});
@@ -178,9 +194,11 @@ void gns::rendering::Renderer::AddDrawImageToShaderReadPass()
 
 void gns::rendering::Renderer::AddImGuiPass()
 {
+	GNS_PROFILE_FUNCTION();
 	auto& imguiPass = m_renderGraph.AddPass("ImGui",
 	[&](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
 	{
+		GNS_PROFILE_SCOPE("Renderer::Pass::ImGui");
 		if (rp_data.srcImageLayout != rp_data.dstImageLayout)
 		{
 			utils::TransitionImage(
@@ -205,6 +223,7 @@ void gns::rendering::Renderer::AddImGuiPass()
 
 void gns::rendering::Renderer::DrawFrame(const RenderFramePacket& packet)
 {
+	GNS_PROFILE_FUNCTION();
 	if (m_device.m_resizeRequest)
 		m_device.ResizeSwapchain();
 	m_device.ApplyRenderTargetResize();
@@ -263,6 +282,7 @@ uint64_t gns::rendering::Renderer::GetSceneTextureDescriptor()
 
 void gns::rendering::Renderer::SetScreen(const Screen& screen)
 {
+	GNS_PROFILE_FUNCTION();
 	if (!screen.IsValid())
 	{
 		return;
@@ -299,11 +319,13 @@ VulkanMesh* gns::rendering::Renderer::GetVulkanMesh(Handle meshHandle)
 
 void gns::rendering::Renderer::WaitForIdle()
 {
+	GNS_PROFILE_FUNCTION();
 	m_device.WaitForIdle();
 }
 
 gns::Handle gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
 {
+	GNS_PROFILE_FUNCTION();
 	std::vector<Vertex> vertices = {};
 	vertices.reserve(mesh.positions.size());
 	for (size_t i = 0; i < mesh.positions.size(); ++i)
@@ -318,6 +340,7 @@ gns::Handle gns::rendering::Renderer::ApplyMesh(Mesh& mesh)
 
 gns::Handle gns::rendering::Renderer::ApplyTexture(Texture& texture)
 {
+	GNS_PROFILE_FUNCTION();
 	if (!texture.HasPixels() || texture.width == 0 || texture.height == 0)
 	{
 		LOG_ERROR("[Renderer]: Cannot apply texture without pixel data.");
@@ -362,6 +385,7 @@ gns::Handle gns::rendering::Renderer::ApplyTexture(Texture& texture)
 
 gns::Handle gns::rendering::Renderer::CreateVulkanShader(Shader& shader)
 {
+	GNS_PROFILE_FUNCTION();
 	VulkanShader& vkShader = *m_device.CreateResource<VulkanShader>();
 	std::vector<ShaderReflectionData> shaderReflections;
 

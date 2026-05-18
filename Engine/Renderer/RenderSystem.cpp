@@ -30,10 +30,11 @@ namespace
 	constexpr uint32_t MaterialDataBinding = 0;
 	constexpr uint32_t MaterialTextureSet = 2;
 
-	bool TryFindMaterialDataBinding(
+bool TryFindMaterialDataBinding(
 		const gns::Material& material,
 		gns::MaterialPropertyInfo& outProperty)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::TryFindMaterialDataBinding");
 		bool found = false;
 		for (const gns::MaterialPropertyInfo& property : material.GetProperties())
 		{
@@ -94,6 +95,7 @@ gns::RenderSystem::RenderSystem(gns::window::WindowSystem* ws) : m_windowSystem(
 
 void gns::RenderSystem::OnCreate()
 {
+	GNS_PROFILE_FUNCTION();
 	m_renderer.CreateDevice(m_windowSystem->GetSDLWindow());
 	CreateDefaultTextureObjects();
 	m_renderThread.Start(
@@ -115,27 +117,32 @@ void gns::RenderSystem::OnEnable()
 
 void gns::RenderSystem::OnUpdate(float deltaTime)
 {
+	GNS_PROFILE_FUNCTION();
 	HarvestCompletedRenderSubmissions();
 }
 
 void gns::RenderSystem::OnLateUpdate(float deltaTime)
 {
+	GNS_PROFILE_FUNCTION();
 	RenderSubmission submission;
 	submission.uploads = ConsumePendingRenderUploads();
 
-	m_framePacket.Clear();
-	BuildDrawData();
-	const bool hasDrawData = !m_framePacket.drawData.empty();
-	if (hasDrawData)
 	{
-		BuildGlobalFrameDataDescriptor();
-		m_framePacket.globalFrameData = m_globalFrameDataDescriptor;
-		m_framePacket.hasGlobalFrameData = m_hasGlobalFrameDataDescriptor;
-	}
-	else
-	{
-		m_hasGlobalFrameDataDescriptor = false;
-		m_framePacket.hasGlobalFrameData = false;
+		GNS_PROFILE_SCOPE("RenderSystem::BuildRenderFramePacket");
+		m_framePacket.Clear();
+		BuildDrawData();
+		const bool hasDrawData = !m_framePacket.drawData.empty();
+		if (hasDrawData)
+		{
+			BuildGlobalFrameDataDescriptor();
+			m_framePacket.globalFrameData = m_globalFrameDataDescriptor;
+			m_framePacket.hasGlobalFrameData = m_hasGlobalFrameDataDescriptor;
+		}
+		else
+		{
+			m_hasGlobalFrameDataDescriptor = false;
+			m_framePacket.hasGlobalFrameData = false;
+		}
 	}
 
 	submission.packet = m_framePacket;
@@ -152,6 +159,7 @@ void gns::RenderSystem::OnDisable()
 
 void gns::RenderSystem::OnDestroy()
 {
+	GNS_PROFILE_FUNCTION();
 	m_renderThread.Stop();
 	HarvestCompletedRenderSubmissions();
 	m_renderer.WaitForIdle();
@@ -164,12 +172,14 @@ gns::rendering::Renderer& gns::RenderSystem::GetRenderer()
 
 void gns::RenderSystem::WaitForIdle()
 {
+	GNS_PROFILE_FUNCTION();
 	HarvestCompletedRenderSubmissions();
 	m_renderer.WaitForIdle();
 }
 
 void gns::RenderSystem::SetCamera(const CameraBackend& camera_backend)
 {
+	GNS_PROFILE_FUNCTION();
 	m_renderer.m_cameraBackend = camera_backend;
 }
 
@@ -180,6 +190,7 @@ const CameraBackend& gns::RenderSystem::GetCamera() const
 
 gns::Handle gns::RenderSystem::ApplyMesh(Mesh& mesh)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle meshHandle = mesh.GetHandle();
 	if (const auto it = m_resourceCache.meshes.find(meshHandle); it != m_resourceCache.meshes.end())
 	{
@@ -192,6 +203,7 @@ gns::Handle gns::RenderSystem::ApplyMesh(Mesh& mesh)
 
 bool gns::RenderSystem::QueueMeshUpload(Mesh& mesh)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle meshHandle = mesh.GetHandle();
 	if (!meshHandle.IsValid() || m_resourceCache.meshes.contains(meshHandle))
 	{
@@ -220,11 +232,13 @@ bool gns::RenderSystem::QueueMeshUpload(Mesh& mesh)
 
 bool gns::RenderSystem::QueueTextureUpload(Texture& texture)
 {
+	GNS_PROFILE_FUNCTION();
 	return QueueTextureUpload(m_pendingUploads, texture);
 }
 
 bool gns::RenderSystem::QueueTextureUpload(RenderUploadQueue& uploads, Texture& texture)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle textureHandle = texture.GetHandle();
 	if (!textureHandle.IsValid() || m_resourceCache.textures.contains(textureHandle))
 	{
@@ -253,11 +267,13 @@ bool gns::RenderSystem::QueueTextureUpload(RenderUploadQueue& uploads, Texture& 
 
 bool gns::RenderSystem::QueueShaderUpload(Shader& shader)
 {
+	GNS_PROFILE_FUNCTION();
 	return QueueShaderUpload(m_pendingUploads, shader);
 }
 
 bool gns::RenderSystem::QueueShaderUpload(RenderUploadQueue& uploads, Shader& shader)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle shaderHandle = shader.GetHandle();
 	if (!shaderHandle.IsValid() || m_resourceCache.shaders.contains(shaderHandle))
 	{
@@ -286,6 +302,7 @@ bool gns::RenderSystem::QueueShaderUpload(RenderUploadQueue& uploads, Shader& sh
 
 bool gns::RenderSystem::QueueMaterialUpload(Material& material)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle materialHandle = material.GetHandle();
 	if (!materialHandle.IsValid())
 	{
@@ -314,6 +331,7 @@ bool gns::RenderSystem::QueueMaterialUpload(Material& material)
 
 gns::RenderUploadQueue gns::RenderSystem::ConsumePendingRenderUploads()
 {
+	GNS_PROFILE_FUNCTION();
 	RenderUploadQueue uploads = std::move(m_pendingUploads);
 	m_pendingUploads = {};
 	return uploads;
@@ -321,6 +339,7 @@ gns::RenderUploadQueue gns::RenderSystem::ConsumePendingRenderUploads()
 
 void gns::RenderSystem::HarvestCompletedRenderSubmissions()
 {
+	GNS_PROFILE_FUNCTION();
 	m_renderThread.WaitForIdle();
 	m_renderThread.DrainCompletedSubmissions(
 		[this](RenderSubmission& completedSubmission)
@@ -331,6 +350,7 @@ void gns::RenderSystem::HarvestCompletedRenderSubmissions()
 
 void gns::RenderSystem::RequeuePendingRenderUploads(RenderUploadQueue& uploads)
 {
+	GNS_PROFILE_FUNCTION();
 	m_pendingUploads.meshUploads.insert(
 		m_pendingUploads.meshUploads.end(),
 		std::make_move_iterator(uploads.meshUploads.begin()),
@@ -352,8 +372,10 @@ void gns::RenderSystem::RequeuePendingRenderUploads(RenderUploadQueue& uploads)
 
 void gns::RenderSystem::FlushRenderUploads(RenderUploadQueue& uploads)
 {
+	GNS_PROFILE_FUNCTION();
 	for (const PendingShaderUpload& upload : uploads.shaderUploads)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::FlushShaderUpload");
 		if (!upload.shaderHandle.IsValid() ||
 			upload.shader == nullptr ||
 			m_resourceCache.shaders.contains(upload.shaderHandle))
@@ -371,6 +393,7 @@ void gns::RenderSystem::FlushRenderUploads(RenderUploadQueue& uploads)
 
 	for (const PendingMeshUpload& upload : uploads.meshUploads)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::FlushMeshUpload");
 		if (!upload.meshHandle.IsValid() ||
 			upload.mesh == nullptr ||
 			m_resourceCache.meshes.contains(upload.meshHandle))
@@ -389,6 +412,7 @@ void gns::RenderSystem::FlushRenderUploads(RenderUploadQueue& uploads)
 
 	for (const PendingTextureUpload& upload : uploads.textureUploads)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::FlushTextureUpload");
 		if (!upload.textureHandle.IsValid() ||
 			upload.texture == nullptr ||
 			m_resourceCache.textures.contains(upload.textureHandle))
@@ -408,6 +432,7 @@ void gns::RenderSystem::FlushRenderUploads(RenderUploadQueue& uploads)
 	std::vector<PendingMaterialUpload> remainingMaterialUploads;
 	for (const PendingMaterialUpload& upload : uploads.materialUploads)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::FlushMaterialUpload");
 		if (!upload.materialHandle.IsValid() || upload.material == nullptr)
 		{
 			continue;
@@ -467,12 +492,14 @@ void gns::RenderSystem::FlushRenderUploads(RenderUploadQueue& uploads)
 
 void gns::RenderSystem::ExecuteRenderSubmission(RenderSubmission& submission)
 {
+	GNS_PROFILE_FUNCTION();
 	FlushRenderUploads(submission.uploads);
 	m_renderer.DrawFrame(submission.packet);
 }
 
 gns::Handle gns::RenderSystem::ApplyShader(Shader& shader)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle shaderHandle = shader.GetHandle();
 	if (const auto it = m_resourceCache.shaders.find(shaderHandle); it != m_resourceCache.shaders.end())
 	{
@@ -485,6 +512,7 @@ gns::Handle gns::RenderSystem::ApplyShader(Shader& shader)
 
 gns::Handle gns::RenderSystem::ApplyTexture(Texture& texture)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle textureHandle = texture.GetHandle();
 	if (const auto it = m_resourceCache.textures.find(textureHandle); it != m_resourceCache.textures.end())
 	{
@@ -497,6 +525,7 @@ gns::Handle gns::RenderSystem::ApplyTexture(Texture& texture)
 
 gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle materialHandle = material.GetHandle();
 	QueueMaterialUpload(material);
 
@@ -541,10 +570,12 @@ gns::Handle gns::RenderSystem::ApplyMaterial(
 	rendering::VulkanShader& vulkanShader,
 	RenderUploadQueue* dependencyUploads)
 {
+	GNS_PROFILE_FUNCTION();
 	const Handle materialHandle = material.GetHandle();
 
 	auto ensureTextureApplied = [&](Handle textureHandle) -> bool
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::ApplyMaterial::EnsureTextureApplied");
 		if (!textureHandle.IsValid() || m_resourceCache.textures.contains(textureHandle))
 		{
 			return true;
@@ -574,6 +605,7 @@ gns::Handle gns::RenderSystem::ApplyMaterial(
 	textureBindings.reserve(material.GetTextureSlotCount());
 	for (size_t textureIndex = 0; textureIndex < material.GetTextureSlotCount(); ++textureIndex)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::ApplyMaterial::TextureSlot");
 		const MaterialPropertyInfo* property = material.GetTextureSlotProperty(textureIndex);
 		if (property == nullptr)
 		{
@@ -678,6 +710,7 @@ gns::Handle gns::RenderSystem::ApplyMaterial(
 
 gns::Handle gns::RenderSystem::GetRenderMeshHandle(Handle meshHandle) const
 {
+	GNS_PROFILE_FUNCTION();
 	if (const auto it = m_resourceCache.meshes.find(meshHandle); it != m_resourceCache.meshes.end())
 	{
 		return it->second;
@@ -690,6 +723,7 @@ gns::Handle gns::RenderSystem::GetRenderMeshHandle(Handle meshHandle) const
 
 gns::Handle gns::RenderSystem::GetRenderShaderHandle(Handle shaderHandle) const
 {
+	GNS_PROFILE_FUNCTION();
 	if (const auto it = m_resourceCache.shaders.find(shaderHandle); it != m_resourceCache.shaders.end())
 	{
 		return it->second;
@@ -702,6 +736,7 @@ gns::Handle gns::RenderSystem::GetRenderShaderHandle(Handle shaderHandle) const
 
 gns::Handle gns::RenderSystem::GetRenderMaterialHandle(Handle materialHandle) const
 {
+	GNS_PROFILE_FUNCTION();
 	if (const auto it = m_resourceCache.materials.find(materialHandle); it != m_resourceCache.materials.end())
 	{
 		return it->second;
@@ -714,6 +749,7 @@ gns::Handle gns::RenderSystem::GetRenderMaterialHandle(Handle materialHandle) co
 
 gns::Handle gns::RenderSystem::GetDefaultTextureHandle(DefaultTexture texture) const
 {
+	GNS_PROFILE_FUNCTION();
 	switch (texture)
 	{
 	case DefaultTexture::White:
@@ -734,6 +770,7 @@ gns::Handle gns::RenderSystem::GetDefaultTextureHandle(DefaultTexture texture) c
 
 gns::RenderTextureBinding gns::RenderSystem::GetTextureBinding(Handle textureHandle)
 {
+	GNS_PROFILE_FUNCTION();
 	HarvestCompletedRenderSubmissions();
 
 	if (!textureHandle.IsValid())
@@ -773,23 +810,27 @@ gns::RenderTextureBinding gns::RenderSystem::GetTextureBinding(Handle textureHan
 
 uint64_t gns::RenderSystem::GetTextureDescriptor(Handle textureHandle)
 {
+	GNS_PROFILE_FUNCTION();
 	return GetTextureBinding(textureHandle).descriptor;
 }
 
 uint64_t gns::RenderSystem::GetSceneTextureDescriptor()
 {
+	GNS_PROFILE_FUNCTION();
 	HarvestCompletedRenderSubmissions();
 	return m_renderer.GetSceneTextureDescriptor();
 }
 
 void gns::RenderSystem::SetScreen(const Screen& screen)
 {
+	GNS_PROFILE_FUNCTION();
 	HarvestCompletedRenderSubmissions();
 	m_renderer.SetScreen(screen);
 }
 
 void gns::RenderSystem::CreateDefaultTextureObjects()
 {
+	GNS_PROFILE_FUNCTION();
 	const rendering::VulkanDefaultTextureHandles& vulkanDefaults = m_renderer.GetDefaultTextures();
 
 	m_defaultTextures.white = RegisterDefaultTexture(DefaultResourceNames::WhiteTexture, vulkanDefaults.white);
@@ -803,6 +844,7 @@ void gns::RenderSystem::CreateDefaultTextureObjects()
 
 gns::Handle gns::RenderSystem::RegisterDefaultTexture(const char* name, Handle vulkanTextureHandle)
 {
+	GNS_PROFILE_FUNCTION();
 	if (!vulkanTextureHandle.IsValid())
 	{
 		LOG_ERROR("[RenderSystem]: Cannot register default texture because Vulkan texture handle is invalid.");
@@ -825,6 +867,7 @@ gns::Handle gns::RenderSystem::RegisterDefaultTexture(const char* name, Handle v
 
 bool gns::RenderSystem::EnsureDefaultMeshResources()
 {
+	GNS_PROFILE_FUNCTION();
 	Shader* shader = m_defaultMeshShader.IsValid() ? Object::Get<Shader>(m_defaultMeshShader) : nullptr;
 	if (shader == nullptr)
 	{
@@ -861,16 +904,19 @@ bool gns::RenderSystem::EnsureDefaultMeshResources()
 
 gns::Handle gns::RenderSystem::GetDefaultMeshShaderHandle() const
 {
+	GNS_PROFILE_FUNCTION();
 	return m_defaultMeshShader;
 }
 
 gns::Handle gns::RenderSystem::GetDefaultMeshMaterialHandle() const
 {
+	GNS_PROFILE_FUNCTION();
 	return m_defaultMeshMaterial;
 }
 
 void gns::RenderSystem::BuildDrawData()
 {
+	GNS_PROFILE_FUNCTION();
 	std::vector<DrawData>& drawDataList = m_framePacket.drawData;
 	const size_t previousDrawCount = drawDataList.size();
 	drawDataList.clear();
@@ -894,6 +940,7 @@ void gns::RenderSystem::BuildDrawData()
 		const Transform& transform,
 		const MeshComponent& meshComp)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::BuildDrawData::MeshEntity");
 		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
 			return;
@@ -994,6 +1041,7 @@ void gns::RenderSystem::BuildDrawData()
 
 void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 {
+	GNS_PROFILE_FUNCTION();
 	m_sceneData = SceneData();
 	m_sceneData.view = m_renderer.m_cameraBackend.view;
 	m_sceneData.proj = m_renderer.m_cameraBackend.projection;
@@ -1007,6 +1055,7 @@ void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 		const SceneMemberComponent& sceneMember,
 		const AmbientLightComponent& ambientLight)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::BuildGlobalFrameDataDescriptor::AmbientLight");
 		if (hasAmbientLight || !SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
 			return;
@@ -1022,6 +1071,7 @@ void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 		DirectionalLightComponent& directionalLight, 
 		Transform& transform)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::BuildGlobalFrameDataDescriptor::DirectionalLight");
 		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
 			return;
@@ -1048,6 +1098,7 @@ void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 		const Transform& transform,
 		const PointLightComponent& pointLight)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::BuildGlobalFrameDataDescriptor::PointLight");
 		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
 			return;
@@ -1074,6 +1125,7 @@ void gns::RenderSystem::BuildGlobalFrameDataDescriptor()
 		const Transform& transform,
 		const SpotLightComponent& spotLight)
 	{
+		GNS_PROFILE_SCOPE("RenderSystem::BuildGlobalFrameDataDescriptor::SpotLight");
 		if (!SceneManager::IsSceneLoaded(sceneMember.scene_handle))
 		{
 			return;

@@ -138,6 +138,7 @@ namespace gns::rendering::utils
 	void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
 
 	{
+		GNS_PROFILE_FUNCTION();
 		VkImageMemoryBarrier2 imageBarrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 		imageBarrier.pNext = nullptr;
 
@@ -166,6 +167,7 @@ namespace gns::rendering::utils
 	void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize,
 		VkExtent2D dstSize, VkImageLayout srcLayout /*VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL*/ )
 	{
+		GNS_PROFILE_FUNCTION();
 		VkImageBlit2 blitRegion{ .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr };
 
 		blitRegion.srcOffsets[1].x = srcSize.width;
@@ -460,6 +462,7 @@ namespace gns::rendering::utils
 
 	bool LoadShaderModule(const std::string& filePath, VkDevice device, VkShaderModule* outShaderModule)
 	{
+		GNS_PROFILE_FUNCTION();
 		std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 		if (!file.is_open()) {
 			LOG_ERROR("Failed To open Shader file: " + static_cast<std::string>(filePath));

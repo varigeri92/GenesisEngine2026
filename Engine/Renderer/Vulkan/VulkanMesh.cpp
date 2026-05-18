@@ -7,6 +7,7 @@
 VulkanMesh& VulkanMesh::UploadMesh(gns::rendering::Device& device, VmaAllocator allocator, std::span<uint32_t> indices,
                                    std::span<Vertex> vertices)
 {
+    GNS_PROFILE_FUNCTION();
     const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
 
@@ -60,6 +61,7 @@ VulkanMesh& VulkanMesh::UploadMesh(gns::rendering::Device& device, VmaAllocator 
 
 void VulkanMesh::Destroy()
 {
+    GNS_PROFILE_FUNCTION();
     if (m_device != nullptr)
     {
         m_device->DestroyMesh(*this);

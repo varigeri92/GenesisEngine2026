@@ -5,6 +5,7 @@
 
 void VulkanBuffer::CreateBuffer(size_t allocSize, VkBufferUsageFlags bufferUsageFlags, VmaMemoryUsage memoryUsage)
 {
+    GNS_PROFILE_FUNCTION();
     size = allocSize;
     usage = bufferUsageFlags;
     this->memoryUsage = memoryUsage;

@@ -14,6 +14,7 @@ namespace gns::rendering
 			const char* stageName,
 			VkShaderModule& shaderModule)
 		{
+			GNS_PROFILE_SCOPE("PipelineBuilder::LoadShaderStageModule");
 			std::string resolvedShaderPath = shaderPath;
 			if (!gns::path::HasExtension(resolvedShaderPath, "spv"))
 			{
@@ -57,6 +58,7 @@ namespace gns::rendering
 
 	VkPipeline PipelineBuilder::BuildPipeline(VkDevice device)
 	{
+	    GNS_PROFILE_FUNCTION();
 	    VkPipelineViewportStateCreateInfo viewportState = {};
 	    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	    viewportState.pNext = nullptr;
@@ -108,6 +110,7 @@ namespace gns::rendering
 
 	void PipelineBuilder::SetShaders(Shader& shader)
 	{
+		GNS_PROFILE_FUNCTION();
 		LoadShaderStageModule(*m_device, shader.GetFragmentShaderPath(), "fragment", fragmentModule);
 		LoadShaderStageModule(*m_device, shader.GetVertexShaderPath(), "vertex", vertexModule);
 		SetShaders(vertexModule, fragmentModule);

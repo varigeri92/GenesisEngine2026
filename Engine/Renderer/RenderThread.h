@@ -8,6 +8,7 @@
 #include <thread>
 #include <utility>
 
+#include "../Profiling/Profiler.h"
 #include "Vulkan/DrawData.h"
 
 namespace gns::rendering
@@ -44,6 +45,7 @@ namespace gns
 		template<typename ExecuteSubmission>
 		void Start(rendering::Renderer& renderer, ExecuteSubmission&& executeSubmission)
 		{
+			GNS_PROFILE_FUNCTION();
 			m_renderer = &renderer;
 			m_executeSubmission = std::forward<ExecuteSubmission>(executeSubmission);
 			m_running.store(true, std::memory_order_release);
@@ -55,6 +57,7 @@ namespace gns
 
 		void Stop()
 		{
+			GNS_PROFILE_FUNCTION();
 			m_running.store(false, std::memory_order_release);
 			if (m_worker.joinable())
 			{
@@ -72,6 +75,7 @@ namespace gns
 
 		void Submit(RenderSubmission&& submission)
 		{
+			GNS_PROFILE_SCOPE("RenderThread::Submit");
 			RenderSubmissionSlot& slot = AcquireEmptySlot();
 			slot.submission = std::move(submission);
 			slot.state.store(RenderSubmissionSlotState::Ready, std::memory_order_release);
@@ -79,6 +83,7 @@ namespace gns
 
 		void WaitForIdle()
 		{
+			GNS_PROFILE_SCOPE("RenderThread::WaitForIdle");
 			while (HasBusySubmissions())
 			{
 				SpinPause();
@@ -88,6 +93,7 @@ namespace gns
 		template<typename CompleteSubmission>
 		void DrainCompletedSubmissions(CompleteSubmission&& completeSubmission)
 		{
+			GNS_PROFILE_SCOPE("RenderThread::DrainCompletedSubmissions");
 			for (RenderSubmissionSlot& slot : m_slots)
 			{
 				RenderSubmissionSlotState expected = RenderSubmissionSlotState::Completed;
@@ -116,6 +122,7 @@ namespace gns
 
 		RenderSubmissionSlot& AcquireEmptySlot()
 		{
+			GNS_PROFILE_SCOPE("RenderThread::AcquireEmptySlot");
 			size_t slotIndex = m_nextWriteSlot;
 			while (true)
 			{
@@ -167,6 +174,8 @@ namespace gns
 
 		void ThreadMain()
 		{
+			GNS_PROFILE_THREAD("Genesis Render Thread");
+			GNS_PROFILE_SCOPE("RenderThread::ThreadMain");
 			while (m_running.load(std::memory_order_acquire) || HasReadySubmissions())
 			{
 				bool didWork = false;
@@ -184,6 +193,7 @@ namespace gns
 
 					if (m_executeSubmission)
 					{
+						GNS_PROFILE_SCOPE("RenderThread::ExecuteSubmissionCallback");
 						m_executeSubmission(slot.submission);
 					}
 

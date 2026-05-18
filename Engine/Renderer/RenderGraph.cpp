@@ -16,6 +16,7 @@ gns::rendering::RenderStep::RenderStep(
 
 void gns::rendering::RenderStep::ExecuteRenderPass(VkCommandBuffer cmd, FrameData& frameData)
 {
+    GNS_PROFILE_SCOPE(m_name.c_str());
     if (!m_renderPassFunction(cmd, data, frameData))
     {
         LOG_ERROR("Error While Executing RenderPass - '" + m_name + "'");
@@ -26,6 +27,7 @@ gns::rendering::RenderStep& gns::rendering::RenderGraph::AddPass(
     std::string name,
     RenderStepFunction renderPassFunction)
 {
+    GNS_PROFILE_FUNCTION();
     m_renderSteps.emplace_back(std::move(name), std::move(renderPassFunction));
     return m_renderSteps[m_renderSteps.size() - 1];
 }
@@ -36,6 +38,7 @@ gns::rendering::RenderStep& gns::rendering::RenderGraph::AddImageTransitionPass(
     VkImageLayout srcLayout,
     VkImageLayout dstLayout)
 {
+    GNS_PROFILE_FUNCTION();
     RenderStep& step = AddPass(std::move(name),
         [](VkCommandBuffer cmd, RenderStepData& rp_data, FrameData& frameData)
     {
@@ -54,6 +57,7 @@ gns::rendering::RenderStep& gns::rendering::RenderGraph::AddImageTransitionPass(
 
 void gns::rendering::RenderGraph::Execute(VkCommandBuffer cmd, FrameData& frameData)
 {
+    GNS_PROFILE_FUNCTION();
     for (RenderStep& renderStep : m_renderSteps)
     {
         renderStep.ExecuteRenderPass(cmd, frameData);
@@ -62,5 +66,6 @@ void gns::rendering::RenderGraph::Execute(VkCommandBuffer cmd, FrameData& frameD
 
 void gns::rendering::RenderGraph::Clear()
 {
+    GNS_PROFILE_FUNCTION();
     m_renderSteps.clear();
 }
