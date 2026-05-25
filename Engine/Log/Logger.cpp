@@ -2,6 +2,7 @@
 #include "Logger.h"
 
 Logger::LogLevel Logger::s_ApplicationLogLevel = Logger::LogLevel::Trace;
+std::atomic_flag Logger::s_logLock = ATOMIC_FLAG_INIT;
 
 #ifdef ENABLE_PROFILER
 namespace
@@ -32,6 +33,7 @@ void Logger::LogMessage(std::string project, LogLevel level, std::string file, u
 	if (level < s_ApplicationLogLevel)
 		return;
 
+	Lock();
 #ifdef ENABLE_PROFILER
 	GNS_PROFILE_LOG(ToProfilerLogLevel(level), file.c_str(), line, message);
 #endif
@@ -55,4 +57,5 @@ void Logger::LogMessage(std::string project, LogLevel level, std::string file, u
 		break;
 	default:;
 	}
+	Unlock();
 }

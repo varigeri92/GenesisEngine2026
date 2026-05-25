@@ -59,6 +59,7 @@ namespace gns
 		{
 			GNS_PROFILE_FUNCTION();
 			m_running.store(false, std::memory_order_release);
+			//m_worker.detach();
 			if (m_worker.joinable())
 			{
 				m_worker.join();

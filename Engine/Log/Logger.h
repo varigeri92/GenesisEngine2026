@@ -33,10 +33,25 @@ public:
 		Fatal   = 4
 	};
 	static LogLevel s_ApplicationLogLevel;
-
 	
 	GNS_API static void LogMessage(
 		std::string project, LogLevel level, std::string file, uint32_t line, const std::string message);
+	
+private:
+	static std::atomic_flag s_logLock;
+
+	static void Lock()
+	{
+		while (s_logLock.test_and_set(std::memory_order_acquire))
+		{
+			_YIELD_PROCESSOR();
+		}
+	}
+
+	static void Unlock()
+	{
+		s_logLock.clear(std::memory_order_release);
+	}
 };
 #ifdef _DEBUG
 #define LOG_TRACE(message) \

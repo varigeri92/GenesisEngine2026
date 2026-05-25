@@ -17,13 +17,16 @@
 
 #include <utility>
 
+#include "JobSystem/JobSystem.h"
+#include "JobSystem/TestJob.h"
+
 gns::core::Engine::Engine(EngineConfig cfg) : close(false), m_engineConfig{std::move(cfg)} {}
 
 
 void gns::core::Engine::Initialize(std::function<void()> callback)
 {
 	GNS_PROFILE_FUNCTION();
-
+	gns::jobs::JobSystem::Initialize();
 	gns::path::Configure(m_engineConfig.projectRoot, m_engineConfig.editorResourcesRoot);
 	gns::RegisterCoreComponentReflection();
 	SystemsManager::RegisterSystem<gns::SceneSystem>();
@@ -54,13 +57,15 @@ void gns::core::Engine::Initialize(std::function<void()> callback)
 void gns::core::Engine::Run()
 {
 	GNS_PROFILE_FUNCTION();
-
+	
 	while (!close)
 	{
 		GNS_PROFILE_SCOPE("Frame");
 		gns::Time::StartFrameTime();
 		float deltaTime = gns::Time::DeltaTime();
 		SystemsManager::Run(deltaTime);
+		jobs::JobSystem::FlushJobs();
+		
 		gns::Time::EndFrameTime();
 	}
 }
