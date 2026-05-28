@@ -155,6 +155,7 @@ namespace
     std::optional<gns::assets::TextureAssetData> DecodeTextureFile(
         const std::filesystem::path& texturePath)
     {
+        GNS_PROFILE_FUNCTION();
         const std::string textureAssetPath = ToProjectRelativeAssetString(texturePath);
         const std::string normalizedPath = gns::path::Normalize(texturePath).string();
         if (!gns::path::Exists(texturePath))
@@ -167,7 +168,11 @@ namespace
         int width = 0;
         int height = 0;
         int sourceChannels = 0;
-        stbi_uc* loadedPixels = stbi_load(normalizedPath.c_str(), &width, &height, &sourceChannels, 4);
+        stbi_uc* loadedPixels = nullptr;
+        {
+            GNS_PROFILE_SCOPE("AssetLoader::DecodeTextureFile::stbi_load");
+            loadedPixels = stbi_load(normalizedPath.c_str(), &width, &height, &sourceChannels, 4);
+        }
         if (loadedPixels == nullptr)
         {
             LOG_ERROR("[AssetLoader]: Failed to load texture file.");
@@ -177,7 +182,11 @@ namespace
         }
 
         const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
-        std::vector<uint8_t> pixels(loadedPixels, loadedPixels + pixelCount);
+        std::vector<uint8_t> pixels;
+        {
+            GNS_PROFILE_SCOPE("AssetLoader::DecodeTextureFile::CopyPixels");
+            pixels.assign(loadedPixels, loadedPixels + pixelCount);
+        }
         stbi_image_free(loadedPixels);
 
         gns::assets::TextureAssetData texture;
@@ -197,6 +206,7 @@ namespace
         const aiString& texturePath,
         const std::string& assetPath)
     {
+        GNS_PROFILE_FUNCTION();
         const char* textureName = texturePath.C_Str();
         if (scene == nullptr || textureName == nullptr || textureName[0] != '*')
         {
@@ -229,13 +239,17 @@ namespace
             int decodedWidth = 0;
             int decodedHeight = 0;
             int sourceChannels = 0;
-            stbi_uc* loadedPixels = stbi_load_from_memory(
-                reinterpret_cast<const stbi_uc*>(embeddedTexture->pcData),
-                static_cast<int>(embeddedTexture->mWidth),
-                &decodedWidth,
-                &decodedHeight,
-                &sourceChannels,
-                4);
+            stbi_uc* loadedPixels = nullptr;
+            {
+                GNS_PROFILE_SCOPE("AssetLoader::DecodeEmbeddedTexture::stbi_load_from_memory");
+                loadedPixels = stbi_load_from_memory(
+                    reinterpret_cast<const stbi_uc*>(embeddedTexture->pcData),
+                    static_cast<int>(embeddedTexture->mWidth),
+                    &decodedWidth,
+                    &decodedHeight,
+                    &sourceChannels,
+                    4);
+            }
 
             if (loadedPixels == nullptr)
             {
@@ -246,7 +260,10 @@ namespace
             }
 
             const size_t pixelCount = static_cast<size_t>(decodedWidth) * static_cast<size_t>(decodedHeight) * 4;
-            pixels.assign(loadedPixels, loadedPixels + pixelCount);
+            {
+                GNS_PROFILE_SCOPE("AssetLoader::DecodeEmbeddedTexture::CopyCompressedPixels");
+                pixels.assign(loadedPixels, loadedPixels + pixelCount);
+            }
             stbi_image_free(loadedPixels);
             width = static_cast<uint32_t>(decodedWidth);
             height = static_cast<uint32_t>(decodedHeight);
@@ -257,6 +274,7 @@ namespace
             height = embeddedTexture->mHeight;
             const size_t texelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
             pixels.resize(texelCount * 4);
+            GNS_PROFILE_SCOPE("AssetLoader::DecodeEmbeddedTexture::CopyRawTexels");
             for (size_t i = 0; i < texelCount; ++i)
             {
                 const aiTexel& texel = embeddedTexture->pcData[i];
@@ -284,6 +302,7 @@ namespace
         gns::assets::TextureAssetData textureData,
         std::unordered_set<gns::Handle>& loadedTextures)
     {
+        GNS_PROFILE_FUNCTION();
         if (!textureData.handle.IsValid() || loadedTextures.contains(textureData.handle))
         {
             return;
@@ -306,6 +325,7 @@ namespace
         const std::filesystem::path& assetDirectory,
         const std::string& assetPath)
     {
+        GNS_PROFILE_FUNCTION();
         aiString texturePath;
         if (material == nullptr ||
             material->GetTexture(textureSlot.type, textureSlot.index, &texturePath) != AI_SUCCESS ||
@@ -328,6 +348,7 @@ namespace
         const std::filesystem::path& assetDirectory,
         const std::string& assetPath)
     {
+        GNS_PROFILE_FUNCTION();
         aiString texturePath;
         if (material == nullptr ||
             material->GetTexture(textureSlot.type, textureSlot.index, &texturePath) != AI_SUCCESS ||
@@ -370,6 +391,7 @@ namespace
         const std::string& sourcePath,
         bool importTextures)
     {
+        GNS_PROFILE_FUNCTION();
         gns::assets::MaterialAssetData materialData;
         materialData.handle = GetMaterialArtifactHandle(sourcePath, materialIndex);
         materialData.name =
@@ -400,6 +422,7 @@ namespace
         gns::assets::AssetLoadResult& result,
         gns::assets::MaterialAssetData materialData)
     {
+        GNS_PROFILE_FUNCTION();
         if (!materialData.handle.IsValid())
         {
             return;
@@ -422,6 +445,7 @@ namespace
         gns::assets::AssetLoadResult& result,
         std::vector<gns::Handle>& materialHandles)
     {
+        GNS_PROFILE_FUNCTION();
         if (scene == nullptr || !scene->HasMaterials())
         {
             return;
@@ -430,6 +454,7 @@ namespace
         materialHandles.reserve(scene->mNumMaterials);
         for (uint32_t materialIndex = 0; materialIndex < scene->mNumMaterials; ++materialIndex)
         {
+            GNS_PROFILE_SCOPE("AssetLoader::LoadMaterials::Material");
             gns::assets::MaterialAssetData materialData =
                 LoadMaterialData(scene->mMaterials[materialIndex], materialIndex, assetDirectory, sourcePath, importTextures);
             materialHandles.push_back(materialData.handle);
@@ -444,6 +469,7 @@ namespace
         gns::assets::AssetLoadResult& result,
         std::unordered_set<gns::Handle>& loadedTextures)
     {
+        GNS_PROFILE_FUNCTION();
         if (scene == nullptr || !scene->HasMaterials())
         {
             return;
@@ -451,6 +477,7 @@ namespace
 
         for (uint32_t materialIndex = 0; materialIndex < scene->mNumMaterials; ++materialIndex)
         {
+            GNS_PROFILE_SCOPE("AssetLoader::LoadMaterialTextures::Material");
             const aiMaterial* material = scene->mMaterials[materialIndex];
             const std::optional<MaterialTextureSlot> textureSlot = FindFirstMaterialTextureSlot(material);
             if (!textureSlot)
@@ -477,6 +504,7 @@ namespace
         const std::vector<gns::Handle>& materialHandles,
         const NodeTransform& transform)
     {
+        GNS_PROFILE_FUNCTION();
         gns::assets::MeshAssetData meshData;
         if (mesh == nullptr)
         {
@@ -503,40 +531,43 @@ namespace
         meshData.normals.reserve(mesh->mNumVertices);
         meshData.colors.reserve(mesh->mNumVertices);
         meshData.uvs.reserve(mesh->mNumVertices);
-        for (size_t vertexIndex = 0; vertexIndex < mesh->mNumVertices; ++vertexIndex)
         {
-            meshData.positions.emplace_back(
-                mesh->mVertices[vertexIndex].x,
-                mesh->mVertices[vertexIndex].y,
-                mesh->mVertices[vertexIndex].z);
+            GNS_PROFILE_SCOPE("AssetLoader::LoadMeshData::Vertices");
+            for (size_t vertexIndex = 0; vertexIndex < mesh->mNumVertices; ++vertexIndex)
+            {
+                meshData.positions.emplace_back(
+                    mesh->mVertices[vertexIndex].x,
+                    mesh->mVertices[vertexIndex].y,
+                    mesh->mVertices[vertexIndex].z);
 
-            if (mesh->HasNormals())
-            {
-                meshData.normals.emplace_back(
-                    mesh->mNormals[vertexIndex].x,
-                    mesh->mNormals[vertexIndex].y,
-                    mesh->mNormals[vertexIndex].z);
-                meshData.colors.emplace_back(
-                    mesh->mNormals[vertexIndex].x,
-                    mesh->mNormals[vertexIndex].y,
-                    mesh->mNormals[vertexIndex].z,
-                    1.0f);
-            }
-            else
-            {
-                meshData.normals.emplace_back(0.0f, 1.0f, 0.0f);
-                meshData.colors.emplace_back(1.0f);
-            }
+                if (mesh->HasNormals())
+                {
+                    meshData.normals.emplace_back(
+                        mesh->mNormals[vertexIndex].x,
+                        mesh->mNormals[vertexIndex].y,
+                        mesh->mNormals[vertexIndex].z);
+                    meshData.colors.emplace_back(
+                        mesh->mNormals[vertexIndex].x,
+                        mesh->mNormals[vertexIndex].y,
+                        mesh->mNormals[vertexIndex].z,
+                        1.0f);
+                }
+                else
+                {
+                    meshData.normals.emplace_back(0.0f, 1.0f, 0.0f);
+                    meshData.colors.emplace_back(1.0f);
+                }
 
-            if (mesh->HasTextureCoords(0))
-            {
-                meshData.uvs.emplace_back(
-                    mesh->mTextureCoords[0][vertexIndex].x,
-                    mesh->mTextureCoords[0][vertexIndex].y * -1.0f);
-            }
-            else
-            {
-                meshData.uvs.emplace_back(0.0f);
+                if (mesh->HasTextureCoords(0))
+                {
+                    meshData.uvs.emplace_back(
+                        mesh->mTextureCoords[0][vertexIndex].x,
+                        mesh->mTextureCoords[0][vertexIndex].y * -1.0f);
+                }
+                else
+                {
+                    meshData.uvs.emplace_back(0.0f);
+                }
             }
         }
 
@@ -544,6 +575,7 @@ namespace
         {
             meshData.tangents.reserve(mesh->mNumVertices);
             meshData.bitangents.reserve(mesh->mNumVertices);
+            GNS_PROFILE_SCOPE("AssetLoader::LoadMeshData::Tangents");
             for (size_t vertexIndex = 0; vertexIndex < mesh->mNumVertices; ++vertexIndex)
             {
                 meshData.tangents.emplace_back(
@@ -558,17 +590,23 @@ namespace
         }
 
         size_t indexCount = 0;
-        for (uint32_t faceIndex = 0; faceIndex < mesh->mNumFaces; ++faceIndex)
         {
-            indexCount += mesh->mFaces[faceIndex].mNumIndices;
+            GNS_PROFILE_SCOPE("AssetLoader::LoadMeshData::CountIndices");
+            for (uint32_t faceIndex = 0; faceIndex < mesh->mNumFaces; ++faceIndex)
+            {
+                indexCount += mesh->mFaces[faceIndex].mNumIndices;
+            }
         }
         meshData.indices.reserve(indexCount);
-        for (uint32_t faceIndex = 0; faceIndex < mesh->mNumFaces; ++faceIndex)
         {
-            const aiFace& face = mesh->mFaces[faceIndex];
-            for (uint32_t index = 0; index < face.mNumIndices; ++index)
+            GNS_PROFILE_SCOPE("AssetLoader::LoadMeshData::Indices");
+            for (uint32_t faceIndex = 0; faceIndex < mesh->mNumFaces; ++faceIndex)
             {
-                meshData.indices.push_back(face.mIndices[index]);
+                const aiFace& face = mesh->mFaces[faceIndex];
+                for (uint32_t index = 0; index < face.mNumIndices; ++index)
+                {
+                    meshData.indices.push_back(face.mIndices[index]);
+                }
             }
         }
 
@@ -579,6 +617,7 @@ namespace
         gns::assets::AssetLoadResult& result,
         gns::assets::MeshAssetData meshData)
     {
+        GNS_PROFILE_FUNCTION();
         if (!meshData.handle.IsValid())
         {
             return;
@@ -602,11 +641,13 @@ namespace
         bool flattenHierarchy,
         gns::assets::AssetLoadResult& result)
     {
+        GNS_PROFILE_FUNCTION();
         const aiMatrix4x4 nodeTransform = parentTransform * node->mTransformation;
         const NodeTransform transform = flattenHierarchy ? NodeTransform{} : ToNodeTransform(nodeTransform);
 
         for (uint32_t meshSlot = 0; meshSlot < node->mNumMeshes; ++meshSlot)
         {
+            GNS_PROFILE_SCOPE("AssetLoader::LoadMeshesFromNode::MeshSlot");
             const uint32_t meshIndex = node->mMeshes[meshSlot];
             if (meshIndex >= scene->mNumMeshes || scene->mMeshes[meshIndex] == nullptr)
             {
@@ -638,6 +679,7 @@ namespace
 gns::assets::AssetLoadResult gns::assets::AssetLoader::LoadSourceAsset(
     const std::filesystem::path& path)
 {
+    GNS_PROFILE_FUNCTION();
     return LoadSourceAsset(path, AssetLoadOptions{});
 }
 
@@ -645,12 +687,14 @@ gns::assets::AssetLoadResult gns::assets::AssetLoader::LoadSourceAsset(
     const std::filesystem::path& path,
     const AssetLoadOptions& loadOptions)
 {
+    GNS_PROFILE_FUNCTION();
     AssetLoadResult result;
     result.sourcePath = path;
     result.loadOptions = loadOptions;
 
     if (IsTextureSourcePath(path))
     {
+        GNS_PROFILE_SCOPE("AssetLoader::LoadSourceAsset::TextureSource");
         std::unordered_set<gns::Handle> loadedTextures;
         std::optional<TextureAssetData> texture = DecodeTextureFile(path);
         if (!texture)
@@ -670,11 +714,15 @@ gns::assets::AssetLoadResult gns::assets::AssetLoader::LoadSourceAsset(
     }
 
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(path.string(),
-        aiProcess_CalcTangentSpace |
-        aiProcess_Triangulate |
-        aiProcess_JoinIdenticalVertices |
-        aiProcess_SortByPType);
+    const aiScene* scene = nullptr;
+    {
+        GNS_PROFILE_SCOPE("AssetLoader::LoadSourceAsset::AssimpReadFile");
+        scene = importer.ReadFile(path.string(),
+            aiProcess_CalcTangentSpace |
+            aiProcess_Triangulate |
+            aiProcess_JoinIdenticalVertices |
+            aiProcess_SortByPType);
+    }
     if (scene == nullptr)
     {
         result.success = false;
@@ -697,6 +745,7 @@ gns::assets::AssetLoadResult gns::assets::AssetLoader::LoadSourceAsset(
     std::vector<gns::Handle> materialHandles;
     if (loadOptions.importMaterials && scene->HasMaterials())
     {
+        GNS_PROFILE_SCOPE("AssetLoader::LoadSourceAsset::LoadMaterials");
         LoadMaterials(
             scene,
             assetDirectory,
@@ -709,11 +758,13 @@ gns::assets::AssetLoadResult gns::assets::AssetLoader::LoadSourceAsset(
     std::unordered_set<gns::Handle> loadedTextures;
     if (loadOptions.importMaterials && loadOptions.importTextures)
     {
+        GNS_PROFILE_SCOPE("AssetLoader::LoadSourceAsset::LoadMaterialTextures");
         LoadMaterialTextures(scene, assetDirectory, sourcePath, result, loadedTextures);
     }
 
     if (scene->mRootNode != nullptr)
     {
+        GNS_PROFILE_SCOPE("AssetLoader::LoadSourceAsset::LoadRootNodeMeshes");
         LoadMeshesFromNode(
             scene,
             scene->mRootNode,
@@ -725,6 +776,7 @@ gns::assets::AssetLoadResult gns::assets::AssetLoader::LoadSourceAsset(
     }
     else
     {
+        GNS_PROFILE_SCOPE("AssetLoader::LoadSourceAsset::LoadFlatMeshes");
         const NodeTransform identityTransform = {};
         for (uint32_t meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
         {

@@ -196,6 +196,7 @@ namespace
 
     bool LoadModelMetaFile(const std::filesystem::path& metaPath)
     {
+        GNS_PROFILE_FUNCTION();
         try
         {
             const YAML::Node root = YAML::LoadFile(metaPath.string());
@@ -228,6 +229,7 @@ namespace
 
     bool LoadArtifactLink(gns::Handle handle)
     {
+        GNS_PROFILE_FUNCTION();
         const std::filesystem::path linkPath = ArtifactLinkPath(handle);
         if (!gns::path::IsRegularFile(linkPath))
         {
@@ -276,6 +278,7 @@ namespace
 
     void LoadAssetRegistry()
     {
+        GNS_PROFILE_FUNCTION();
         ArtifactRegistry().clear();
 
         const std::filesystem::path assetsRoot = gns::path::AssetsDirectory();
@@ -285,6 +288,7 @@ namespace
         }
 
         std::error_code error;
+        GNS_PROFILE_SCOPE("AssetManager::LoadAssetRegistry::WalkAssets");
         for (const std::filesystem::directory_entry& entry :
             std::filesystem::recursive_directory_iterator(assetsRoot, error))
         {
@@ -307,6 +311,7 @@ namespace
 
     std::optional<AssetArtifactRecord> FindArtifact(gns::Handle handle)
     {
+        GNS_PROFILE_FUNCTION();
         auto& artifacts = ArtifactRegistry();
         if (const auto found = artifacts.find(handle); found != artifacts.end())
         {
@@ -332,6 +337,7 @@ namespace
 
     void EnsureSourceAssetLoaded(const AssetArtifactRecord& artifact)
     {
+        GNS_PROFILE_FUNCTION();
         if (!artifact.sourcePath.empty())
         {
             gns::assets::AssetManager::LoadAsset(ResolveProjectPath(artifact.sourcePath).string(), artifact.loadOptions);
@@ -340,6 +346,7 @@ namespace
 
     gns::Material* LoadMaterialAssetFile(const AssetArtifactRecord& artifact)
     {
+        GNS_PROFILE_FUNCTION();
         if (artifact.artifactPath.empty())
         {
             return nullptr;
@@ -355,6 +362,7 @@ namespace
 
         try
         {
+            GNS_PROFILE_SCOPE("AssetManager::LoadMaterialAssetFile::ReadYaml");
             const YAML::Node root = YAML::LoadFile(materialPath.string());
             const std::string materialName = root["name"]
                 ? root["name"].as<std::string>()
@@ -673,6 +681,7 @@ namespace
         const std::filesystem::path& texturePath,
         std::unordered_map<std::string, gns::Texture*>& textureCache)
     {
+        GNS_PROFILE_FUNCTION();
         const std::string textureAssetPath = ToProjectRelativeAssetString(texturePath);
         if (const auto cachedTexture = textureCache.find(textureAssetPath); cachedTexture != textureCache.end())
         {
@@ -690,7 +699,11 @@ namespace
         int width = 0;
         int height = 0;
         int sourceChannels = 0;
-        stbi_uc* loadedPixels = stbi_load(normalizedPath.c_str(), &width, &height, &sourceChannels, 4);
+        stbi_uc* loadedPixels = nullptr;
+        {
+            GNS_PROFILE_SCOPE("AssetManager::LoadTextureFromFile::stbi_load");
+            loadedPixels = stbi_load(normalizedPath.c_str(), &width, &height, &sourceChannels, 4);
+        }
         if (loadedPixels == nullptr)
         {
             LOG_ERROR("[AssetManager]: Failed to load texture file.");
@@ -700,7 +713,11 @@ namespace
         }
 
         const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
-        std::vector<uint8_t> pixels(loadedPixels, loadedPixels + pixelCount);
+        std::vector<uint8_t> pixels;
+        {
+            GNS_PROFILE_SCOPE("AssetManager::LoadTextureFromFile::CopyPixels");
+            pixels.assign(loadedPixels, loadedPixels + pixelCount);
+        }
         stbi_image_free(loadedPixels);
 
         return CreateTextureFromPixels(
@@ -1064,6 +1081,7 @@ namespace
 
 std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(const std::string& path)
 {
+    GNS_PROFILE_FUNCTION();
     return LoadAsset(path, AssetLoadOptions{});
 }
 
@@ -1071,7 +1089,12 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
     const std::string& path,
     const AssetLoadOptions& loadOptions)
 {
-    const AssetLoadResult result = AssetLoader::LoadSourceAsset(path, loadOptions);
+    GNS_PROFILE_FUNCTION();
+    AssetLoadResult result;
+    {
+        GNS_PROFILE_SCOPE("AssetManager::LoadAsset::LoadSourceAsset");
+        result = AssetLoader::LoadSourceAsset(path, loadOptions);
+    }
     if (!result.success)
     {
         LOG_WARNING("[AssetManager]: Asset load failed.");
@@ -1080,21 +1103,25 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
         return {};
     }
 
+    GNS_PROFILE_SCOPE("AssetManager::LoadAsset::CommitLoadedAsset");
     return CommitLoadedAsset(result);
 }
 
 std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::CommitLoadedAsset(
     const AssetLoadResult& result)
 {
+    GNS_PROFILE_FUNCTION();
     std::vector<LoadedObject> loadedObjects;
     loadedObjects.reserve(result.assets.size());
 
     for (const AssetDescription& asset : result.assets)
     {
+        GNS_PROFILE_SCOPE("AssetManager::CommitLoadedAsset::Asset");
         switch (asset.type)
         {
         case Mesh:
         {
+            GNS_PROFILE_SCOPE("AssetManager::CommitLoadedAsset::Mesh");
             const MeshAssetData* meshData = std::get_if<MeshAssetData>(&asset.payload);
             if (meshData == nullptr)
             {
@@ -1110,13 +1137,16 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::CommitLoadedAs
                 continue;
             }
 
-            mesh->indices = meshData->indices;
-            mesh->positions = meshData->positions;
-            mesh->colors = meshData->colors;
-            mesh->normals = meshData->normals;
-            mesh->tangents = meshData->tangents;
-            mesh->bitangents = meshData->bitangents;
-            mesh->uvs = meshData->uvs;
+            {
+                GNS_PROFILE_SCOPE("AssetManager::CommitLoadedAsset::CopyMeshData");
+                mesh->indices = meshData->indices;
+                mesh->positions = meshData->positions;
+                mesh->colors = meshData->colors;
+                mesh->normals = meshData->normals;
+                mesh->tangents = meshData->tangents;
+                mesh->bitangents = meshData->bitangents;
+                mesh->uvs = meshData->uvs;
+            }
             mesh->bufferRange = {
                 .startIndex = 0,
                 .count = static_cast<uint32_t>(mesh->indices.size())
@@ -1135,6 +1165,7 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::CommitLoadedAs
         }
         case Texture:
         {
+            GNS_PROFILE_SCOPE("AssetManager::CommitLoadedAsset::Texture");
             const TextureAssetData* textureData = std::get_if<TextureAssetData>(&asset.payload);
             if (textureData == nullptr)
             {
@@ -1166,12 +1197,15 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::CommitLoadedAs
                 break;
             }
 
-            texture->SetPixels(
-                textureData->pixels,
-                textureData->width,
-                textureData->height,
-                textureData->channels,
-                textureFormat);
+            {
+                GNS_PROFILE_SCOPE("AssetManager::CommitLoadedAsset::SetTexturePixels");
+                texture->SetPixels(
+                    textureData->pixels,
+                    textureData->width,
+                    textureData->height,
+                    textureData->channels,
+                    textureFormat);
+            }
 
             loadedObjects.emplace_back(LoadedObject
             {
@@ -1182,6 +1216,7 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::CommitLoadedAs
         }
         case Material:
         {
+            GNS_PROFILE_SCOPE("AssetManager::CommitLoadedAsset::Material");
             const MaterialAssetData* materialData = std::get_if<MaterialAssetData>(&asset.payload);
             if (materialData == nullptr)
             {
@@ -1216,6 +1251,7 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::CommitLoadedAs
 
 gns::Mesh* gns::assets::AssetManager::EnsureMeshLoaded(Handle meshHandle)
 {
+    GNS_PROFILE_FUNCTION();
     if (gns::Mesh* mesh = Object::Get<gns::Mesh>(meshHandle))
     {
         return mesh;
@@ -1229,12 +1265,16 @@ gns::Mesh* gns::assets::AssetManager::EnsureMeshLoaded(Handle meshHandle)
         return nullptr;
     }
 
-    EnsureSourceAssetLoaded(*artifact);
+    {
+        GNS_PROFILE_SCOPE("AssetManager::EnsureMeshLoaded::EnsureSourceAssetLoaded");
+        EnsureSourceAssetLoaded(*artifact);
+    }
     return Object::Get<gns::Mesh>(meshHandle);
 }
 
 gns::Material* gns::assets::AssetManager::EnsureMaterialLoaded(Handle materialHandle)
 {
+    GNS_PROFILE_FUNCTION();
     if (gns::Material* material = Object::Get<gns::Material>(materialHandle))
     {
         return material;
@@ -1250,15 +1290,20 @@ gns::Material* gns::assets::AssetManager::EnsureMaterialLoaded(Handle materialHa
 
     if (!artifact->artifactPath.empty() && IsMaterialAssetPath(artifact->artifactPath))
     {
+        GNS_PROFILE_SCOPE("AssetManager::EnsureMaterialLoaded::LoadMaterialAssetFile");
         return LoadMaterialAssetFile(*artifact);
     }
 
-    EnsureSourceAssetLoaded(*artifact);
+    {
+        GNS_PROFILE_SCOPE("AssetManager::EnsureMaterialLoaded::EnsureSourceAssetLoaded");
+        EnsureSourceAssetLoaded(*artifact);
+    }
     return Object::Get<gns::Material>(materialHandle);
 }
 
 gns::Texture* gns::assets::AssetManager::EnsureTextureLoaded(Handle textureHandle)
 {
+    GNS_PROFILE_FUNCTION();
     if (gns::Texture* texture = Object::Get<gns::Texture>(textureHandle))
     {
         return texture;
@@ -1271,6 +1316,7 @@ gns::Texture* gns::assets::AssetManager::EnsureTextureLoaded(Handle textureHandl
         const bool isEmbeddedTexture = IsEmbeddedTextureArtifactPath(artifact->artifactPath);
         if (artifact->type == AssetArtifactType::Texture && !artifact->artifactPath.empty() && !isEmbeddedTexture)
         {
+            GNS_PROFILE_SCOPE("AssetManager::EnsureTextureLoaded::LoadTextureFromFile");
             std::unordered_map<std::string, gns::Texture*> textureCache;
             return LoadTextureFromFile(ResolveProjectPath(artifact->artifactPath), textureCache);
         }
@@ -1281,12 +1327,16 @@ gns::Texture* gns::assets::AssetManager::EnsureTextureLoaded(Handle textureHandl
             if (embeddedMarker != std::string::npos)
             {
                 const std::filesystem::path sourcePath = artifactPath.substr(0, embeddedMarker);
+                GNS_PROFILE_SCOPE("AssetManager::EnsureTextureLoaded::LoadEmbeddedSourceAsset");
                 gns::assets::AssetManager::LoadAsset(ResolveProjectPath(sourcePath).string(), artifact->loadOptions);
                 return Object::Get<gns::Texture>(textureHandle);
             }
         }
 
-        EnsureSourceAssetLoaded(*artifact);
+        {
+            GNS_PROFILE_SCOPE("AssetManager::EnsureTextureLoaded::EnsureSourceAssetLoaded");
+            EnsureSourceAssetLoaded(*artifact);
+        }
         return Object::Get<gns::Texture>(textureHandle);
     }
 
@@ -1297,6 +1347,7 @@ gns::Texture* gns::assets::AssetManager::EnsureTextureLoaded(Handle textureHandl
 
 bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& material)
 {
+    GNS_PROFILE_FUNCTION();
     const std::optional<AssetArtifactRecord> artifact = FindArtifact(material.GetHandle());
     if (!artifact || artifact->type != AssetArtifactType::Material || artifact->artifactPath.empty())
     {
@@ -1312,6 +1363,7 @@ bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& mat
     YAML::Node root;
     try
     {
+        GNS_PROFILE_SCOPE("AssetManager::ApplyImportedMaterialDefaults::ReadYaml");
         root = YAML::LoadFile(materialPath.string());
     }
     catch (const std::exception& exception)
@@ -1327,6 +1379,7 @@ bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& mat
     const YAML::Node properties = root["properties"];
     if (properties && properties.IsMap())
     {
+        GNS_PROFILE_SCOPE("AssetManager::ApplyImportedMaterialDefaults::ApplyProperties");
         for (YAML::const_iterator propertyNode = properties.begin(); propertyNode != properties.end(); ++propertyNode)
         {
             const std::string propertyName = propertyNode->first.as<std::string>();
@@ -1348,6 +1401,7 @@ bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& mat
 
     for (YAML::const_iterator texture = textures.begin(); texture != textures.end(); ++texture)
     {
+        GNS_PROFILE_SCOPE("AssetManager::ApplyImportedMaterialDefaults::ApplyTexture");
         const std::string propertyName = texture->first.as<std::string>();
         const gns::Handle textureHandle = gns::Handle::Create(texture->second.as<uint64_t>());
         if (!textureHandle.IsValid())
