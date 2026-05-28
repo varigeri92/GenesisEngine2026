@@ -9,7 +9,6 @@
 #include "../../EditorSelection.h"
 #include "Genesis.h"
 #include "GenesisMaterialIcons.h"
-#include "../../../Engine/Assets/AssetManager.h"
 #include "../../../Engine/Renderer/RenderSystem.h"
 #include "../../../Engine/Systems/GuiSystem.h"
 

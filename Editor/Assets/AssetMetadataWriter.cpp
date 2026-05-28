@@ -17,7 +17,7 @@
 
 #include <glm/glm.hpp>
 
-#include "../../Engine/Assets/AssetManager.h"
+#include "../../Engine/Assets/AssetSystem.h"
 #include "../../Engine/Log/Logger.h"
 #include "../../Engine/Object/Material.h"
 #include "../../Engine/Renderer/Vulkan/ShaderUtils.h"
@@ -191,7 +191,7 @@ namespace
             textureArtifactPath = ToProjectRelativeString(ResolveTexturePath(assetDirectory, texturePath));
         }
 
-        const gns::Handle textureHandle = gns::assets::AssetManager::GetTextureArtifactHandle(textureArtifactPath);
+        const gns::Handle textureHandle = gns::assets::AssetSystem::GetTextureArtifactHandle(textureArtifactPath);
         const auto exists = std::find_if(
             textureArtifacts.begin(),
             textureArtifacts.end(),
@@ -477,7 +477,7 @@ namespace
     {
         MaterialArtifact material
         {
-            .handle = gns::assets::AssetManager::GetMaterialArtifactHandle(sourcePath, materialIndex),
+            .handle = gns::assets::AssetSystem::GetMaterialArtifactHandle(sourcePath, materialIndex),
             .materialIndex = materialIndex,
             .name = MaterialName(assimpMaterial, materialIndex),
             .path = ToProjectRelativeString(materialPath)
@@ -693,7 +693,7 @@ bool editor::assets::WriteModelMetaFile(
     emitter << YAML::BeginMap;
     emitter << YAML::Key << "assetType" << YAML::Value << AssetTypeToString(gns::assets::Mesh);
     emitter << YAML::Key << "assetHandle" << YAML::Value
-        << gns::assets::AssetManager::GetModelAssetHandle(sourcePath).Get();
+        << gns::assets::AssetSystem::GetModelAssetHandle(sourcePath).Get();
     emitter << YAML::Key << "sourcePath" << YAML::Value << sourcePath;
     emitter << YAML::Key << "importerVersion" << YAML::Value << AssetImporterVersion;
     emitter << YAML::Key << "importOptions" << YAML::Value << YAML::BeginMap;
@@ -719,7 +719,7 @@ bool editor::assets::WriteModelMetaFile(
             meshName = "Mesh_" + std::to_string(meshIndex);
         }
 
-        const gns::Handle meshHandle = gns::assets::AssetManager::GetMeshArtifactHandle(sourcePath, meshIndex);
+        const gns::Handle meshHandle = gns::assets::AssetSystem::GetMeshArtifactHandle(sourcePath, meshIndex);
         meshArtifactHandles.push_back(meshHandle);
 
         gns::Handle materialHandle;
@@ -781,7 +781,7 @@ bool editor::assets::WriteModelMetaFile(
     LOG_INFO(metaPath.string());
     WriteArtifactLinks(
         metaPath,
-        gns::assets::AssetManager::GetModelAssetHandle(sourcePath),
+        gns::assets::AssetSystem::GetModelAssetHandle(sourcePath),
         meshArtifactHandles,
         materialArtifacts,
         textureArtifacts);

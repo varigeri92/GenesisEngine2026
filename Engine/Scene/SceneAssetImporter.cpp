@@ -4,13 +4,14 @@
 #include <string>
 #include <vector>
 
-#include "../Assets/AssetManager.h"
+#include "../Assets/AssetSystem.h"
 #include "../Core/ComponentLibrary.h"
 #include "../Core/Entity.h"
 #include "../Object/Material.h"
 #include "../Object/Mesh.h"
 #include "../Renderer/RenderSystem.h"
 #include "../Renderer/Shader.h"
+#include "../Systems/SystemsManager.h"
 #include "../Utils/Path.h"
 #include "SceneManager.h"
 
@@ -41,8 +42,14 @@ bool gns::SceneAssetImporter::LoadMeshAssetIntoScene(
     }
 
     const std::filesystem::path normalizedAssetPath = gns::path::Normalize(assetPath);
+    assets::AssetSystem* assetSystem = core::SystemsManager::GetSystem<assets::AssetSystem>();
+    if (assetSystem == nullptr)
+    {
+        LOG_ERROR("[SceneAssetImporter]: Cannot load mesh asset because AssetSystem is missing.");
+        return false;
+    }
     std::vector<gns::assets::LoadedObject> loaded =
-        assets::AssetManager::LoadAsset(normalizedAssetPath.string(), loadOptions);
+        assetSystem->LoadAsset(normalizedAssetPath.string(), loadOptions);
     if (loaded.empty())
     {
         LOG_WARNING("[SceneAssetImporter]: Mesh asset produced no loadable meshes.");
@@ -77,7 +84,7 @@ bool gns::SceneAssetImporter::LoadMeshAssetIntoScene(
             {
                 loadedMaterial->shader_ref = shaderRef;
                 renderSystem.ApplyMaterial(*loadedMaterial);
-                if (assets::AssetManager::ApplyImportedMaterialDefaults(*loadedMaterial))
+                if (assetSystem->ApplyImportedMaterialDefaults(*loadedMaterial))
                 {
                     renderSystem.ApplyMaterial(*loadedMaterial);
                 }

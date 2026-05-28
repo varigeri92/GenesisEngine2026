@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <string>
 
-#include "../../Engine/Assets/AssetManager.h"
+#include "../../Engine/Assets/AssetData.h"
 
 namespace editor::assets
 {

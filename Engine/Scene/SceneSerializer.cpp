@@ -12,7 +12,7 @@
 
 #include "../Core/ComponentLibrary.h"
 #include "../Core/ComponentReflection.h"
-#include "../Assets/AssetManager.h"
+#include "../Assets/AssetSystem.h"
 #include "../Object/Material.h"
 #include "../Object/Mesh.h"
 #include "../Object/Texture.h"
@@ -313,17 +313,24 @@ namespace
             return;
         }
 
+        gns::assets::AssetSystem* assetSystem =
+            gns::core::SystemsManager::GetSystem<gns::assets::AssetSystem>();
+        if (assetSystem == nullptr)
+        {
+            return;
+        }
+
         if (referenceTypeName == gns::reflection::TypeName<gns::Mesh>())
         {
-            gns::assets::AssetManager::EnsureMeshLoaded(handle);
+            assetSystem->EnsureMeshLoaded(handle);
         }
         else if (referenceTypeName == gns::reflection::TypeName<gns::Material>())
         {
-            gns::assets::AssetManager::EnsureMaterialLoaded(handle);
+            assetSystem->EnsureMaterialLoaded(handle);
         }
         else if (referenceTypeName == gns::reflection::TypeName<gns::Texture>())
         {
-            gns::assets::AssetManager::EnsureTextureLoaded(handle);
+            assetSystem->EnsureTextureLoaded(handle);
         }
     }
 

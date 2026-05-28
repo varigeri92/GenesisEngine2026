@@ -5,8 +5,9 @@
 #include <cstring>
 
 #include "Genesis.h"
-#include "../../../Engine/Assets/AssetManager.h"
+#include "../../../Engine/Assets/AssetSystem.h"
 #include "../../../Engine/Object/Material.h"
+#include "../../../Engine/Systems/SystemsManager.h"
 #include "../../EditorSelection.h"
 
 namespace
@@ -500,8 +501,14 @@ namespace
             return;
         }
 
-        gns::Material* material = gns::assets::AssetManager::EnsureMaterialLoaded(
-            meshComponent->material.m_handle);
+        gns::assets::AssetSystem* assetSystem =
+            gns::core::SystemsManager::GetSystem<gns::assets::AssetSystem>();
+        if (assetSystem == nullptr)
+        {
+            return;
+        }
+
+        gns::Material* material = assetSystem->EnsureMaterialLoaded(meshComponent->material.m_handle);
         if (material == nullptr)
         {
             return;

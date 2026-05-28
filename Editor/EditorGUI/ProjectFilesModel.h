@@ -5,7 +5,7 @@
 #include <system_error>
 #include <vector>
 
-#include "../../Engine/Assets/AssetManager.h"
+#include "../../Engine/Assets/AssetData.h"
 
 namespace editor::projectfiles
 {

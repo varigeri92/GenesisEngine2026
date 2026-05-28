@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <string>
 
-#include "../Engine/Assets/AssetManager.h"
+#include "../Engine/Assets/AssetData.h"
 #include "../Engine/Utils/Path.h"
 #include "EditorGUI/ProjectFilesModel.h"
 

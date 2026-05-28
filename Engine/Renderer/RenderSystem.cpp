@@ -8,7 +8,7 @@
 #include <glm/ext/quaternion_trigonometric.hpp>
 
 #include "glm/glm.hpp"
-#include "../Assets/AssetManager.h"
+#include "../Assets/AssetSystem.h"
 #include "../Window/WindowSystem.h"
 #include "../Object/Mesh.h"
 #include "../Object/Texture.h"
@@ -86,6 +86,11 @@ bool TryFindMaterialDataBinding(
 		}
 
 		return gns::DefaultTexture::White;
+	}
+
+	gns::assets::AssetSystem* GetAssetSystem()
+	{
+		return gns::core::SystemsManager::GetSystem<gns::assets::AssetSystem>();
 	}
 }
 
@@ -479,7 +484,10 @@ void gns::RenderSystem::FlushRenderUploads(RenderUploadQueue& uploads)
 		if (!material.GetLayout().IsCompatibleWith(shaderMaterialLayout))
 		{
 			material.SetLayout(shaderMaterialLayout, true);
-			assets::AssetManager::ApplyImportedMaterialDefaults(material);
+			if (assets::AssetSystem* assetSystem = GetAssetSystem())
+			{
+				assetSystem->ApplyImportedMaterialDefaults(material);
+			}
 		}
 
 		if (!ApplyMaterial(material, *vulkanShader, &uploads).IsValid())
@@ -584,7 +592,10 @@ gns::Handle gns::RenderSystem::ApplyMaterial(
 		Texture* texture = Object::Get<Texture>(textureHandle);
 		if (texture == nullptr)
 		{
-			texture = assets::AssetManager::EnsureTextureLoaded(textureHandle);
+			if (assets::AssetSystem* assetSystem = GetAssetSystem())
+			{
+				texture = assetSystem->EnsureTextureLoaded(textureHandle);
+			}
 		}
 
 		if (texture == nullptr)
@@ -927,6 +938,7 @@ void gns::RenderSystem::BuildDrawData()
 	{
 		return;
 	}
+	assets::AssetSystem* assetSystem = GetAssetSystem();
 
 	Shader* defaultShader = Object::Get<Shader>(m_defaultMeshShader);
 	if (defaultShader == nullptr)
@@ -954,16 +966,19 @@ void gns::RenderSystem::BuildDrawData()
 
 		if (!m_resourceCache.meshes.contains(meshComp.mesh.m_handle))
 		{
-			if (Mesh* mesh = assets::AssetManager::EnsureMeshLoaded(meshComp.mesh.m_handle))
+			if (assetSystem != nullptr)
 			{
-				ApplyMesh(*mesh);
+				if (Mesh* mesh = assetSystem->EnsureMeshLoaded(meshComp.mesh.m_handle))
+				{
+					ApplyMesh(*mesh);
+				}
 			}
 		}
 
 		Material* material = Object::Get<Material>(meshComp.material.m_handle);
-		if (material == nullptr)
+		if (material == nullptr && assetSystem != nullptr)
 		{
-			material = assets::AssetManager::EnsureMaterialLoaded(meshComp.material.m_handle);
+			material = assetSystem->EnsureMaterialLoaded(meshComp.material.m_handle);
 		}
 
 		if (material == nullptr)
@@ -1009,7 +1024,10 @@ void gns::RenderSystem::BuildDrawData()
 		if (materialLayoutChanged)
 		{
 			material->SetLayout(shaderMaterialLayout, true);
-			assets::AssetManager::ApplyImportedMaterialDefaults(*material);
+			if (assetSystem != nullptr)
+			{
+				assetSystem->ApplyImportedMaterialDefaults(*material);
+			}
 		}
 
 		const Handle renderMaterialHandle = ApplyMaterial(*material);

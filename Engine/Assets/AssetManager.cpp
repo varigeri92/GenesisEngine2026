@@ -1,4 +1,5 @@
 ﻿#include "gnspch.h"
+#include "AssetLoader.h"
 #include "AssetManager.h"
 #include "assimp/Importer.hpp"
 #include "assimp/material.h"
@@ -1070,73 +1071,147 @@ std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::LoadAsset(
     const std::string& path,
     const AssetLoadOptions& loadOptions)
 {
-    Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(path,
-      aiProcess_CalcTangentSpace       |
-      aiProcess_Triangulate            |
-      aiProcess_JoinIdenticalVertices  |
-      aiProcess_SortByPType);
-    if (nullptr == scene) {
-        LOG_ERROR(importer.GetErrorString());
+    const AssetLoadResult result = AssetLoader::LoadSourceAsset(path, loadOptions);
+    if (!result.success)
+    {
+        LOG_WARNING("[AssetManager]: Asset load failed.");
+        LOG_WARNING(path);
+        LOG_WARNING(result.error);
         return {};
     }
-    if (scene->HasMeshes())
+
+    return CommitLoadedAsset(result);
+}
+
+std::vector<gns::assets::LoadedObject> gns::assets::AssetManager::CommitLoadedAsset(
+    const AssetLoadResult& result)
+{
+    std::vector<LoadedObject> loadedObjects;
+    loadedObjects.reserve(result.assets.size());
+
+    for (const AssetDescription& asset : result.assets)
     {
-        std::vector<gns::assets::LoadedObject> loaded;
-        loaded.reserve(scene->mNumMeshes);
-
-        const std::filesystem::path assetPath = gns::path::Normalize(path);
-        const std::string sourcePath = ToProjectRelativeAssetString(assetPath);
-        const std::filesystem::path assetDirectory = gns::path::ParentDirectory(assetPath);
-        std::unordered_map<std::string, gns::Texture*> textureCache;
-        std::vector<gns::Handle> materialHandles;
-
-        if (loadOptions.importMaterials && scene->HasMaterials())
+        switch (asset.type)
         {
-            materialHandles.reserve(scene->mNumMaterials);
-            for (uint32_t materialIndex = 0; materialIndex < scene->mNumMaterials; ++materialIndex)
+        case Mesh:
+        {
+            const MeshAssetData* meshData = std::get_if<MeshAssetData>(&asset.payload);
+            if (meshData == nullptr)
             {
-                gns::Material* material = CreateMaterial(
-                    scene,
-                    scene->mMaterials[materialIndex],
-                    materialIndex,
-                    assetDirectory,
-                    sourcePath,
-                    textureCache,
-                    loadOptions.importTextures);
-                materialHandles.push_back(material != nullptr ? material->GetHandle() : gns::Handle{});
+                LOG_WARNING("[AssetManager]: Mesh asset description is missing mesh data.");
+                continue;
             }
-        }
 
-        if (scene->mRootNode != nullptr)
-        {
-            LoadMeshesFromNode(
-                scene,
-                scene->mRootNode,
-                aiMatrix4x4(),
-                sourcePath,
-                materialHandles,
-                loadOptions.flattenHierarchy,
-                loaded);
-        }
-        else
-        {
-            const NodeTransform identityTransform = {};
-            for (uint32_t meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
+            gns::Mesh* mesh = gns::Object::Create<gns::Mesh>(meshData->handle, meshData->name);
+            if (mesh == nullptr)
             {
-                gns::assets::LoadedObject loadedMesh =
-                    LoadMesh(scene->mMeshes[meshIndex], meshIndex, sourcePath, materialHandles, identityTransform);
-                if (loadedMesh.object != nullptr)
-                {
-                    loaded.emplace_back(loadedMesh);
-                }
+                LOG_WARNING("[AssetManager]: Failed to commit mesh asset.");
+                LOG_WARNING(meshData->name);
+                continue;
             }
-        }
 
-        return loaded;
+            mesh->indices = meshData->indices;
+            mesh->positions = meshData->positions;
+            mesh->colors = meshData->colors;
+            mesh->normals = meshData->normals;
+            mesh->tangents = meshData->tangents;
+            mesh->bitangents = meshData->bitangents;
+            mesh->uvs = meshData->uvs;
+            mesh->bufferRange = {
+                .startIndex = 0,
+                .count = static_cast<uint32_t>(mesh->indices.size())
+            };
+
+            loadedObjects.emplace_back(LoadedObject
+            {
+                .objectHandle = mesh->GetHandle(),
+                .object = mesh,
+                .materialHandle = meshData->materialHandle,
+                .position = meshData->position,
+                .rotation = meshData->rotation,
+                .scale = meshData->scale
+            });
+            break;
+        }
+        case Texture:
+        {
+            const TextureAssetData* textureData = std::get_if<TextureAssetData>(&asset.payload);
+            if (textureData == nullptr)
+            {
+                LOG_WARNING("[AssetManager]: Texture asset description is missing texture data.");
+                continue;
+            }
+
+            gns::Texture* texture = gns::Object::Create<gns::Texture>(
+                textureData->handle,
+                textureData->name,
+                textureData->assetPath.generic_string());
+            if (texture == nullptr)
+            {
+                LOG_WARNING("[AssetManager]: Failed to commit texture asset.");
+                LOG_WARNING(textureData->name);
+                continue;
+            }
+
+            gns::TextureFormat textureFormat = gns::TextureFormat::Unknown;
+            switch (textureData->format)
+            {
+            case AssetTextureFormat::R8G8B8A8_UNorm:
+                textureFormat = gns::TextureFormat::R8G8B8A8_UNorm;
+                break;
+            case AssetTextureFormat::R8G8B8_UNorm:
+                textureFormat = gns::TextureFormat::R8G8B8_UNorm;
+                break;
+            default:
+                break;
+            }
+
+            texture->SetPixels(
+                textureData->pixels,
+                textureData->width,
+                textureData->height,
+                textureData->channels,
+                textureFormat);
+
+            loadedObjects.emplace_back(LoadedObject
+            {
+                .objectHandle = texture->GetHandle(),
+                .object = texture
+            });
+            break;
+        }
+        case Material:
+        {
+            const MaterialAssetData* materialData = std::get_if<MaterialAssetData>(&asset.payload);
+            if (materialData == nullptr)
+            {
+                LOG_WARNING("[AssetManager]: Material asset description is missing material data.");
+                continue;
+            }
+
+            gns::Material* material = gns::Object::Create<gns::Material>(
+                materialData->handle,
+                materialData->name);
+            if (material == nullptr)
+            {
+                LOG_WARNING("[AssetManager]: Failed to commit material asset.");
+                LOG_WARNING(materialData->name);
+                continue;
+            }
+
+            loadedObjects.emplace_back(LoadedObject
+            {
+                .objectHandle = material->GetHandle(),
+                .object = material
+            });
+            break;
+        }
+        default:
+            break;
+        }
     }
-    LOG_INFO("File: " + path + " does not contain meshes.");
-    return {};
+
+    return loadedObjects;
 }
 
 gns::Mesh* gns::assets::AssetManager::EnsureMeshLoaded(Handle meshHandle)

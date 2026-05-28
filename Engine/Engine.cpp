@@ -2,6 +2,7 @@
 #include "Engine.h"
 
 #include "Core/ComponentLibrary.h"
+#include "Assets/AssetSystem.h"
 #include "Core/Entity.h"
 #include "Gui/TestWindow.h"
 #include "Log/Logger.h"
@@ -29,6 +30,7 @@ void gns::core::Engine::Initialize(std::function<void()> callback)
 	gns::jobs::JobSystem::Initialize();
 	gns::path::Configure(m_engineConfig.projectRoot, m_engineConfig.editorResourcesRoot);
 	gns::RegisterCoreComponentReflection();
+	SystemsManager::RegisterSystem<gns::assets::AssetSystem>();
 	SystemsManager::RegisterSystem<gns::SceneSystem>();
 	SystemsManager::RegisterSystem<TransformSystem>();
 	gns::window::WindowSystem* ws = nullptr;
