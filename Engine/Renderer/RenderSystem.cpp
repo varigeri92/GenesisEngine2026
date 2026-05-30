@@ -305,13 +305,18 @@ bool gns::RenderSystem::QueueShaderUpload(RenderUploadQueue& uploads, Shader& sh
 	return true;
 }
 
-bool gns::RenderSystem::QueueMaterialUpload(Material& material)
+bool gns::RenderSystem::QueueMaterialUpload(Material& material, bool force)
 {
 	GNS_PROFILE_FUNCTION();
 	const Handle materialHandle = material.GetHandle();
 	if (!materialHandle.IsValid())
 	{
 		return false;
+	}
+
+	if (!force && m_resourceCache.materials.contains(materialHandle))
+	{
+		return true;
 	}
 
 	const auto pending = std::find_if(
@@ -535,6 +540,11 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 {
 	GNS_PROFILE_FUNCTION();
 	const Handle materialHandle = material.GetHandle();
+	if (const auto it = m_resourceCache.materials.find(materialHandle); it != m_resourceCache.materials.end())
+	{
+		return it->second;
+	}
+
 	QueueMaterialUpload(material);
 
 	if (material.shader_ref.m_handle.IsValid())
@@ -565,11 +575,6 @@ gns::Handle gns::RenderSystem::ApplyMaterial(Material& material)
 		}
 	}
 
-	if (const auto it = m_resourceCache.materials.find(materialHandle); it != m_resourceCache.materials.end())
-	{
-		return it->second;
-	}
-
 	return {};
 }
 
@@ -594,7 +599,7 @@ gns::Handle gns::RenderSystem::ApplyMaterial(
 		{
 			if (assets::AssetSystem* assetSystem = GetAssetSystem())
 			{
-				texture = assetSystem->EnsureTextureLoaded(textureHandle);
+				assetSystem->QueueAsset(textureHandle);
 			}
 		}
 
@@ -966,23 +971,26 @@ void gns::RenderSystem::BuildDrawData()
 
 		if (!m_resourceCache.meshes.contains(meshComp.mesh.m_handle))
 		{
-			if (assetSystem != nullptr)
+			Mesh* mesh = Object::Get<Mesh>(meshComp.mesh.m_handle);
+			if (mesh == nullptr)
 			{
-				if (Mesh* mesh = assetSystem->EnsureMeshLoaded(meshComp.mesh.m_handle))
+				if (assetSystem != nullptr)
 				{
-					ApplyMesh(*mesh);
+					assetSystem->QueueAsset(meshComp.mesh.m_handle);
 				}
+				return;
 			}
+
+			ApplyMesh(*mesh);
 		}
 
 		Material* material = Object::Get<Material>(meshComp.material.m_handle);
-		if (material == nullptr && assetSystem != nullptr)
-		{
-			material = assetSystem->EnsureMaterialLoaded(meshComp.material.m_handle);
-		}
-
 		if (material == nullptr)
 		{
+			if (assetSystem != nullptr)
+			{
+				assetSystem->QueueAsset(meshComp.material.m_handle);
+			}
 			return;
 		}
 
@@ -1028,6 +1036,8 @@ void gns::RenderSystem::BuildDrawData()
 			{
 				assetSystem->ApplyImportedMaterialDefaults(*material);
 			}
+			QueueMaterialUpload(*material, true);
+			return;
 		}
 
 		const Handle renderMaterialHandle = ApplyMaterial(*material);

@@ -1,6 +1,7 @@
 ﻿#include "gnspch.h"
 #include "SceneSystem.h"
 
+#include "SceneAssetImporter.h"
 #include "SceneManager.h"
 
 void gns::SceneSystem::OnCreate()
@@ -17,6 +18,7 @@ void gns::SceneSystem::OnStart()
 
 void gns::SceneSystem::OnUpdate(float deltaTime)
 {
+    SceneAssetImporter::UpdatePendingImports();
     //traverse hierarchy update transforms.
 }
 

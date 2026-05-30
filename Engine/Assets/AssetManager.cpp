@@ -1,6 +1,7 @@
 ﻿#include "gnspch.h"
 #include "AssetLoader.h"
 #include "AssetManager.h"
+#include "AssetSystem.h"
 #include "assimp/Importer.hpp"
 #include "assimp/material.h"
 #include "assimp/scene.h"
@@ -9,6 +10,7 @@
 #include "../Object/Material.h"
 #include "../Object/Mesh.h"
 #include "../Object/Texture.h"
+#include "../Systems/SystemsManager.h"
 #include "../Utils/Path.h"
 
 #include <cstdlib>
@@ -211,6 +213,16 @@ namespace
             if (!artifacts)
             {
                 return false;
+            }
+
+            if (root["assetHandle"])
+            {
+                AssetArtifactRecord sourceArtifact;
+                sourceArtifact.type = gns::assets::AssetArtifactType::Unknown;
+                sourceArtifact.handle = gns::Handle::Create(root["assetHandle"].as<uint64_t>());
+                sourceArtifact.sourcePath = sourcePath;
+                sourceArtifact.loadOptions = loadOptions;
+                RegisterArtifact(sourceArtifact);
             }
 
             ReadArtifactSequence(artifacts["meshes"], gns::assets::AssetArtifactType::Mesh, sourcePath, loadOptions);
@@ -1415,9 +1427,10 @@ bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& mat
             continue;
         }
 
-        if (EnsureTextureLoaded(textureHandle) == nullptr)
+        if (gns::assets::AssetSystem* assetSystem =
+            gns::core::SystemsManager::GetSystem<gns::assets::AssetSystem>())
         {
-            continue;
+            assetSystem->QueueAsset(textureHandle);
         }
 
         material.SetTexture(propertyName, textureHandle);
@@ -1425,6 +1438,55 @@ bool gns::assets::AssetManager::ApplyImportedMaterialDefaults(gns::Material& mat
     }
 
     return appliedAny;
+}
+
+bool gns::assets::AssetManager::ResolveAssetSource(Handle assetHandle, AssetSourceReference& outSource)
+{
+    GNS_PROFILE_FUNCTION();
+    outSource = {};
+
+    const std::optional<AssetArtifactRecord> artifact = FindArtifact(assetHandle);
+    if (!artifact)
+    {
+        return false;
+    }
+
+    if (artifact->type == AssetArtifactType::Texture &&
+        !artifact->artifactPath.empty() &&
+        !IsEmbeddedTextureArtifactPath(artifact->artifactPath))
+    {
+        outSource.sourcePath = ResolveProjectPath(artifact->artifactPath);
+        outSource.loadOptions = {};
+        outSource.valid = true;
+        return true;
+    }
+
+    if (artifact->type == AssetArtifactType::Texture &&
+        !artifact->artifactPath.empty() &&
+        IsEmbeddedTextureArtifactPath(artifact->artifactPath))
+    {
+        const std::string artifactPath = artifact->artifactPath.generic_string();
+        const size_t embeddedMarker = artifactPath.find("::embedded_texture_");
+        if (embeddedMarker == std::string::npos)
+        {
+            return false;
+        }
+
+        outSource.sourcePath = ResolveProjectPath(artifactPath.substr(0, embeddedMarker));
+        outSource.loadOptions = artifact->loadOptions;
+        outSource.valid = true;
+        return true;
+    }
+
+    if (!artifact->sourcePath.empty())
+    {
+        outSource.sourcePath = ResolveProjectPath(artifact->sourcePath);
+        outSource.loadOptions = artifact->loadOptions;
+        outSource.valid = true;
+        return true;
+    }
+
+    return false;
 }
 
 gns::Handle gns::assets::AssetManager::GetModelAssetHandle(const std::filesystem::path& sourcePath)

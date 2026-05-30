@@ -95,6 +95,13 @@ namespace gns::assets
         std::string error;
     };
 
+    struct AssetSourceReference
+    {
+        std::filesystem::path sourcePath;
+        AssetLoadOptions loadOptions;
+        bool valid = false;
+    };
+
     struct LoadedObject
     {
         Handle objectHandle;
@@ -106,6 +113,12 @@ namespace gns::assets
 
         template <DerivedFromObject Object_T>
         Object_T* As()
+        {
+            return dynamic_cast<Object_T*>(object);
+        }
+
+        template <DerivedFromObject Object_T>
+        Object_T* As() const
         {
             return dynamic_cast<Object_T*>(object);
         }

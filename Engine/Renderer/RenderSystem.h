@@ -119,7 +119,7 @@ namespace gns {
 		bool QueueTextureUpload(RenderUploadQueue& uploads, Texture& texture);
 		bool QueueShaderUpload(Shader& shader);
 		bool QueueShaderUpload(RenderUploadQueue& uploads, Shader& shader);
-		bool QueueMaterialUpload(Material& material);
+		bool QueueMaterialUpload(Material& material, bool force = false);
 		RenderUploadQueue ConsumePendingRenderUploads();
 		void HarvestCompletedRenderSubmissions();
 		void RequeuePendingRenderUploads(RenderUploadQueue& uploads);

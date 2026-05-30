@@ -306,7 +306,7 @@ namespace
         return true;
     }
 
-    void EnsureReferencedAsset(const std::string& referenceTypeName, gns::Handle handle)
+    void QueueReferencedAsset(const std::string& referenceTypeName, gns::Handle handle)
     {
         if (!handle.IsValid())
         {
@@ -322,15 +322,24 @@ namespace
 
         if (referenceTypeName == gns::reflection::TypeName<gns::Mesh>())
         {
-            assetSystem->EnsureMeshLoaded(handle);
+            if (gns::Object::Get<gns::Mesh>(handle) == nullptr)
+            {
+                assetSystem->QueueAsset(handle);
+            }
         }
         else if (referenceTypeName == gns::reflection::TypeName<gns::Material>())
         {
-            assetSystem->EnsureMaterialLoaded(handle);
+            if (gns::Object::Get<gns::Material>(handle) == nullptr)
+            {
+                assetSystem->QueueAsset(handle);
+            }
         }
         else if (referenceTypeName == gns::reflection::TypeName<gns::Texture>())
         {
-            assetSystem->EnsureTextureLoaded(handle);
+            if (gns::Object::Get<gns::Texture>(handle) == nullptr)
+            {
+                assetSystem->QueueAsset(handle);
+            }
         }
     }
 
@@ -427,7 +436,7 @@ namespace
             {
                 field.set_reference_type_id(fieldValue, fieldNode["typeId"].as<size_t>());
             }
-            EnsureReferencedAsset(field.reference_type_name, value);
+            QueueReferencedAsset(field.reference_type_name, value);
             return true;
         }
         default:
