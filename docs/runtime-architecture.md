@@ -1,24 +1,30 @@
 # Runtime Architecture
 
-The runtime is built around a small `Engine` class, a global `SystemsManager`, EnTT entities/components, and subsystem classes derived from `gns::core::System`.
+The runtime is built around a small `Engine` class, a global `SystemsManager`, EnTT entities/components, a central path API, a job system, and runtime systems derived from `gns::core::System`.
+
+A runtime system is specifically a class that derives from `gns::core::System` and is registered through `SystemsManager::RegisterSystem`. Names alone do not make something a system: `SystemsManager`, `JobSystem`, and `SystemViewer` are not runtime systems even though their names contain `System`.
 
 ## Boot Flow
 
 ```mermaid
 flowchart TD
-    A["Editor main()"] --> B["Create Engine"]
-    B --> C["Engine::Initialize(callback)"]
-    C --> D["Set resource directory"]
-    C --> E["Register WindowSystem"]
-    C --> F["Register RenderSystem"]
-    C --> G["Register GuiSystem"]
-    C --> H["Run caller callback"]
-    H --> I["Register editor systems and windows"]
-    I --> J["Engine::Run()"]
-    J --> K["SystemsManager::Run(deltaTime)"]
+    A["Editor main()"] --> B["Create EngineConfig"]
+    B --> C["Read project/resource CLI paths"]
+    C --> D["Create Engine"]
+    D --> E["Engine::Initialize(callback)"]
+    E --> F["Initialize JobSystem"]
+    E --> G["Configure gns::path"]
+    E --> H["Register core component reflection"]
+    E --> I["Register AssetSystem, SceneSystem, TransformSystem"]
+    I --> J["Register WindowSystem, RenderSystem, GuiSystem when not headless"]
+    J --> K["Run caller callback"]
+    K --> L["Validate editor project context"]
+    L --> M["Register editor systems and GUI windows"]
+    M --> N["Engine::Run()"]
+    N --> O["SystemsManager::Run(deltaTime)"]
 ```
 
-`Editor/Editor.cpp` is the current application entry point. It creates an `EngineConfig`, initializes the engine with an editor callback, runs the main loop, and then shuts down systems.
+`Editor/Editor.cpp` is the current application entry point. It creates an `EngineConfig`, resolves project and editor-resource roots from command-line arguments, initializes the engine with an editor callback, runs the main loop, and then shuts down systems.
 
 ## Engine
 
@@ -30,13 +36,16 @@ flowchart TD
 - `GetWindow()`
 - `GetRenderer()`
 
-`Engine::Initialize` registers core systems when not headless:
+`Engine::Initialize` performs the core startup:
 
-- `WindowSystem`
-- `RenderSystem`
-- `GuiSystem`
-
-It also optionally registers `TestSystem` and then invokes the caller callback so applications can register their own systems and GUI windows.
+- Initializes `JobSystem`.
+- Configures project and editor-resource roots through `gns::path::Configure`.
+- Registers core component reflection.
+- Always registers `AssetSystem`, `SceneSystem`, and `TransformSystem`.
+- In windowed mode, registers `WindowSystem`, `RenderSystem`, and `GuiSystem`.
+- Optionally registers `TestSystem` when `EngineConfig::InitTetsSystem` is enabled.
+- Runs the caller callback so applications can register their own systems and GUI windows.
+- Registers `TestWindow` when GUI is available.
 
 ## System Lifecycle
 
@@ -51,7 +60,7 @@ Systems derive from `gns::core::System` and can override:
 - `OnDisable`
 - `OnDestroy`
 
-`SystemsManager::Run` advances each system through the state machine:
+`SystemsManager::Run` advances each registered system through the state machine:
 
 ```mermaid
 stateDiagram-v2
@@ -64,7 +73,12 @@ stateDiagram-v2
     Destroyed --> [*]: OnDestroy
 ```
 
-After at least one system reaches `Running` and receives `OnUpdate`, the manager runs `OnLateUpdate` for all running systems.
+Only registered systems participate in this lifecycle. After at least one system reaches `Running` and receives `OnUpdate`, the manager runs `OnLateUpdate` for all running systems. `SystemsManager::Clear` calls `OnDestroy` on every registered system and clears the system list.
+
+Current registered system types include:
+
+- Engine/core: `AssetSystem`, `SceneSystem`, `TransformSystem`, `WindowSystem`, `RenderSystem`, `GuiSystem`, and optional `TestSystem`.
+- Editor: `TestSystemExternal` and `EditorCameraSystem`.
 
 ## ECS Model
 
@@ -74,12 +88,17 @@ Entities are thin wrappers around `entt::entity` handles. The global `entt::regi
 
 - `EntityComponent`
 - `Transform`
+- `SceneMemberComponent` and `HierarchyComponent` when scene/parent context is supplied.
 
 Main components currently defined in `Engine/Core/ComponentLibrary.h`:
 
 - `EntityComponent`: entity handle and display name.
+- `SceneRootComponent`: marks a scene root entity.
+- `SceneMemberComponent`: records which loaded scene owns an entity.
+- `HierarchyComponent`: parent/child hierarchy state.
 - `Transform`: matrix, position, rotation, and scale.
-- `MeshComponent`: references to engine-side mesh, material, and shader objects.
+- `MeshComponent`: references to engine-side mesh and material objects.
+- `AmbientLightComponent`, `DirectionalLightComponent`, `PointLightComponent`, and `SpotLightComponent`: scene lighting data consumed by the render system.
 
 ## Object and Handle Model
 
@@ -107,8 +126,8 @@ Engine-side objects currently include:
 
 - `name`
 - `root`
-- `SceneData`
+- `handle`
 
-`SceneData` stores view/projection matrices and simple ambient/sunlight fields intended for GPU upload.
+`SceneManager` owns loaded scenes and the active-scene pointer. `SceneSystem::OnStart` creates an empty scene when no active scene exists, and `SceneSystem::OnUpdate` advances pending scene asset imports.
 
-The scene layer is still early. Most rendering currently pulls from the global ECS registry rather than a richer scene hierarchy.
+`SceneData` is render-frame GPU data assembled by `RenderSystem` from camera and light components. Rendering pulls from the global ECS registry, filtering mesh and light entities by `SceneMemberComponent` and loaded-scene state.

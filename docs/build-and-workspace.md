@@ -10,6 +10,7 @@ Expected local requirements:
 - Visual Studio with MSVC toolset `msc-v145`
 - Vulkan SDK with `VULKAN_SDK` set
 - CMake for the Assimp utility project
+- CMake for the yaml-cpp utility project
 - Initialized git submodules under `vendor/`
 - Prebuilt or locally buildable vendor libraries in the locations configured by `premake_cfg.lua`
 
@@ -30,7 +31,7 @@ The workspace defines:
 | Configuration | Defines | Notes |
 | --- | --- | --- |
 | `Debug` | `DEBUG`, `_DEBUG`, `_CONSOLE`, `LOG_ENABLE` | Symbols on. |
-| `Profile` | `DEBUG`, `_DEBUG`, `_CONSOLE`, `LOG_ENABLE`, `ENABLE_PROFILER`, `TRACE_ALLOCATION` | Symbols on. |
+| `Profile` | `DEBUG`, `_DEBUG`, `_CONSOLE`, `LOG_ENABLE`, `ENABLE_PROFILER`, `TRACE_ALLOCATION` | Symbols on, profiling enabled. |
 | `Release` | `NDEBUG`, `LOG_ENABLE` | Optimized. |
 | `Dist` | `NDEBUG` | Optimized, logging disabled by current macros. |
 
@@ -43,6 +44,7 @@ Premake paths are controlled by `premake_cfg.lua`:
 - Binaries: `bin/%{cfg.buildcfg}`
 - Intermediate files: `bin-int/<Project>/%{cfg.buildcfg}`
 - Assimp build: `vendor/assimp/build`
+- yaml-cpp build: `vendor/yaml-cpp/build`
 
 ## Important Path Assumptions
 
@@ -54,16 +56,21 @@ VULKAN_SDK/Lib
 VULKAN_SDK/Include/SDL2
 ```
 
-Runtime resource lookup currently uses `std::filesystem::current_path().parent_path() / "Resources"`. In the expected Visual Studio output layout, the executable current directory must make that parent path point back at the repository or a copied resource layout.
+Runtime/editor path lookup is configured through `gns::path::Configure(projectRoot, editorResourcesRoot)`. The editor reads:
 
-## Assimp Build Flow
+- `-p` / `--project` for the project root.
+- `-r` / `--resources` for the editor resources root.
 
-`Assimp.lua` performs these steps:
+If no resources root is supplied, `gns::path::DefaultEditorResourcesDirectory` searches ancestors of the current directory for `Resources`, then falls back to a nearby `Resources` folder. The default project root is still a compiled-in local test path and is recorded as a known violation in `violations.md`.
 
-1. Create `vendor/assimp/build`.
-2. Run CMake against `vendor/assimp`.
-3. Build Assimp Release binaries.
-4. Copy Assimp DLL and LIB files into the configured output directory through `copy_files.bat`.
+## Utility Build Flow
+
+`Assimp.lua` and `YamlCpp.lua` perform the same broad steps:
+
+1. Create the dependency build directory.
+2. Run CMake against the dependency source directory.
+3. Build Release binaries.
+4. Copy expected DLL/LIB outputs into the configured output directory through `copy_files.bat`.
 
 ## Build Validation Notes
 

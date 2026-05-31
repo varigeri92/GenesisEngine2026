@@ -23,10 +23,11 @@ Vulkan objects own backend data:
 - `VulkanMesh`
 - `VulkanTexture`
 - `VulkanShader`
+- `VulkanMaterial`
 - `VulkanImage`
 - `VulkanBuffer`
 
-`RenderSystem` is the bridge. It is the only layer that should know both engine object handles and Vulkan resource handles.
+`RenderSystem` is the bridge and public render-system API. It is the only layer that should know both engine object handles and Vulkan resource handles.
 
 ## RenderSystem
 
@@ -51,7 +52,7 @@ The public apply functions are:
 - `ApplyTexture(Texture& texture)`
 - `ApplyMaterial(Material& material)`
 
-These functions check the cache first and only create backend resources if the engine resource has not already been applied.
+These functions check the cache first. If a resource is not cached, they queue upload work into a `RenderUploadQueue`; the render thread later flushes that work and updates the cache after successful backend creation.
 
 ## Renderer
 
@@ -62,7 +63,7 @@ These functions check the cache first and only create backend resources if the e
 - Camera state
 - Scene/screen texture access
 
-It owns render pass setup and frame drawing. It creates Vulkan resources by delegating to `Device`.
+It owns render pass setup and frame drawing. It creates Vulkan resources by delegating to `Device`. `RenderSystem` is a friend so it can coordinate camera state, device material creation, and resource lookup without exposing those internals as a broad public API.
 
 Current render pass order:
 
@@ -70,7 +71,7 @@ Current render pass order:
 2. Draw background.
 3. Transition draw image and depth image for attachments.
 4. Draw geometry.
-5. Either copy scene to swapchain or prepare the draw image for shader read.
+5. Either copy scene to the swapchain or prepare the draw image for shader read.
 6. Clear swapchain.
 7. Draw ImGui.
 8. Present.
@@ -102,19 +103,31 @@ It currently executes steps linearly in insertion order.
 
 It is the lowest engine-owned layer that should directly create and destroy Vulkan resources.
 
+## Render Thread and Uploads
+
+`RenderSystem` owns a `RenderThread`, a `RenderFramePacket`, and pending upload queues. Its update flow is:
+
+1. `OnUpdate` waits for/drains completed render submissions and requeues unfinished uploads.
+2. `OnLateUpdate` builds draw data and global frame descriptors from ECS state.
+3. The frame packet and pending uploads are submitted to the render thread.
+4. The render thread flushes shader, mesh, texture, and material uploads before drawing the frame.
+
+This means an `Apply*` call may return an invalid handle when it queued work rather than finding an already-created backend resource. Callers should treat the cache/getter functions as the source of truth after uploads complete.
+
 ## Draw Data Flow
 
 ```mermaid
 flowchart TD
-    A["ECS view: EntityComponent + Transform + MeshComponent"] --> B["RenderSystem::BuildDrawData"]
+    A["ECS view: SceneMemberComponent + Transform + MeshComponent"] --> B["RenderSystem::BuildDrawData"]
     B --> C["Resolve shader and mesh through resource cache"]
-    C --> D["Resolve material and albedo texture"]
-    D --> E["Create DrawData"]
-    E --> F["Renderer::DrawFrame"]
-    F --> G["Device::DrawMesh"]
+    C --> D["Resolve material and albedo/slot textures"]
+    D --> E["Resolve VulkanMaterial"]
+    E --> F["Create DrawData"]
+    F --> G["Renderer::DrawFrame"]
+    G --> H["Device draw calls"]
 ```
 
-`DrawData` carries the Vulkan objects and descriptor handles required by the backend draw call.
+`DrawData` carries the Vulkan shader, Vulkan material, index buffer, vertex buffer address, transform, and draw range required by the backend draw call.
 
 ## Default Textures
 
@@ -125,6 +138,7 @@ Default texture handles:
 - White
 - Grey
 - Black
+- Normal
 - Error checkerboard
 
 ## Important Constraints
@@ -133,3 +147,4 @@ Default texture handles:
 - Keep engine resource handle to Vulkan resource handle mapping in `RenderSystem` or a renderer-facing cache.
 - Keep `Device` responsible for Vulkan object lifetime.
 - Keep renderer development Vulkan-only. Do not introduce a generic multi-backend abstraction unless the project direction changes.
+- Render-facing APIs may be public, but the system boundary remains `Engine resource handle -> RenderSystem cache -> Vulkan resource handle`.
