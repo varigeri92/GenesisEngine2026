@@ -62,13 +62,17 @@ void gns::core::Engine::Run()
 	
 	while (!close)
 	{
-		GNS_PROFILE_SCOPE("Frame");
-		gns::Time::StartFrameTime();
-		float deltaTime = gns::Time::DeltaTime();
-		SystemsManager::Run(deltaTime);
-		jobs::JobSystem::FlushJobs();
-		
-		gns::Time::EndFrameTime();
+		GNS_PROFILE_BEGIN_FRAME();
+		{
+			GNS_PROFILE_SCOPE("Frame");
+			gns::Time::StartFrameTime();
+			float deltaTime = gns::Time::DeltaTime();
+			SystemsManager::Run(deltaTime);
+			jobs::JobSystem::FlushJobs();
+
+			gns::Time::EndFrameTime();
+		}
+		GNS_PROFILE_END_FRAME();
 	}
 }
 

@@ -12,6 +12,7 @@
 #include "EditorGUI/Windows/IconBrowserWindow.h"
 #include "EditorGUI/Windows/InspectorWindow.h"
 #include "EditorGUI/Windows/ProjectFilesWindow.h"
+#include "EditorGUI/Windows/ProfilerWindow.h"
 #include "EditorGUI/Windows/SceneHierarchyWindow.h"
 #include "EditorGUI/Windows/SceneViewWindow.h"
 #include "../Engine/Systems/GuiSystem.h"
@@ -19,7 +20,6 @@
 
 int main(int argc, char** argv)
 {
-    GNS_PROFILE_BEGIN_SESSION("GenesisEngine Editor", "profile/GenesisEngine-Editor.trace.json");
     GNS_PROFILE_THREAD("Genesis Main Thread");
 
     {
@@ -45,6 +45,7 @@ int main(int argc, char** argv)
                 gui->RegisterWindow<InspectorWindow>("Inspector");
                 gui->RegisterWindow<SceneViewWindow>("Scene View");
                 gui->RegisterWindow<ProjectFilesWindow>("Project Files", projectContext);
+                gui->RegisterWindow<ProfilerWindow>("Profiler");
                 gui->RegisterWindow<IconBrowserWindow>("Material Icons");
                 gui->RegisterWindow<TestEditorWindow>("testEditorWindow");
                 gui->RegisterWindow<SystemViewer>("SystemViewer");
@@ -54,6 +55,5 @@ int main(int argc, char** argv)
         }
     }
 
-    GNS_PROFILE_END_SESSION();
     std::getchar();
 }

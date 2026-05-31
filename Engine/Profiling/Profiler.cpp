@@ -1,12 +1,15 @@
 #include "gnspch.h"
 #include "Profiler.h"
 
+#include <cstddef>
 #include <fstream>
 #include <functional>
 #include <mutex>
 #include <system_error>
 #include <thread>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace
 {
@@ -23,6 +26,15 @@ namespace
 	bool g_sessionActive = false;
 	std::unordered_map<std::thread::id, uint32_t> g_threadIds;
 	uint32_t g_nextThreadId = 0;
+	std::size_t g_frameHistoryLimit = 300;
+	uint64_t g_nextFrameIndex = 0;
+	bool g_frameActive = false;
+	bool g_frameCaptureEnabled = true;
+	gns::profiling::ProfileFrameSample g_currentFrame;
+	std::chrono::steady_clock::time_point g_currentFrameStartTime;
+	std::vector<gns::profiling::ProfileFrameSample> g_frameHistory;
+	std::size_t g_frameHistoryStart = 0;
+	std::size_t g_frameHistoryCount = 0;
 
 	std::string JsonEscape(const std::string& value)
 	{
@@ -101,6 +113,51 @@ namespace
 		g_session = {};
 		g_sessionActive = false;
 	}
+
+	void PushFrameToHistory(gns::profiling::ProfileFrameSample frame)
+	{
+		if (g_frameHistoryLimit == 0)
+			return;
+
+		if (g_frameHistory.size() < g_frameHistoryLimit)
+		{
+			g_frameHistory.push_back(std::move(frame));
+			g_frameHistoryCount = g_frameHistory.size();
+			return;
+		}
+
+		g_frameHistory[g_frameHistoryStart] = std::move(frame);
+		g_frameHistoryStart = (g_frameHistoryStart + 1) % g_frameHistoryLimit;
+		g_frameHistoryCount = g_frameHistoryLimit;
+	}
+
+	std::vector<gns::profiling::ProfileFrameSample> GetFrameHistoryInChronologicalOrder()
+	{
+		std::vector<gns::profiling::ProfileFrameSample> frames;
+		frames.reserve(g_frameHistoryCount);
+
+		for (std::size_t i = 0; i < g_frameHistoryCount; ++i)
+		{
+			const std::size_t index = (g_frameHistoryStart + i) % g_frameHistory.size();
+			frames.push_back(g_frameHistory[index]);
+		}
+
+		return frames;
+	}
+
+	std::vector<gns::profiling::ProfileFrameOverview> GetFrameOverviewInChronologicalOrder()
+	{
+		std::vector<gns::profiling::ProfileFrameOverview> frames;
+		frames.reserve(g_frameHistoryCount);
+
+		for (std::size_t i = 0; i < g_frameHistoryCount; ++i)
+		{
+			const std::size_t index = (g_frameHistoryStart + i) % g_frameHistory.size();
+			frames.push_back({ g_frameHistory[index].frameIndex, g_frameHistory[index].frameTimeMs });
+		}
+
+		return frames;
+	}
 }
 
 void gns::profiling::Profiler::BeginSession(const std::string& name, const std::filesystem::path& outputPath)
@@ -136,6 +193,171 @@ void gns::profiling::Profiler::EndSession()
 	CloseSession();
 }
 
+void gns::profiling::Profiler::BeginFrame()
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	if (!g_frameCaptureEnabled)
+	{
+		g_frameActive = false;
+		return;
+	}
+
+	g_currentFrame = {};
+	g_currentFrame.frameIndex = g_nextFrameIndex++;
+	g_currentFrameStartTime = std::chrono::steady_clock::now();
+	g_frameActive = true;
+}
+
+void gns::profiling::Profiler::EndFrame()
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	if (!g_frameActive)
+		return;
+
+	const auto endTime = std::chrono::steady_clock::now();
+	g_currentFrame.frameTimeMs = std::chrono::duration<double, std::milli>(endTime - g_currentFrameStartTime).count();
+	PushFrameToHistory(std::move(g_currentFrame));
+
+	g_currentFrame = {};
+	g_frameActive = false;
+}
+
+void gns::profiling::Profiler::ClearFrameHistory()
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	g_frameHistory.clear();
+	g_frameHistoryStart = 0;
+	g_frameHistoryCount = 0;
+}
+
+void gns::profiling::Profiler::SetFrameHistoryLimit(std::size_t frameLimit)
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+
+	std::vector<gns::profiling::ProfileFrameSample> frames = GetFrameHistoryInChronologicalOrder();
+	g_frameHistoryLimit = frameLimit;
+
+	if (frames.size() > g_frameHistoryLimit)
+	{
+		frames.erase(frames.begin(), frames.begin() + static_cast<std::ptrdiff_t>(frames.size() - g_frameHistoryLimit));
+	}
+
+	g_frameHistory = std::move(frames);
+	g_frameHistoryStart = 0;
+	g_frameHistoryCount = g_frameHistory.size();
+}
+
+void gns::profiling::Profiler::SetFrameCaptureEnabled(bool enabled)
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	g_frameCaptureEnabled = enabled;
+	if (!g_frameCaptureEnabled)
+	{
+		g_currentFrame = {};
+		g_frameActive = false;
+	}
+}
+
+bool gns::profiling::Profiler::IsFrameCaptureEnabled()
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	return g_frameCaptureEnabled;
+}
+
+std::vector<gns::profiling::ProfileFrameSample> gns::profiling::Profiler::GetFrameHistory()
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	return GetFrameHistoryInChronologicalOrder();
+}
+
+std::vector<gns::profiling::ProfileFrameOverview> gns::profiling::Profiler::GetFrameOverview()
+{
+	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	return GetFrameOverviewInChronologicalOrder();
+}
+
+bool gns::profiling::Profiler::ExportFrameHistory(
+	const std::filesystem::path& outputPath,
+	const std::string& name)
+{
+	const std::vector<ProfileFrameSample> frames = GetFrameHistory();
+
+	if (outputPath.has_parent_path())
+	{
+		std::error_code error;
+		std::filesystem::create_directories(outputPath.parent_path(), error);
+		if (error)
+		{
+			return false;
+		}
+	}
+
+	std::ofstream stream(outputPath);
+	if (!stream.is_open())
+	{
+		return false;
+	}
+
+	stream << "{\"traceEvents\":[\n";
+	bool firstEvent = true;
+	int64_t frameStartUs = 0;
+
+	const auto beginTraceEvent = [&]()
+	{
+		if (!firstEvent)
+		{
+			stream << ",\n";
+			return;
+		}
+
+		firstEvent = false;
+	};
+
+	beginTraceEvent();
+	stream
+		<< "{\"cat\":\"metadata\","
+		<< "\"name\":\"process_name\","
+		<< "\"ph\":\"M\","
+		<< "\"pid\":0,"
+		<< "\"tid\":0,"
+		<< "\"args\":{\"name\":\"" << JsonEscape(name) << "\"}}";
+
+	for (const ProfileFrameSample& frame : frames)
+	{
+		beginTraceEvent();
+		stream
+			<< "{\"cat\":\"frame\","
+			<< "\"name\":\"Frame " << frame.frameIndex << "\","
+			<< "\"ph\":\"X\","
+			<< "\"ts\":" << frameStartUs << ","
+			<< "\"dur\":" << static_cast<int64_t>(frame.frameTimeMs * 1000.0) << ","
+			<< "\"pid\":0,"
+			<< "\"tid\":0,"
+			<< "\"args\":{\"frameIndex\":" << frame.frameIndex << "}}";
+
+		for (const ProfileScopeSample& scope : frame.scopes)
+		{
+			beginTraceEvent();
+			stream
+				<< "{\"cat\":\"scope\","
+				<< "\"name\":\"" << JsonEscape(scope.name) << "\","
+				<< "\"ph\":\"X\","
+				<< "\"ts\":" << frameStartUs + scope.startUs << ","
+				<< "\"dur\":" << scope.durationUs << ","
+				<< "\"pid\":0,"
+				<< "\"tid\":" << scope.threadId << ","
+				<< "\"args\":{";
+			stream << "\"file\":\"" << JsonEscape(scope.file) << "\"";
+			stream << ",\"line\":" << scope.line << ",\"frameIndex\":" << frame.frameIndex << "}}";
+		}
+
+		frameStartUs += static_cast<int64_t>(frame.frameTimeMs * 1000.0);
+	}
+
+	stream << "\n]}";
+	return true;
+}
+
 void gns::profiling::Profiler::WriteScope(
 	const char* name,
 	const char* file,
@@ -144,6 +366,20 @@ void gns::profiling::Profiler::WriteScope(
 	std::chrono::microseconds duration)
 {
 	std::lock_guard<std::mutex> lock(g_profilerMutex);
+	const uint32_t threadId = ThreadId();
+
+	if (g_frameActive)
+	{
+		gns::profiling::ProfileScopeSample sample;
+		sample.name = name != nullptr ? name : "Scope";
+		sample.file = file != nullptr ? file : "";
+		sample.line = line;
+		sample.threadId = threadId;
+		sample.startUs = std::chrono::duration_cast<std::chrono::microseconds>(startTime - g_currentFrameStartTime).count();
+		sample.durationUs = duration.count();
+		g_currentFrame.scopes.push_back(std::move(sample));
+	}
+
 	if (!g_sessionActive)
 		return;
 
@@ -156,7 +392,7 @@ void gns::profiling::Profiler::WriteScope(
 		<< "\"ts\":" << MicrosecondsSinceSessionStart(startTime) << ","
 		<< "\"dur\":" << duration.count() << ","
 		<< "\"pid\":0,"
-		<< "\"tid\":" << ThreadId() << ","
+		<< "\"tid\":" << threadId << ","
 		<< "\"args\":{";
 	WriteStringArg("file", file != nullptr ? file : "");
 	g_session.stream << ",\"line\":" << line << "}}";

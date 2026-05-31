@@ -10,12 +10,24 @@ GuiWindow::GuiWindow(std::string title): open(true), Title(std::move(title)){}
 
 void GuiWindow::BeginWindow()
 {
-    ImGui::Begin(Title.c_str(), &open);
+    if (!open)
+    {
+        visible = false;
+        began = false;
+        return;
+    }
+
+    visible = ImGui::Begin(Title.c_str(), &open);
+    began = true;
 }
 
 void GuiWindow::EndWindow()
 {
-    ImGui::End();
+    if (began)
+    {
+        ImGui::End();
+        began = false;
+    }
 }
 
 void GuiSystem::DrawWindows() const
@@ -23,7 +35,10 @@ void GuiSystem::DrawWindows() const
     for (auto& window : Windows)
     {
         window->BeginWindow();
-        window->OnDraw();
+        if (window->ShouldDraw())
+        {
+            window->OnDraw();
+        }
         window->EndWindow();
     }
 }
