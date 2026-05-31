@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <unordered_set>
 
 #include <glm/detail/type_quat.hpp>
 #include <glm/ext/quaternion_trigonometric.hpp>
@@ -130,7 +131,6 @@ void gns::RenderSystem::OnLateUpdate(float deltaTime)
 {
 	GNS_PROFILE_FUNCTION();
 	RenderSubmission submission;
-	submission.uploads = ConsumePendingRenderUploads();
 
 	{
 		GNS_PROFILE_SCOPE("RenderSystem::BuildRenderFramePacket");
@@ -150,6 +150,7 @@ void gns::RenderSystem::OnLateUpdate(float deltaTime)
 		}
 	}
 
+	submission.uploads = ConsumePendingRenderUploads();
 	submission.packet = m_framePacket;
 	m_renderThread.Submit(std::move(submission));
 }
@@ -952,6 +953,7 @@ void gns::RenderSystem::BuildDrawData()
 		return;
 	}
 	uint32_t index = 0;
+	std::unordered_set<uint64_t> queuedFrameMaterialUploads;
 	core::SystemsManager::ForEach<SceneMemberComponent, Transform, MeshComponent>([&](
 		const SceneMemberComponent& sceneMember,
 		const Transform& transform,
@@ -992,6 +994,11 @@ void gns::RenderSystem::BuildDrawData()
 				assetSystem->QueueAsset(meshComp.material.m_handle);
 			}
 			return;
+		}
+
+		if (queuedFrameMaterialUploads.insert(material->GetHandle().Get()).second)
+		{
+			QueueMaterialUpload(*material, true);
 		}
 
 		Shader* shader = nullptr;
