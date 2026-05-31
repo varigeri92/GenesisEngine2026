@@ -2,8 +2,6 @@
 
 GenesisEngine is a Windows-focused C++20 Vulkan engine and editor workspace. The codebase is organized around an engine shared library, an editor executable, and a small Premake/CMake helper project for Assimp.
 
-This documentation is written as Markdown so it can be consumed directly in a repository browser or fed into a static documentation site generator later.
-
 ## Start Here
 
 - [Project Overview](project-overview.md)
@@ -22,7 +20,6 @@ This documentation is written as Markdown so it can be consumed directly in a re
 | --- | --- | --- |
 | `Engine` | Shared library | Core runtime, ECS, systems, Vulkan renderer, assets, windowing, GUI backend, and public API headers. |
 | `Editor` | Console application | Launches the engine with editor systems and ImGui windows. |
-| `assimp` | Premake utility project | Generates, builds, and copies Assimp binaries through CMake. |
 
 ## Current Shape
 
